@@ -1,0 +1,99 @@
+# IDE 配置文件
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Visual Studio 相关
+*.vcxproj.user
+*.vcxproj.filters
+*.sln.docstates
+*.suo
+*.user
+*.userosscache
+*.sln.docstates.json
+
+# CMake 构建文件
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+install_manifest.txt
+compile_commands.json
+
+# 编译输出
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.obj
+*.o
+*.a
+*.so
+*.dylib
+
+# 调试文件
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+
+# Demo 目录（根据要求忽略）
+demo/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 包管理器
+node_modules/
+*.tgz
+*.tar.gz
+
+# 测试覆盖率
+coverage/
+*.gcov
+*.gcda
+*.gcno
+
+# 文档生成
+docs/_build/
+site/
+
+# 环境配置
+.env
+.env.local
+.env.*.local
+
+# 缓存
+*.cache
+.cache/
+
+# 第三方库（如果不需要版本控制）
+# lib/third_party/
+
+# 资源文件（根据需要调整）
+# resources/
+
+# 配置文件（敏感信息）
+config.local.*
+*.secret

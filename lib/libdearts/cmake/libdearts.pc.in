@@ -1,0 +1,15 @@
+prefix=@CMAKE_INSTALL_PREFIX@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: libdearts
+Description: DearTs Core Library - Modern C++ application framework with SDL2 and ImGui
+Version: @PROJECT_VERSION@
+URL: https://github.com/your-username/DearTs
+Requires: sdl2 >= 2.0.0
+Requires.private: 
+Conflicts: 
+Libs: -L${libdir} -ldearts
+Libs.private: 
+Cflags: -I${includedir}

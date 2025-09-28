@@ -1,0 +1,287 @@
+/**
+ * DearTs Project Configuration Header
+ * 
+ * 项目配置头文件 - 由CMake自动生成的项目配置信息
+ * 包含版本信息、编译选项、功能特性等项目运行时需要的配置数据
+ * 
+ * @author DearTs Team
+ * @version @DEARTS_VERSION@
+ * @date 2025
+ * 
+ * @note 此文件由CMake自动生成，请勿手动修改
+ */
+
+#pragma once
+
+#ifndef DEARTS_CONFIG_H
+#define DEARTS_CONFIG_H
+
+// 项目版本信息
+#define DEARTS_VERSION_MAJOR @DEARTS_VERSION_MAJOR@
+#define DEARTS_VERSION_MINOR @DEARTS_VERSION_MINOR@
+#define DEARTS_VERSION_PATCH @DEARTS_VERSION_PATCH@
+#define DEARTS_VERSION "@DEARTS_VERSION@"
+
+// 构建配置
+#define DEARTS_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+#define DEARTS_CXX_STANDARD @CMAKE_CXX_STANDARD@
+#define DEARTS_COMPILER "@CMAKE_CXX_COMPILER_ID@"
+#define DEARTS_COMPILER_VERSION "@CMAKE_CXX_COMPILER_VERSION@"
+#define DEARTS_PLATFORM "@CMAKE_SYSTEM_NAME@"
+#define DEARTS_ARCHITECTURE "@CMAKE_SYSTEM_PROCESSOR@"
+
+// 功能特性配置
+#cmakedefine DEARTS_BUILD_TESTS
+#cmakedefine DEARTS_BUILD_DOCS
+#cmakedefine DEARTS_BUILD_EXAMPLES
+#cmakedefine DEARTS_ENABLE_LOGGING
+#cmakedefine DEARTS_ENABLE_PROFILING
+
+// 调试配置
+#ifdef DEARTS_DEBUG
+    #define DEARTS_DEBUG_MODE 1
+#else
+    #define DEARTS_DEBUG_MODE 0
+#endif
+
+// 平台特定配置
+#ifdef _WIN32
+    #define DEARTS_PLATFORM_WINDOWS 1
+    #define DEARTS_PLATFORM_UNIX 0
+    #define DEARTS_PLATFORM_MACOS 0
+#elif defined(__APPLE__)
+    #define DEARTS_PLATFORM_WINDOWS 0
+    #define DEARTS_PLATFORM_UNIX 0
+    #define DEARTS_PLATFORM_MACOS 1
+#else
+    #define DEARTS_PLATFORM_WINDOWS 0
+    #define DEARTS_PLATFORM_UNIX 1
+    #define DEARTS_PLATFORM_MACOS 0
+#endif
+
+// 编译器特定配置
+#ifdef _MSC_VER
+    #define DEARTS_COMPILER_MSVC 1
+    #define DEARTS_COMPILER_GCC 0
+    #define DEARTS_COMPILER_CLANG 0
+#elif defined(__GNUC__) && !defined(__clang__)
+    #define DEARTS_COMPILER_MSVC 0
+    #define DEARTS_COMPILER_GCC 1
+    #define DEARTS_COMPILER_CLANG 0
+#elif defined(__clang__)
+    #define DEARTS_COMPILER_MSVC 0
+    #define DEARTS_COMPILER_GCC 0
+    #define DEARTS_COMPILER_CLANG 1
+#else
+    #define DEARTS_COMPILER_MSVC 0
+    #define DEARTS_COMPILER_GCC 0
+    #define DEARTS_COMPILER_CLANG 0
+#endif
+
+// API导出宏
+#ifdef _WIN32
+    #ifdef DEARTS_EXPORTS
+        #define DEARTS_API __declspec(dllexport)
+    #elif defined(DEARTS_SHARED)
+        #define DEARTS_API __declspec(dllimport)
+    #else
+        #define DEARTS_API
+    #endif
+#else
+    #ifdef DEARTS_SHARED
+        #define DEARTS_API __attribute__((visibility("default")))
+    #else
+        #define DEARTS_API
+    #endif
+#endif
+
+// 调用约定
+#ifdef _WIN32
+    #define DEARTS_CALL __cdecl
+#else
+    #define DEARTS_CALL
+#endif
+
+// 内联宏
+#ifdef _MSC_VER
+    #define DEARTS_INLINE __forceinline
+#elif defined(__GNUC__) || defined(__clang__)
+    #define DEARTS_INLINE __attribute__((always_inline)) inline
+#else
+    #define DEARTS_INLINE inline
+#endif
+
+// 对齐宏
+#ifdef _MSC_VER
+    #define DEARTS_ALIGN(n) __declspec(align(n))
+#elif defined(__GNUC__) || defined(__clang__)
+    #define DEARTS_ALIGN(n) __attribute__((aligned(n)))
+#else
+    #define DEARTS_ALIGN(n)
+#endif
+
+// 弃用宏
+#ifdef _MSC_VER
+    #define DEARTS_DEPRECATED __declspec(deprecated)
+#elif defined(__GNUC__) || defined(__clang__)
+    #define DEARTS_DEPRECATED __attribute__((deprecated))
+#else
+    #define DEARTS_DEPRECATED
+#endif
+
+// 无返回宏
+#ifdef _MSC_VER
+    #define DEARTS_NORETURN __declspec(noreturn)
+#elif defined(__GNUC__) || defined(__clang__)
+    #define DEARTS_NORETURN __attribute__((noreturn))
+#else
+    #define DEARTS_NORETURN
+#endif
+
+// 纯函数宏
+#ifdef __GNUC__
+    #define DEARTS_PURE __attribute__((pure))
+    #define DEARTS_CONST __attribute__((const))
+#else
+    #define DEARTS_PURE
+    #define DEARTS_CONST
+#endif
+
+// 分支预测宏
+#ifdef __GNUC__
+    #define DEARTS_LIKELY(x) __builtin_expect(!!(x), 1)
+    #define DEARTS_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+    #define DEARTS_LIKELY(x) (x)
+    #define DEARTS_UNLIKELY(x) (x)
+#endif
+
+// 断言宏
+#if DEARTS_DEBUG_MODE
+    #include <cassert>
+    #define DEARTS_ASSERT(condition, message) assert((condition) && (message))
+    #define DEARTS_ASSERT_MSG(condition, message) assert((condition) && (message))
+#else
+    #define DEARTS_ASSERT(condition, message) ((void)0)
+    #define DEARTS_ASSERT_MSG(condition, message) ((void)0)
+#endif
+
+// 日志宏
+#ifdef DEARTS_ENABLE_LOGGING
+    #define DEARTS_LOGGING_ENABLED 1
+#else
+    #define DEARTS_LOGGING_ENABLED 0
+#endif
+
+// 性能分析宏
+#ifdef DEARTS_ENABLE_PROFILING
+    #define DEARTS_PROFILING_ENABLED 1
+#else
+    #define DEARTS_PROFILING_ENABLED 0
+#endif
+
+// 字符串化宏
+#define DEARTS_STRINGIFY(x) #x
+#define DEARTS_TOSTRING(x) DEARTS_STRINGIFY(x)
+
+// 连接宏
+#define DEARTS_CONCAT(a, b) a##b
+#define DEARTS_CONCAT2(a, b) DEARTS_CONCAT(a, b)
+
+// 唯一标识符宏
+#define DEARTS_UNIQUE_ID(prefix) DEARTS_CONCAT2(prefix, __LINE__)
+
+// 数组大小宏
+#define DEARTS_ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
+// 偏移量宏
+#define DEARTS_OFFSET_OF(type, member) offsetof(type, member)
+
+// 容器宏
+#define DEARTS_CONTAINER_OF(ptr, type, member) \
+    ((type*)((char*)(ptr) - DEARTS_OFFSET_OF(type, member)))
+
+// 位操作宏
+#define DEARTS_BIT(n) (1U << (n))
+#define DEARTS_SET_BIT(value, bit) ((value) |= DEARTS_BIT(bit))
+#define DEARTS_CLEAR_BIT(value, bit) ((value) &= ~DEARTS_BIT(bit))
+#define DEARTS_TOGGLE_BIT(value, bit) ((value) ^= DEARTS_BIT(bit))
+#define DEARTS_TEST_BIT(value, bit) (((value) & DEARTS_BIT(bit)) != 0)
+
+// 对齐宏
+#define DEARTS_ALIGN_UP(value, alignment) \
+    (((value) + (alignment) - 1) & ~((alignment) - 1))
+#define DEARTS_ALIGN_DOWN(value, alignment) \
+    ((value) & ~((alignment) - 1))
+#define DEARTS_IS_ALIGNED(value, alignment) \
+    (((value) & ((alignment) - 1)) == 0)
+
+// 最小/最大宏
+#ifndef DEARTS_MIN
+    #define DEARTS_MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
+#ifndef DEARTS_MAX
+    #define DEARTS_MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+#define DEARTS_CLAMP(value, min_val, max_val) \
+    DEARTS_MAX((min_val), DEARTS_MIN((value), (max_val)))
+
+// 交换宏
+#define DEARTS_SWAP(a, b) do { \
+    auto temp = (a); \
+    (a) = (b); \
+    (b) = temp; \
+} while(0)
+
+// 安全删除宏
+#define DEARTS_SAFE_DELETE(ptr) do { \
+    delete (ptr); \
+    (ptr) = nullptr; \
+} while(0)
+
+#define DEARTS_SAFE_DELETE_ARRAY(ptr) do { \
+    delete[] (ptr); \
+    (ptr) = nullptr; \
+} while(0)
+
+// 禁用拷贝宏
+#define DEARTS_DISABLE_COPY(ClassName) \
+    ClassName(const ClassName&) = delete; \
+    ClassName& operator=(const ClassName&) = delete;
+
+// 禁用移动宏
+#define DEARTS_DISABLE_MOVE(ClassName) \
+    ClassName(ClassName&&) = delete; \
+    ClassName& operator=(ClassName&&) = delete;
+
+// 禁用拷贝和移动宏
+#define DEARTS_DISABLE_COPY_AND_MOVE(ClassName) \
+    DEARTS_DISABLE_COPY(ClassName) \
+    DEARTS_DISABLE_MOVE(ClassName)
+
+// 单例宏
+#define DEARTS_SINGLETON(ClassName) \
+public: \
+    static ClassName& getInstance() { \
+        static ClassName instance; \
+        return instance; \
+    } \
+private: \
+    DEARTS_DISABLE_COPY_AND_MOVE(ClassName)
+
+// 版本比较宏
+#define DEARTS_VERSION_CHECK(major, minor, patch) \
+    (DEARTS_VERSION_MAJOR > (major) || \
+     (DEARTS_VERSION_MAJOR == (major) && DEARTS_VERSION_MINOR > (minor)) || \
+     (DEARTS_VERSION_MAJOR == (major) && DEARTS_VERSION_MINOR == (minor) && DEARTS_VERSION_PATCH >= (patch)))
+
+// 功能检查宏
+#define DEARTS_HAS_FEATURE(feature) (DEARTS_##feature##_ENABLED)
+
+// 构建信息
+#define DEARTS_BUILD_INFO \
+    "DearTs " DEARTS_VERSION " (" DEARTS_BUILD_TYPE ") " \
+    "Built with " DEARTS_COMPILER " " DEARTS_COMPILER_VERSION " " \
+    "for " DEARTS_PLATFORM " (" DEARTS_ARCHITECTURE ")"
+
+#endif // DEARTS_CONFIG_H

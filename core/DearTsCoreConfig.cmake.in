@@ -1,0 +1,238 @@
+# DearTs Core Library CMake Configuration File
+# 
+# 核心库CMake配置文件 - 用于其他项目查找和使用DearTs核心库
+# 提供目标导入、依赖管理和配置信息
+# 
+# @author DearTs Team
+# @version @PROJECT_VERSION@
+# @date 2025
+
+@PACKAGE_INIT@
+
+# 包信息
+set(DEARTS_CORE_VERSION "@PROJECT_VERSION@")
+set(DEARTS_CORE_VERSION_MAJOR @PROJECT_VERSION_MAJOR@)
+set(DEARTS_CORE_VERSION_MINOR @PROJECT_VERSION_MINOR@)
+set(DEARTS_CORE_VERSION_PATCH @PROJECT_VERSION_PATCH@)
+
+# 检查版本兼容性
+if(DEARTS_CORE_VERSION VERSION_LESS DEARTS_CORE_FIND_VERSION)
+    set(DEARTS_CORE_FOUND FALSE)
+    return()
+endif()
+
+# 设置路径
+get_filename_component(DEARTS_CORE_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+set(DEARTS_CORE_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
+
+# 查找依赖
+include(CMakeFindDependencyMacro)
+
+# 查找SDL2
+if(WIN32)
+    # Windows平台使用预编译库
+    set(SDL2_DIR "@CMAKE_SOURCE_DIR@/third_party/SDL2")
+    set(SDL2_TTF_DIR "@CMAKE_SOURCE_DIR@/third_party/SDL2_ttf")
+    
+    if(NOT TARGET SDL2::SDL2)
+        find_library(SDL2_LIBRARY
+            NAMES SDL2
+            PATHS ${SDL2_DIR}/lib/x64
+            NO_DEFAULT_PATH
+        )
+        
+        if(SDL2_LIBRARY)
+            add_library(SDL2::SDL2 UNKNOWN IMPORTED)
+            set_target_properties(SDL2::SDL2 PROPERTIES
+                IMPORTED_LOCATION "${SDL2_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${SDL2_DIR}/include"
+            )
+        endif()
+    endif()
+    
+    if(NOT TARGET SDL2::SDL2_ttf)
+        find_library(SDL2_TTF_LIBRARY
+            NAMES SDL2_ttf
+            PATHS ${SDL2_TTF_DIR}/lib/x64
+            NO_DEFAULT_PATH
+        )
+        
+        if(SDL2_TTF_LIBRARY)
+            add_library(SDL2::SDL2_ttf UNKNOWN IMPORTED)
+            set_target_properties(SDL2::SDL2_ttf PROPERTIES
+                IMPORTED_LOCATION "${SDL2_TTF_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${SDL2_TTF_DIR}/include"
+            )
+        endif()
+    endif()
+else()
+    # Unix平台使用pkg-config
+    find_dependency(PkgConfig REQUIRED)
+    pkg_check_modules(SDL2 REQUIRED sdl2)
+    pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
+endif()
+
+# 查找ImGui
+if(NOT TARGET ImGui)
+    set(IMGUI_DIR "@CMAKE_SOURCE_DIR@/third_party/imgui")
+    if(EXISTS "${IMGUI_DIR}")
+        # 创建ImGui目标（如果不存在）
+        add_library(ImGui STATIC
+            ${IMGUI_DIR}/imgui.cpp
+            ${IMGUI_DIR}/imgui_demo.cpp
+            ${IMGUI_DIR}/imgui_draw.cpp
+            ${IMGUI_DIR}/imgui_tables.cpp
+            ${IMGUI_DIR}/imgui_widgets.cpp
+            ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
+            ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer2.cpp
+        )
+        
+        target_include_directories(ImGui PUBLIC
+            ${IMGUI_DIR}
+            ${IMGUI_DIR}/backends
+        )
+        
+        if(WIN32)
+            target_link_libraries(ImGui PRIVATE SDL2::SDL2)
+        else()
+            target_link_libraries(ImGui PRIVATE ${SDL2_LIBRARIES})
+            target_include_directories(ImGui PRIVATE ${SDL2_INCLUDE_DIRS})
+        endif()
+    endif()
+endif()
+
+# 导入目标
+if(NOT TARGET DearTs::Core)
+    include("${DEARTS_CORE_CMAKE_DIR}/DearTsCoreTargets.cmake")
+endif()
+
+# 设置变量
+set(DEARTS_CORE_LIBRARIES DearTs::Core)
+set(DEARTS_CORE_FOUND TRUE)
+
+# 功能检查
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-std=c++20" COMPILER_SUPPORTS_CXX20)
+if(NOT COMPILER_SUPPORTS_CXX20)
+    message(FATAL_ERROR "DearTs Core requires C++20 support")
+endif()
+
+# 平台检查
+if(WIN32)
+    set(DEARTS_CORE_PLATFORM "Windows")
+elseif(APPLE)
+    set(DEARTS_CORE_PLATFORM "macOS")
+elseif(UNIX)
+    set(DEARTS_CORE_PLATFORM "Linux")
+else()
+    message(WARNING "Unsupported platform for DearTs Core")
+endif()
+
+# 组件检查
+set(DEARTS_CORE_COMPONENTS_FOUND)
+foreach(component ${DEARTS_CORE_FIND_COMPONENTS})
+    if(component STREQUAL "Events")
+        list(APPEND DEARTS_CORE_COMPONENTS_FOUND "Events")
+    elseif(component STREQUAL "GUI")
+        list(APPEND DEARTS_CORE_COMPONENTS_FOUND "GUI")
+    elseif(component STREQUAL "Utils")
+        list(APPEND DEARTS_CORE_COMPONENTS_FOUND "Utils")
+    else()
+        if(DEARTS_CORE_FIND_REQUIRED_${component})
+            message(FATAL_ERROR "DearTs Core component '${component}' not found")
+        else()
+            message(WARNING "DearTs Core component '${component}' not found")
+        endif()
+    endif()
+endforeach()
+
+# 配置宏
+macro(dearts_core_setup_target target)
+    # 设置C++标准
+    set_target_properties(${target} PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+    )
+    
+    # 添加编译定义
+    target_compile_definitions(${target} PRIVATE
+        $<$<CONFIG:Debug>:DEARTS_DEBUG>
+        $<$<CONFIG:Release>:DEARTS_RELEASE>
+        $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>
+        $<$<PLATFORM_ID:Windows>:NOMINMAX>
+    )
+    
+    # 添加编译选项
+    if(MSVC)
+        target_compile_options(${target} PRIVATE
+            /W4
+            /utf-8
+            /permissive-
+            /Zc:__cplusplus
+        )
+    else()
+        target_compile_options(${target} PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+            -Wno-unused-parameter
+        )
+    endif()
+endmacro()
+
+# 便利函数
+function(dearts_core_add_executable target)
+    cmake_parse_arguments(DEARTS_CORE "" "" "SOURCES;HEADERS;LIBRARIES" ${ARGN})
+    
+    add_executable(${target} ${DEARTS_CORE_SOURCES} ${DEARTS_CORE_HEADERS})
+    
+    # 链接核心库
+    target_link_libraries(${target} PRIVATE DearTs::Core)
+    
+    # 链接额外库
+    if(DEARTS_CORE_LIBRARIES)
+        target_link_libraries(${target} PRIVATE ${DEARTS_CORE_LIBRARIES})
+    endif()
+    
+    # 应用配置
+    dearts_core_setup_target(${target})
+endfunction()
+
+function(dearts_core_add_library target)
+    cmake_parse_arguments(DEARTS_CORE "STATIC;SHARED" "" "SOURCES;HEADERS;LIBRARIES" ${ARGN})
+    
+    if(DEARTS_CORE_STATIC)
+        set(lib_type STATIC)
+    elseif(DEARTS_CORE_SHARED)
+        set(lib_type SHARED)
+    else()
+        set(lib_type STATIC)
+    endif()
+    
+    add_library(${target} ${lib_type} ${DEARTS_CORE_SOURCES} ${DEARTS_CORE_HEADERS})
+    
+    # 链接核心库
+    target_link_libraries(${target} PUBLIC DearTs::Core)
+    
+    # 链接额外库
+    if(DEARTS_CORE_LIBRARIES)
+        target_link_libraries(${target} PUBLIC ${DEARTS_CORE_LIBRARIES})
+    endif()
+    
+    # 应用配置
+    dearts_core_setup_target(${target})
+endfunction()
+
+# 调试信息
+if(DEARTS_CORE_DEBUG)
+    message(STATUS "DearTs Core Configuration:")
+    message(STATUS "  Version: ${DEARTS_CORE_VERSION}")
+    message(STATUS "  Platform: ${DEARTS_CORE_PLATFORM}")
+    message(STATUS "  Include Dirs: ${DEARTS_CORE_INCLUDE_DIRS}")
+    message(STATUS "  Libraries: ${DEARTS_CORE_LIBRARIES}")
+    message(STATUS "  Components Found: ${DEARTS_CORE_COMPONENTS_FOUND}")
+endif()
+
+# 检查所有必需组件
+check_required_components(DearTsCore)

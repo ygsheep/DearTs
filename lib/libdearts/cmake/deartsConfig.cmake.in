@@ -1,0 +1,36 @@
+@PACKAGE_INIT@
+
+# DearTs CMake配置文件
+# 版本: @PROJECT_VERSION@
+
+include(CMakeFindDependencyMacro)
+
+# 查找依赖项
+find_dependency(SDL2 REQUIRED)
+find_dependency(PkgConfig QUIET)
+if(PKG_CONFIG_FOUND)
+    pkg_check_modules(SDL2_TTF QUIET sdl2_ttf)
+endif()
+
+# 包含目标文件
+include("${CMAKE_CURRENT_LIST_DIR}/deartsTargets.cmake")
+
+# 设置变量
+set(DEARTS_VERSION @PROJECT_VERSION@)
+set(DEARTS_VERSION_MAJOR @PROJECT_VERSION_MAJOR@)
+set(DEARTS_VERSION_MINOR @PROJECT_VERSION_MINOR@)
+set(DEARTS_VERSION_PATCH @PROJECT_VERSION_PATCH@)
+
+# 检查所有必需的组件是否可用
+check_required_components(dearts)
+
+# 提供便利变量
+set(DEARTS_LIBRARIES dearts::dearts)
+set(DEARTS_INCLUDE_DIRS "${PACKAGE_PREFIX_DIR}/include")
+
+# 状态信息
+if(NOT dearts_FIND_QUIETLY)
+    message(STATUS "Found DearTs: ${DEARTS_VERSION}")
+    message(STATUS "DearTs libraries: ${DEARTS_LIBRARIES}")
+    message(STATUS "DearTs include dirs: ${DEARTS_INCLUDE_DIRS}")
+endif()

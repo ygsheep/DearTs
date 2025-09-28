@@ -1,0 +1,207 @@
+/**
+ * DearTs Plugin System Configuration Header
+ * 
+ * 插件系统配置头文件 - 由CMake自动生成的插件系统配置信息
+ * 包含版本信息、编译选项、路径配置等插件系统运行时需要的配置数据
+ * 
+ * @author DearTs Team
+ * @version @DEARTS_PLUGIN_VERSION@
+ * @date 2025
+ * 
+ * @note 此文件由CMake自动生成，请勿手动修改
+ */
+
+#pragma once
+
+#ifndef DEARTS_PLUGIN_CONFIG_H
+#define DEARTS_PLUGIN_CONFIG_H
+
+// 插件系统版本信息
+#define DEARTS_PLUGIN_VERSION_MAJOR @DEARTS_PLUGIN_VERSION_MAJOR@
+#define DEARTS_PLUGIN_VERSION_MINOR @DEARTS_PLUGIN_VERSION_MINOR@
+#define DEARTS_PLUGIN_VERSION_PATCH @DEARTS_PLUGIN_VERSION_PATCH@
+#define DEARTS_PLUGIN_VERSION "@DEARTS_PLUGIN_VERSION@"
+
+// 编译配置
+#cmakedefine DEARTS_PLUGIN_SHARED
+#cmakedefine DEARTS_PLUGIN_STATIC
+#cmakedefine DEARTS_BUILD_BUILTIN_PLUGINS
+#cmakedefine DEARTS_BUILD_EXTERNAL_PLUGINS
+#cmakedefine DEARTS_PLUGIN_STATIC_RUNTIME
+
+// 路径配置
+#define DEARTS_BUILTIN_PLUGINS_DIR "@DEARTS_BUILTIN_PLUGINS_DIR@"
+#define DEARTS_EXTERNAL_PLUGINS_DIR "@DEARTS_EXTERNAL_PLUGINS_DIR@"
+#define DEARTS_PLUGIN_OUTPUT_DIR "@DEARTS_PLUGIN_OUTPUT_DIR@"
+#define DEARTS_PLUGIN_CONFIG_DIR "@DEARTS_PLUGIN_CONFIG_DIR@"
+
+// 平台特定配置
+#ifdef _WIN32
+    #define DEARTS_PLUGIN_PLATFORM "Windows"
+    #ifdef DEARTS_PLUGIN_SHARED
+        #define DEARTS_PLUGIN_EXTENSION ".dll"
+    #else
+        #define DEARTS_PLUGIN_EXTENSION ".lib"
+    #endif
+#elif defined(__APPLE__)
+    #define DEARTS_PLUGIN_PLATFORM "macOS"
+    #ifdef DEARTS_PLUGIN_SHARED
+        #define DEARTS_PLUGIN_EXTENSION ".dylib"
+    #else
+        #define DEARTS_PLUGIN_EXTENSION ".a"
+    #endif
+#else
+    #define DEARTS_PLUGIN_PLATFORM "Linux"
+    #ifdef DEARTS_PLUGIN_SHARED
+        #define DEARTS_PLUGIN_EXTENSION ".so"
+    #else
+        #define DEARTS_PLUGIN_EXTENSION ".a"
+    #endif
+#endif
+
+// 插件导出宏
+#ifdef _WIN32
+    #ifdef DEARTS_PLUGIN_EXPORTS
+        #define DEARTS_PLUGIN_API __declspec(dllexport)
+    #elif defined(DEARTS_PLUGIN_SHARED)
+        #define DEARTS_PLUGIN_API __declspec(dllimport)
+    #else
+        #define DEARTS_PLUGIN_API
+    #endif
+#else
+    #ifdef DEARTS_PLUGIN_SHARED
+        #define DEARTS_PLUGIN_API __attribute__((visibility("default")))
+    #else
+        #define DEARTS_PLUGIN_API
+    #endif
+#endif
+
+// 插件调用约定
+#ifdef _WIN32
+    #define DEARTS_PLUGIN_CALL __cdecl
+#else
+    #define DEARTS_PLUGIN_CALL
+#endif
+
+// 编译器特定配置
+#ifdef _MSC_VER
+    #define DEARTS_PLUGIN_COMPILER "MSVC"
+    #define DEARTS_PLUGIN_COMPILER_VERSION _MSC_VER
+#elif defined(__GNUC__)
+    #define DEARTS_PLUGIN_COMPILER "GCC"
+    #define DEARTS_PLUGIN_COMPILER_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+#elif defined(__clang__)
+    #define DEARTS_PLUGIN_COMPILER "Clang"
+    #define DEARTS_PLUGIN_COMPILER_VERSION (__clang_major__ * 10000 + __clang_minor__ * 100 + __clang_patchlevel__)
+#else
+    #define DEARTS_PLUGIN_COMPILER "Unknown"
+    #define DEARTS_PLUGIN_COMPILER_VERSION 0
+#endif
+
+// 调试配置
+#ifdef DEARTS_DEBUG
+    #define DEARTS_PLUGIN_DEBUG 1
+#else
+    #define DEARTS_PLUGIN_DEBUG 0
+#endif
+
+// 功能特性配置
+#define DEARTS_PLUGIN_FEATURES_HOTRELOAD 1
+#define DEARTS_PLUGIN_FEATURES_DEPENDENCY_INJECTION 1
+#define DEARTS_PLUGIN_FEATURES_EVENT_SYSTEM 1
+#define DEARTS_PLUGIN_FEATURES_CONFIG_SYSTEM 1
+#define DEARTS_PLUGIN_FEATURES_LOGGING 1
+
+// 插件系统限制
+#define DEARTS_PLUGIN_MAX_NAME_LENGTH 64
+#define DEARTS_PLUGIN_MAX_DESCRIPTION_LENGTH 256
+#define DEARTS_PLUGIN_MAX_VERSION_LENGTH 16
+#define DEARTS_PLUGIN_MAX_AUTHOR_LENGTH 64
+#define DEARTS_PLUGIN_MAX_PLUGINS 256
+#define DEARTS_PLUGIN_MAX_DEPENDENCIES 32
+
+// 插件状态枚举
+#define DEARTS_PLUGIN_STATE_UNLOADED 0
+#define DEARTS_PLUGIN_STATE_LOADED 1
+#define DEARTS_PLUGIN_STATE_INITIALIZED 2
+#define DEARTS_PLUGIN_STATE_RUNNING 3
+#define DEARTS_PLUGIN_STATE_PAUSED 4
+#define DEARTS_PLUGIN_STATE_ERROR 5
+
+// 插件类型枚举
+#define DEARTS_PLUGIN_TYPE_BUILTIN 0
+#define DEARTS_PLUGIN_TYPE_EXTERNAL 1
+#define DEARTS_PLUGIN_TYPE_DYNAMIC 2
+
+// 插件优先级
+#define DEARTS_PLUGIN_PRIORITY_CRITICAL 0
+#define DEARTS_PLUGIN_PRIORITY_HIGH 1
+#define DEARTS_PLUGIN_PRIORITY_NORMAL 2
+#define DEARTS_PLUGIN_PRIORITY_LOW 3
+
+// 插件事件类型
+#define DEARTS_PLUGIN_EVENT_LOAD "PluginLoad"
+#define DEARTS_PLUGIN_EVENT_UNLOAD "PluginUnload"
+#define DEARTS_PLUGIN_EVENT_INITIALIZE "PluginInitialize"
+#define DEARTS_PLUGIN_EVENT_DEINITIALIZE "PluginDeinitialize"
+#define DEARTS_PLUGIN_EVENT_ENABLE "PluginEnable"
+#define DEARTS_PLUGIN_EVENT_DISABLE "PluginDisable"
+#define DEARTS_PLUGIN_EVENT_ERROR "PluginError"
+
+// 插件接口版本
+#define DEARTS_PLUGIN_INTERFACE_VERSION 1
+
+// 插件ABI版本
+#define DEARTS_PLUGIN_ABI_VERSION 1
+
+// 构建信息
+#define DEARTS_PLUGIN_BUILD_DATE "@CMAKE_TIMESTAMP@"
+#define DEARTS_PLUGIN_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+#define DEARTS_PLUGIN_CMAKE_VERSION "@CMAKE_VERSION@"
+
+// 依赖库版本
+#define DEARTS_SDL_VERSION "@SDL2_VERSION@"
+#define DEARTS_OPENGL_VERSION "@OPENGL_VERSION@"
+
+// 插件系统配置验证宏
+#define DEARTS_PLUGIN_CONFIG_VALID() \
+    (DEARTS_PLUGIN_VERSION_MAJOR >= 1 && \
+     DEARTS_PLUGIN_INTERFACE_VERSION >= 1 && \
+     DEARTS_PLUGIN_ABI_VERSION >= 1)
+
+// 插件兼容性检查宏
+#define DEARTS_PLUGIN_COMPATIBLE(major, minor, patch) \
+    (DEARTS_PLUGIN_VERSION_MAJOR == (major) && \
+     DEARTS_PLUGIN_VERSION_MINOR >= (minor))
+
+// 插件功能检查宏
+#define DEARTS_PLUGIN_HAS_FEATURE(feature) \
+    (DEARTS_PLUGIN_FEATURES_##feature == 1)
+
+// 插件调试宏
+#if DEARTS_PLUGIN_DEBUG
+    #define DEARTS_PLUGIN_DEBUG_LOG(msg) \
+        fprintf(stderr, "[PLUGIN DEBUG] %s:%d: %s\n", __FILE__, __LINE__, msg)
+#else
+    #define DEARTS_PLUGIN_DEBUG_LOG(msg) ((void)0)
+#endif
+
+// 插件错误处理宏
+#define DEARTS_PLUGIN_ERROR_NONE 0
+#define DEARTS_PLUGIN_ERROR_INVALID_PARAMETER 1
+#define DEARTS_PLUGIN_ERROR_NOT_FOUND 2
+#define DEARTS_PLUGIN_ERROR_ALREADY_EXISTS 3
+#define DEARTS_PLUGIN_ERROR_INITIALIZATION_FAILED 4
+#define DEARTS_PLUGIN_ERROR_DEPENDENCY_MISSING 5
+#define DEARTS_PLUGIN_ERROR_VERSION_MISMATCH 6
+#define DEARTS_PLUGIN_ERROR_PERMISSION_DENIED 7
+#define DEARTS_PLUGIN_ERROR_UNKNOWN 999
+
+// 插件系统状态
+#define DEARTS_PLUGIN_SYSTEM_STATE_UNINITIALIZED 0
+#define DEARTS_PLUGIN_SYSTEM_STATE_INITIALIZING 1
+#define DEARTS_PLUGIN_SYSTEM_STATE_READY 2
+#define DEARTS_PLUGIN_SYSTEM_STATE_SHUTTING_DOWN 3
+#define DEARTS_PLUGIN_SYSTEM_STATE_ERROR 4
+
+#endif // DEARTS_PLUGIN_CONFIG_H
