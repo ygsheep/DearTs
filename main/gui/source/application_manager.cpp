@@ -17,8 +17,8 @@ ApplicationManager::ApplicationManager()
     : m_window(nullptr), m_renderer(nullptr), m_windowManager(nullptr),
       m_running(false), m_initialized(false) {
     
-    // 初始化日志系统
-    initializeLogging();
+    // 简单的日志输出
+    std::cout << "ApplicationManager constructed" << std::endl;
 }
 
 /**

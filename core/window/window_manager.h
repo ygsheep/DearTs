@@ -21,8 +21,7 @@
 #include "logger.h"
 #include "../events/event_system.h"
 
-// Forward declare the WindowTitleBar class
-class WindowTitleBar;
+
 
 namespace DearTs::Core::Window {
     class Window;
@@ -456,25 +455,7 @@ public:
     // 标题栏管理
     // ========================================================================
     
-    /**
-     * @brief 初始化窗口标题栏
-     */
-    bool initializeTitleBar();
     
-    /**
-     * @brief 渲染窗口标题栏
-     */
-    void renderTitleBar();
-    
-    /**
-     * @brief 处理标题栏事件
-     */
-    void handleTitleBarEvent(const SDL_Event& event);
-    
-    /**
-     * @brief 获取窗口标题栏
-     */
-    WindowTitleBar* getTitleBar() const { return title_bar_.get(); }
     
     // ========================================================================
     // 属性访问器
@@ -642,6 +623,16 @@ public:
      */
     void* getUserData() const { return user_data_; }
     
+    /**
+     * @brief 设置拖拽状态
+     */
+    void setDragging(bool dragging) { is_dragging_ = dragging; }
+    
+    /**
+     * @brief 检查是否正在拖拽
+     */
+    bool isDragging() const { return is_dragging_; }
+    
 private:
     /**
      * @brief 更新窗口状态
@@ -658,12 +649,13 @@ private:
     SDL_Window* sdl_window_;                               ///< SDL窗口句柄
     WindowState state_;                                     ///< 窗口状态
     bool should_close_;                                     ///< 是否应该关闭
+    bool is_dragging_;                                      ///< 是否正在拖拽窗口
     void* user_data_;                                       ///< 用户数据
     
     std::unique_ptr<WindowRenderer> renderer_;              ///< 渲染器
     std::shared_ptr<WindowEventHandler> event_handler_;     ///< 事件处理器
     
-    std::unique_ptr<WindowTitleBar> title_bar_;             ///< 窗口标题栏
+    
     
     static std::atomic<uint32_t> next_id_;                  ///< 下一个窗口ID
 };

@@ -9,7 +9,8 @@
  * @date 2025
  */
 
-#include "../main/gui/include/application_manager.h"
+#include "../main/gui/include/gui_application.h"
+#include "../../../core/app/application_manager.h"
 #include <iostream>
 #include <exception>
 
@@ -19,6 +20,25 @@
 #include <io.h>
 #include <fcntl.h>
 #endif
+
+/**
+ * 获取主显示器的最高刷新率
+ * @return 刷新率(Hz)，失败时返回60
+ */
+int getPrimaryMonitorRefreshRate() {
+#ifdef _WIN32
+    DEVMODE dm;
+    dm.dmSize = sizeof(DEVMODE);
+    
+    // 获取主显示器设置
+    if (EnumDisplaySettings(nullptr, ENUM_CURRENT_SETTINGS, &dm)) {
+        return dm.dmDisplayFrequency;
+    }
+#endif
+    
+    // 默认返回60Hz
+    return 60;
+}
 
 /**
  * 设置控制台UTF-8编码支持
@@ -71,23 +91,44 @@ int main(int argc, char* argv[]) {
     setupGlobalExceptionHandler();
     
     try {
-        // 创建应用程序管理器
-        auto appManager = std::make_unique<DearTs::GUI::ApplicationManager>();
+        // 获取应用程序管理器实例
+        auto& appManager = DearTs::Core::App::ApplicationManager::getInstance();
         
-        // 初始化应用程序
-        if (!appManager->initialize()) {
-            std::cerr << "❌ 应用程序初始化失败" << std::endl;
+        // 初始化应用程序管理器
+        if (!appManager.initialize()) {
+            std::cerr << "❌ 应用程序管理器初始化失败" << std::endl;
             return -1;
         }
-
-        // 运行主循环
-        appManager->run();
         
-        // 关闭应用程序
-        appManager->shutdown();
+        // 获取屏幕刷新率
+        int refreshRate = getPrimaryMonitorRefreshRate();
+        
+        // 创建GUI应用程序配置
+        DearTs::Core::App::ApplicationConfig config;
+        config.name = "DearTs GUI Application";
+        config.version = "1.0.0";
+        config.description = "基于ImHex架构设计的现代化GUI应用程序框架";
+        config.author = "DearTs Team";
+        config.organization = "DearTs";
+        config.type = DearTs::Core::App::ApplicationType::WINDOWED;
+        config.window_config.title = "DearTs GUI Application";
+        config.window_config.size = DearTs::Core::Window::WindowSize(1280, 720);
+        config.window_config.flags = DearTs::Core::Window::WindowFlags::RESIZABLE;
+        config.target_fps = refreshRate;
+        config.enable_vsync = true;
+        config.enable_profiling = false;
+        
+        // 创建GUI应用程序
+        auto app = appManager.createApplication<DearTs::GUIApplication>();
+        
+        // 运行应用程序
+        int result = appManager.runApplication(std::move(app));
+        
+        // 关闭应用程序管理器
+        appManager.shutdown();
         
         std::cout << "✓ 应用程序运行完成" << std::endl;
-        return 0;
+        return result;
         
     } catch (const std::exception& e) {
         std::cerr << "❌ 应用程序运行时发生异常: " << e.what() << std::endl;

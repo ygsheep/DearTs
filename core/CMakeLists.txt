@@ -47,7 +47,12 @@ set(CORE_SOURCES
     
     # 窗口管理
     window/window_manager.cpp
-        window/window_title_bar.cpp
+    window/window_base.cpp
+    window/main_window.cpp
+    window/layouts/layout_base.cpp
+    window/layouts/title_bar_layout.cpp
+    window/layouts/layout_manager.cpp
+    window/layouts/sidebar_layout.cpp
     
     # 渲染系统
     render/renderer.cpp
@@ -83,7 +88,12 @@ set(CORE_HEADERS
     
     # 窗口管理
     window/window_manager.h
-        window/window_title_bar.h
+    window/window_base.h
+    window/main_window.h
+    window/layouts/layout_base.h
+    window/layouts/title_bar_layout.h
+    window/layouts/layout_manager.h
+    window/layouts/sidebar_layout.h
     
     # 渲染系统
     render/renderer.h

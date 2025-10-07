@@ -281,6 +281,8 @@ void DearTs::Core::App::Application::handleEvent(const Events::Event& event) {
     onEvent(event);
 }
 
+
+
 void DearTs::Core::App::Application::requestExit(int exit_code) {
     exit_code_ = exit_code;
     should_exit_ = true;

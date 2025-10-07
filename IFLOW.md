@@ -65,3 +65,5 @@ Application Layer (main/)
 - Logging controlled via `DEARTS_ENABLE_LOGGING` compile definition
 - Profiling instrumentation available when enabled
 - Plugin system structure exists but minimal implementation
+- Code follows [360 C++ Coding Style](https://saferules.github.io/)
+- Private member variables prefixed with `m_` (e.g., `m_window`, `m_title`)

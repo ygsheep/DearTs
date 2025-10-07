@@ -9,7 +9,6 @@
  */
 
 #include "window_manager.h"
-#include "window_title_bar.h"
 #include "../core.h"
 // Logger removed - using simple output instead
 #include "../utils/file_utils.h"
@@ -44,9 +43,9 @@ Window::Window(const WindowConfig& config)
     , sdl_window_(nullptr)
     , state_(WindowState::NORMAL)
     , should_close_(false)
+    , is_dragging_(false)
     , user_data_(nullptr)
-    , event_handler_(nullptr)
-    , title_bar_(nullptr) {
+    , event_handler_(nullptr) {
     
     DEARTS_LOG_DEBUG("创建窗口，ID: " + std::to_string(id_));
     DEARTS_LOG_DEBUG("窗口配置图标路径: " + config_.icon_path);
@@ -233,49 +232,11 @@ void Window::render() {
     DEARTS_LOG_DEBUG("Window::render() completed for window ID: " + std::to_string(id_));
 }
 
-bool Window::initializeTitleBar() {
-    DEARTS_LOG_INFO("为窗口ID调用Window::initializeTitleBar(): " + std::to_string(id_));
-    if (!sdl_window_) {
-        DEARTS_LOG_ERROR("SDL窗口在Window::initializeTitleBar()中为空");
-        return false;
-    }
-    
-    // 创建标题栏实例
-    title_bar_ = std::make_unique<WindowTitleBar>(shared_from_this());
-    bool result = title_bar_->initialize();
-    DEARTS_LOG_INFO("Window::initializeTitleBar()完成，结果: " + std::to_string(result) + "，窗口ID: " + std::to_string(id_));
-    return result;
-}
 
-void Window::renderTitleBar() {
-    DEARTS_LOG_INFO("为窗口ID调用Window::renderTitleBar(): " + std::to_string(id_));
-    if (title_bar_ && (config_.flags & WindowFlags::BORDERLESS) != WindowFlags::NONE) {
-        DEARTS_LOG_INFO("为无边框窗口渲染标题栏，ID: " + std::to_string(id_));
-        title_bar_->render();
-    } else {
-        if (!title_bar_) {
-            DEARTS_LOG_INFO("标题栏为空，窗口ID: " + std::to_string(id_));
-        }
-        if ((config_.flags & WindowFlags::BORDERLESS) == WindowFlags::NONE) {
-            DEARTS_LOG_INFO("窗口不是无边框，标志: " + std::to_string(static_cast<uint32_t>(config_.flags)) + "，窗口ID: " + std::to_string(id_));
-        }
-    }
-}
 
-void Window::handleTitleBarEvent(const SDL_Event& event) {
-    DEARTS_LOG_INFO("为窗口ID调用Window::handleTitleBarEvent(): " + std::to_string(id_) + "，事件类型: " + std::to_string(event.type));
-    if (title_bar_ && (config_.flags & WindowFlags::BORDERLESS) != WindowFlags::NONE) {
-        DEARTS_LOG_INFO("为窗口ID调用title_bar_->handleEvent(): " + std::to_string(id_));
-        title_bar_->handleEvent(event);
-    } else {
-        if (!title_bar_) {
-            DEARTS_LOG_INFO("标题栏为空，窗口ID: " + std::to_string(id_));
-        }
-        if ((config_.flags & WindowFlags::BORDERLESS) == WindowFlags::NONE) {
-            DEARTS_LOG_INFO("窗口不是无边框，标志: " + std::to_string(static_cast<uint32_t>(config_.flags)) + "，窗口ID: " + std::to_string(id_));
-        }
-    }
-}
+
+
+
 
 std::string Window::getTitle() const {
     if (sdl_window_) {
@@ -662,12 +623,8 @@ std::shared_ptr<Window> WindowManager::createWindow(const WindowConfig& config) 
         return nullptr;
     }
     
-    // 如果是无边框窗口，初始化标题栏
-    if ((config.flags & WindowFlags::BORDERLESS) != WindowFlags::NONE) {
-        if (!window->initializeTitleBar()) {
-            DEARTS_LOG_WARN("Failed to initialize window title bar");
-        }
-    }
+    // 标题栏初始化由具体窗口类处理（如MainWindow）
+    // 这里不再调用window->initializeTitleBar()
     
     {
         std::lock_guard<std::mutex> lock(windows_mutex_);
@@ -689,12 +646,8 @@ bool WindowManager::addWindow(std::shared_ptr<Window> window) {
         return false;
     }
     
-    // 如果是无边框窗口，初始化标题栏
-    if ((window->getFlags() & WindowFlags::BORDERLESS) != WindowFlags::NONE) {
-        if (!window->initializeTitleBar()) {
-            DEARTS_LOG_WARN("Failed to initialize window title bar");
-        }
-    }
+    // 标题栏初始化由具体窗口类处理（如MainWindow）
+    // 这里不再调用window->initializeTitleBar()
     
     {
         std::lock_guard<std::mutex> lock(windows_mutex_);
@@ -779,13 +732,44 @@ void WindowManager::updateAllWindows() {
     }
 }
 
+
+
 void WindowManager::renderAllWindows() {
     DEARTS_LOG_INFO("调用WindowManager::renderAllWindows()");
     auto windows = getAllWindows();
     DEARTS_LOG_INFO("找到 " + std::to_string(windows.size()) + " 个窗口");
+    
+    // 检查是否有窗口正在拖拽
+    bool any_window_dragging = false;
+    for (const auto& w : windows) {
+        if (w && w->isDragging()) {
+            any_window_dragging = true;
+            break;
+        }
+    }
+    
+    // 如果有窗口正在拖拽，降低整体渲染频率
+    static auto last_render_time = std::chrono::steady_clock::now();
+    if (any_window_dragging) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_render_time);
+        
+        // 在拖拽过程中降低渲染频率到30FPS
+        if (elapsed.count() < 33) { // 33ms ≈ 30FPS
+            DEARTS_LOG_INFO("跳过渲染以降低拖拽时的帧率");
+            return;
+        }
+        
+        last_render_time = now;
+        DEARTS_LOG_INFO("窗口正在拖拽，降低整体渲染频率");
+    } else {
+        last_render_time = std::chrono::steady_clock::now();
+    }
+    
     for (auto& window : windows) {
         if (window && window->isCreated() && window->isVisible()) {
             DEARTS_LOG_INFO("渲染窗口ID: " + std::to_string(window->getId()));
+            
             // 检查是否是SDLRenderer并开始ImGui帧
             auto renderer = window->getRenderer();
             
@@ -824,14 +808,16 @@ void WindowManager::renderAllWindows() {
                     // 使用颜色值(36,36,36)更接近用户指出的遮挡标题栏的颜色
                     sdlRenderer->clear(36.0f/255.0f, 36.0f/255.0f, 36.0f/255.0f, 1.0f);
                     
-                    // 渲染标题栏（如果是无边框窗口）
-                    // 标题栏需要在ImGui内容之前渲染，以确保正确的层级关系
-                    window->renderTitleBar();
+                    // 标题栏渲染由具体窗口类处理（如MainWindow）
+                    // 这里不再调用window->renderTitleBar()
                     
-                    // 在这里添加一些基本的ImGui界面来测试
-                    ImGui::ShowDemoWindow();
-                    DEARTS_LOG_INFO("显示ImGui演示窗口");
-
+                    // 在拖拽过程中跳过复杂的内容渲染
+                    if (!any_window_dragging) {
+                        // 只在非拖拽时渲染复杂内容
+                        ImGui::ShowDemoWindow();
+                        DEARTS_LOG_INFO("显示ImGui演示窗口");
+                    }
+                    
                     // 渲染ImGui
                     ImGui::Render();
                     DEARTS_LOG_INFO("调用ImGui::Render()");
@@ -885,14 +871,8 @@ void WindowManager::handleSDLEvent(const SDL_Event& event) {
         }
     }
     
-    // 处理其他事件（如鼠标、键盘事件）用于标题栏
-    auto windows = getAllWindows();
-    DEARTS_LOG_INFO("Processing title bar events for " + std::to_string(windows.size()) + " windows");
-    for (auto& window : windows) {
-        if (window && window->isCreated()) {
-            window->handleTitleBarEvent(event);
-        }
-    }
+    // 标题栏事件处理由具体窗口类处理
+    // 这里不再调用window->handleTitleBarEvent(event)
 }
 
 bool WindowManager::hasWindowsToClose() const {

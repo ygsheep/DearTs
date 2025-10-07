@@ -92,6 +92,7 @@ target_compile_features(imgui PUBLIC cxx_std_20)
 # 添加子目录
 add_subdirectory(core)
 add_subdirectory(lib/libdearts)
+add_subdirectory(main/gui)
 add_subdirectory(plugins)
 add_subdirectory(examples)
 
