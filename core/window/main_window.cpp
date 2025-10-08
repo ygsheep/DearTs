@@ -1,6 +1,7 @@
 #include "main_window.h"
 #include "layouts/title_bar_layout.h"
 #include "layouts/sidebar_layout.h"
+#include "layouts/pomodoro_layout.h"
 #include "../utils/logger.h"
 #include "../resource/font_resource.h"
 #include "../resource/vscode_icons.hpp"
@@ -19,7 +20,9 @@ MainWindow::MainWindow(const std::string& title)
     : WindowBase(title)
     , showDemoWindow_(false)
     , showAnotherWindow_(false)
-    , clearColor_(0.45f, 0.55f, 0.60f, 1.00f) {
+    , clearColor_(0.45f, 0.55f, 0.60f, 1.00f)
+    , currentView_(MainViewType::DEFAULT)
+    , pomodoroLayout_(nullptr) {
 }
 
 /**
@@ -43,11 +46,11 @@ bool MainWindow::initialize() {
     auto sidebarLayout = std::make_unique<SidebarLayout>();
     
     // 创建"高效工具"可展开菜单项
-    SidebarItem productivityItem("productivity", "⚡", "高效工具", false, "高效工具", "", true);
+    SidebarItem productivityItem("productivity", "高效工具", false, "高效工具", "", true);
     
     // 添加子项目 (使用绝对路径确保图片能正确加载)
-    SidebarItem pomodoroItem("pomodoro", "⏱️", "番茄时钟", false, "番茄时钟");
-    SidebarItem dataAnalysisItem("data-analysis", "📊", "数据分析", false, "数据分析");
+    SidebarItem pomodoroItem("pomodoro", "番茄时钟", false, "番茄时钟");
+    SidebarItem dataAnalysisItem("data-analysis", "数据分析", false, "数据分析");
     
     productivityItem.children.push_back(pomodoroItem);
     productivityItem.children.push_back(dataAnalysisItem);
@@ -62,6 +65,23 @@ bool MainWindow::initialize() {
                        ", 宽度: " + std::to_string(currentWidth));
     });
     
+    // 设置侧边栏项目点击回调
+    sidebarLayout->setItemClickCallback([this](const std::string& itemId) {
+        DEARTS_LOG_INFO("侧边栏项目点击: " + itemId);
+        // 根据点击的项目切换视图
+        if (itemId == "pomodoro") {
+            currentView_ = MainViewType::POMODORO;
+            if (pomodoroLayout_) {
+                pomodoroLayout_->setVisible(true);
+            }
+        } else {
+            currentView_ = MainViewType::DEFAULT;
+            if (pomodoroLayout_) {
+                pomodoroLayout_->setVisible(false);
+            }
+        }
+    });
+    
     addLayout("Sidebar", std::move(sidebarLayout));
     
     // 获取标题栏布局并设置窗口状态
@@ -71,6 +91,10 @@ bool MainWindow::initialize() {
         auto size = getSize();
         titleBar->saveNormalState(pos.x, pos.y, size.width, size.height);
     }
+    
+    // 创建番茄时钟布局
+    pomodoroLayout_ = new PomodoroLayout();
+    pomodoroLayout_->setVisible(false); // 默认隐藏
     
     DEARTS_LOG_INFO("主窗口初始化成功: " + title_);
     return true;
@@ -100,11 +124,9 @@ void MainWindow::render() {
         sidebarWidth = sidebar->getCurrentWidth();
     }
     
-    // 渲染主窗口内容，留出侧边栏空间
-    {
-        static float f = 0.0f;
-        static int counter = 0;
-        
+    // 根据当前视图渲染内容
+    if (currentView_ == MainViewType::POMODORO && pomodoroLayout_ && pomodoroLayout_->isVisible()) {
+        // 渲染番茄时钟布局
         // 设置窗口位置和大小，为侧边栏留出空间
         ImGui::SetNextWindowPos(ImVec2(sidebarWidth, 30)); // 30是标题栏高度
         ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x - sidebarWidth, 
@@ -116,43 +138,65 @@ void MainWindow::render() {
                                            ImGuiWindowFlags_NoCollapse |
                                            ImGuiWindowFlags_NoBringToFrontOnFocus;
         
-        ImGui::Begin("Hello, DearTs!", nullptr, mainContentFlags);
-        
-        ImGui::Text("DearTs 主窗口");
-        ImGui::Text("应用程序平均 %.3f ms/帧 (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-        ImGui::Text("侧边栏宽度: %.1f", sidebarWidth);
-        ImGui::Text("侧边栏状态: %s", sidebar && sidebar->isExpanded() ? "展开" : "收起");
-        
-        ImGui::Separator();
-        
-        ImGui::Text("计数器示例:");
-        ImGui::Text("计数器值: %d", counter);
-        
-        if (ImGui::Button("增加计数器")) {
-            counter++;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("重置计数器")) {
-            counter = 0;
-        }
-        
-        ImGui::Separator();
-        
-        ImGui::Text("颜色选择:");
-        ImGui::ColorEdit3("清屏颜色", (float*)&clearColor_);
-        
-        ImGui::Separator();
-        
-        ImGui::Checkbox("显示ImGui演示", &showDemoWindow_);
-        ImGui::Checkbox("显示另一个窗口", &showAnotherWindow_);
-        
-        ImGui::Separator();
-        
-        if (ImGui::Button("关闭窗口")) {
-            close();
-        }
-        
+        ImGui::Begin("MainContent", nullptr, mainContentFlags);
+        pomodoroLayout_->render();
         ImGui::End();
+    } else {
+        // 渲染主窗口内容，留出侧边栏空间
+        {
+            static float f = 0.0f;
+            static int counter = 0;
+            
+            // 设置窗口位置和大小，为侧边栏留出空间
+            ImGui::SetNextWindowPos(ImVec2(sidebarWidth, 30)); // 30是标题栏高度
+            ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x - sidebarWidth, 
+                                           ImGui::GetIO().DisplaySize.y - 30));
+            
+            ImGuiWindowFlags mainContentFlags = ImGuiWindowFlags_NoTitleBar | 
+                                               ImGuiWindowFlags_NoResize | 
+                                               ImGuiWindowFlags_NoMove | 
+                                               ImGuiWindowFlags_NoCollapse |
+                                               ImGuiWindowFlags_NoBringToFrontOnFocus;
+            
+            ImGui::Begin("Hello, DearTs!", nullptr, mainContentFlags);
+            
+            ImGui::Text("DearTs 主窗口");
+            ImGui::Text("应用程序平均 %.3f ms/帧 (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+            ImGui::Text("侧边栏宽度: %.1f", sidebarWidth);
+            ImGui::Text("侧边栏状态: %s", sidebar && sidebar->isExpanded() ? "展开" : "收起");
+            ImGui::Text("当前视图: %s", currentView_ == MainViewType::POMODORO ? "番茄时钟" : "默认");
+            
+            ImGui::Separator();
+            
+            ImGui::Text("计数器示例:");
+            ImGui::Text("计数器值: %d", counter);
+            
+            if (ImGui::Button("增加计数器")) {
+                counter++;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("重置计数器")) {
+                counter = 0;
+            }
+            
+            ImGui::Separator();
+            
+            ImGui::Text("颜色选择:");
+            ImGui::ColorEdit3("清屏颜色", (float*)&clearColor_);
+            
+            ImGui::Separator();
+            
+            ImGui::Checkbox("显示ImGui演示", &showDemoWindow_);
+            ImGui::Checkbox("显示另一个窗口", &showAnotherWindow_);
+            
+            ImGui::Separator();
+            
+            if (ImGui::Button("关闭窗口")) {
+                close();
+            }
+            
+            ImGui::End();
+        }
     }
     
     // 显示另一个窗口
@@ -187,6 +231,12 @@ void MainWindow::update(double deltaTime) {
     TitleBarLayout* titleBar = static_cast<TitleBarLayout*>(getLayout("TitleBar"));
     if (titleBar) {
         titleBar->setWindowTitle(getTitle());
+    }
+    
+    // 更新番茄时钟布局
+    if (pomodoroLayout_ && pomodoroLayout_->isVisible()) {
+        DEARTS_LOG_INFO("更新番茄时钟布局");
+        pomodoroLayout_->updateLayout(0, 0);
     }
     
     // 在这里可以添加自定义更新逻辑

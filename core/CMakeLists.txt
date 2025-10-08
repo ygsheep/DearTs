@@ -53,6 +53,7 @@ set(CORE_SOURCES
     window/layouts/title_bar_layout.cpp
     window/layouts/layout_manager.cpp
     window/layouts/sidebar_layout.cpp
+    window/layouts/pomodoro_layout.cpp
     
     # 渲染系统
     render/renderer.cpp
@@ -94,6 +95,7 @@ set(CORE_HEADERS
     window/layouts/title_bar_layout.h
     window/layouts/layout_manager.h
     window/layouts/sidebar_layout.h
+    window/layouts/pomodoro_layout.h
     
     # 渲染系统
     render/renderer.h

@@ -165,6 +165,7 @@ if(WIN32)
         imm32
         winmm
         version
+        windowsapp  # 添加Windows Runtime API支持
     )
     
     # Windows特定编译定义
@@ -172,6 +173,7 @@ if(WIN32)
         WIN32_LEAN_AND_MEAN
         NOMINMAX
         _CRT_SECURE_NO_WARNINGS
+        __MSVCRT_VERSION__=0x0700  # 支持较新的运行时库
     )
 elseif(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} PRIVATE

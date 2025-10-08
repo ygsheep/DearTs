@@ -3,6 +3,11 @@
 #include "layout_base.h"
 #include <string>
 #include <imgui.h>
+#include <memory>
+
+// 添加资源管理器相关头文件
+#include "../../resource/resource_manager.h"
+#include "../../resource/font_resource.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -131,6 +136,9 @@ private:
 #if defined(_WIN32)
     HWND hwnd_;                         ///< Windows窗口句柄
 #endif
+    
+    // 图片资源相关
+    std::shared_ptr<DearTs::Core::Resource::TextureResource> iconTexture_;  ///< 标题栏图标纹理
     
     /**
      * @brief 渲染标题文本

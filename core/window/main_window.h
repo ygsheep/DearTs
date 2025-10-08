@@ -3,12 +3,30 @@
 #include "window_base.h"
 #include "layouts/title_bar_layout.h"
 #include "layouts/sidebar_layout.h"
+#include "../resource/vscode_icons.hpp"
 #include <string>
 #include <imgui.h>
+
+// 前向声明
+namespace DearTs {
+namespace Core {
+namespace Window {
+class PomodoroLayout; // 番茄时钟布局前向声明
+} // namespace Window
+} // namespace Core
+} // namespace DearTs
 
 namespace DearTs {
 namespace Core {
 namespace Window {
+
+/**
+ * @brief 主窗口视图类型枚举
+ */
+enum class MainViewType {
+    DEFAULT,     ///< 默认视图
+    POMODORO     ///< 番茄时钟视图
+};
 
 /**
  * @brief 主窗口类
@@ -65,6 +83,12 @@ private:
     bool showDemoWindow_;  ///< 是否显示ImGui演示窗口
     bool showAnotherWindow_;  ///< 是否显示另一个窗口
     ImVec4 clearColor_;  ///< 清屏颜色
+    
+    // 视图相关
+    MainViewType currentView_;  ///< 当前视图类型
+    
+    // 番茄时钟相关
+    PomodoroLayout* pomodoroLayout_;  ///< 番茄时钟布局
 };
 
 } // namespace Window

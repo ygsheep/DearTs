@@ -33,6 +33,7 @@ TitleBarLayout::TitleBarLayout()
     , normalY_(0)
     , normalWidth_(1280)
     , normalHeight_(720)
+    , iconTexture_(nullptr)
 #if defined(_WIN32)
     , hwnd_(nullptr)
 #endif
@@ -237,6 +238,19 @@ void TitleBarLayout::closeWindow() {
  * 渲染标题文本
  */
 void TitleBarLayout::renderTitle() {
+    // 加载图标纹理（如果尚未加载）
+    if (!iconTexture_) {
+        auto resourceManager = DearTs::Core::Resource::ResourceManager::getInstance();
+        if (resourceManager) {
+            // 尝试加载time-task.png图标
+            iconTexture_ = resourceManager->getTexture("resources/icon/time-task.png");
+            // 如果time-task.png不存在，尝试加载time-data.png
+            if (!iconTexture_) {
+                iconTexture_ = resourceManager->getTexture("resources/icon/time-data.png");
+            }
+        }
+    }
+    
     const char* title = windowTitle_.c_str();
     
     // 使用字体管理器的默认字体（如果可用）
@@ -251,7 +265,22 @@ void TitleBarLayout::renderTitle() {
     
     ImVec2 titleSize = ImGui::CalcTextSize(title);
     
-    ImGui::SetCursorPosX(12.0f);
+    // 渲染图标（如果已加载）
+    float iconXPos = 8.0f;
+    if (iconTexture_ && iconTexture_->getTexture()) {
+        // 设置光标位置
+        ImGui::SetCursorPosX(iconXPos);
+        ImGui::SetCursorPosY((titleBarHeight_ - 16.0f) * 0.5f); // 假设图标高度为16px
+        
+        // 渲染图标（使用ImGui的Image函数）
+        ImGui::Image((ImTextureID)iconTexture_->getTexture(), ImVec2(16.0f, 16.0f));
+        
+        // 更新标题文本的X位置，使其在图标右侧
+        iconXPos += 20.0f; // 图标宽度(16) + 间距(4)
+    }
+    
+    // 渲染标题文本
+    ImGui::SetCursorPosX(iconXPos);
     ImGui::SetCursorPosY((titleBarHeight_ - titleSize.y) * 0.5f);
     ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.9f, 1.0f), "%s", title);
     
