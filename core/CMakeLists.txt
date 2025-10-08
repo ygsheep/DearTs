@@ -228,6 +228,7 @@ target_link_libraries(DearTsCore
         $<$<PLATFORM_ID:Windows>:${SDL2_TTF_LIBRARY}>
         $<$<PLATFORM_ID:Windows>:${SDL2_IMAGE_LIBRARY}>
         $<$<PLATFORM_ID:Windows>:${SDL2_MIXER_LIBRARY}>
+        $<$<PLATFORM_ID:Windows>:wintoast>
         $<$<NOT:$<PLATFORM_ID:Windows>>:${SDL2_LIBRARIES}>
         $<$<NOT:$<PLATFORM_ID:Windows>>:${SDL2_TTF_LIBRARIES}>
 )

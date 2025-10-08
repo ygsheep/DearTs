@@ -478,15 +478,27 @@ void DearTs::Core::App::Application::processEvents() {
     while (SDL_PollEvent(&event)) {
         // 将事件传递给ImGui SDL2绑定
         ImGui_ImplSDL2_ProcessEvent(&event);
-        
+
         // 转发所有事件给窗口管理器（用于处理标题栏事件）
-        Window::WindowManager::getInstance().handleSDLEvent(event);
-        
+        auto& window_manager = Window::WindowManager::getInstance();
+        window_manager.handleSDLEvent(event);
+
         // 处理SDL事件
         switch (event.type) {
             case SDL_QUIT:
-                DEARTS_LOG_INFO("SDL_QUIT event received, requesting exit");
+                DEARTS_LOG_INFO("SDL_QUIT event received, requesting exit and closing all windows");
                 requestExit();
+                // 手动关闭所有窗口，确保窗口关闭流程被触发
+                {
+                    auto& window_manager = Window::WindowManager::getInstance();
+                    auto windows = window_manager.getAllWindows();
+                    for (auto& window : windows) {
+                        if (window) {
+                            DEARTS_LOG_INFO("SDL_QUIT: Closing window ID: " + std::to_string(window->getId()));
+                            window->close();
+                        }
+                    }
+                }
                 break;
                 
             default:

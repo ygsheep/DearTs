@@ -3,6 +3,7 @@
 #include "layout_base.h"
 #include <string>
 #include <imgui.h>
+#include <chrono>
 
 namespace DearTs {
 namespace Core {
@@ -40,7 +41,7 @@ public:
     /**
      * @brief 设置是否显示布局
      */
-    void setVisible(bool visible) { isVisible_ = visible; }
+    void setVisible(bool visible);
     
     /**
      * @brief 检查是否可见
@@ -70,6 +71,10 @@ private:
     bool isRunning_;                ///< 是否正在运行
     bool isWorkMode_;               ///< 是否为工作模式
     std::string currentModeText_;   ///< 当前模式文本
+
+    // 计时器相关成员变量
+    std::chrono::high_resolution_clock::time_point lastUpdateTime_;  ///< 上次更新时间
+    double accumulatedTime_;         ///< 累积时间
     
     /**
      * @brief 显示Windows通知

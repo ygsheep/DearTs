@@ -57,9 +57,8 @@ void WindowBase::render() {
 
 /**
  * 更新窗口逻辑
- * @param deltaTime 时间增量（秒）
  */
-void WindowBase::update(double deltaTime) {
+void WindowBase::update() {
     // 通过布局管理器更新所有布局
     if (window_) {
         auto size = window_->getSize();

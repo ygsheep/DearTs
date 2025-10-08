@@ -308,12 +308,14 @@ protected:
     virtual void onEvent(const DearTs::Core::Events::Event& event) {}
     virtual void onPause() {}
     virtual void onResume() {}
-    
+
+protected:
+    void processEvents();
+
 private:
     void initializeSubsystems();
     void shutdownSubsystems();
     void updateStats();
-    void processEvents();
     void limitFrameRate();
     
     ApplicationConfig config_;                         ///< 应用程序配置

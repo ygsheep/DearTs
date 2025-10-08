@@ -108,12 +108,19 @@ void ApplicationManager::run() {
     while (m_running) {
         // 处理事件
         processEvents();
-        
+
         // 更新状态
         update();
-        
+
         // 渲染界面
         render();
+
+        // 调试：检查运行状态
+        static int loop_count = 0;
+        loop_count++;
+        if (loop_count % 100 == 0) {
+            std::cout << "GUI主循环运行中，m_running: " << (m_running ? "true" : "false") << ", loop_count: " << loop_count << std::endl;
+        }
     }
     
     std::cout << "Main loop ended" << std::endl;
@@ -165,8 +172,9 @@ void ApplicationManager::shutdown() {
  * 请求退出应用程序
  */
 void ApplicationManager::requestExit() {
+    std::cout << "GUI ApplicationManager::requestExit() called, setting m_running = false" << std::endl;
     m_running = false;
-    
+
     // 发布退出请求事件
     ApplicationExitRequestedEvent::post(this);
 }
@@ -390,6 +398,7 @@ void ApplicationManager::processEvents() {
         // 应用程序级别事件处理
         switch (event.type) {
             case SDL_QUIT:
+                std::cout << "GUI ApplicationManager: SDL_QUIT event received, requesting exit" << std::endl;
                 requestExit();
                 break;
                 
@@ -401,6 +410,8 @@ void ApplicationManager::processEvents() {
                 break;
         }
     }
+
+
 }
 
 /**

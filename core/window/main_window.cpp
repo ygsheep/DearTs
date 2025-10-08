@@ -73,11 +73,13 @@ bool MainWindow::initialize() {
             currentView_ = MainViewType::POMODORO;
             if (pomodoroLayout_) {
                 pomodoroLayout_->setVisible(true);
+                DEARTS_LOG_INFO("番茄时钟布局设置为可见");
             }
         } else {
             currentView_ = MainViewType::DEFAULT;
             if (pomodoroLayout_) {
                 pomodoroLayout_->setVisible(false);
+                DEARTS_LOG_INFO("番茄时钟布局设置为不可见");
             }
         }
     });
@@ -223,9 +225,10 @@ void MainWindow::render() {
 /**
  * 更新窗口逻辑
  */
-void MainWindow::update(double deltaTime) {
+void MainWindow::update() {
+    DEARTS_LOG_INFO("MainWindow::update() 被调用");
     // 调用基类更新
-    WindowBase::update(deltaTime);
+    WindowBase::update();
     
     // 更新标题栏窗口标题
     TitleBarLayout* titleBar = static_cast<TitleBarLayout*>(getLayout("TitleBar"));
@@ -234,9 +237,14 @@ void MainWindow::update(double deltaTime) {
     }
     
     // 更新番茄时钟布局
-    if (pomodoroLayout_ && pomodoroLayout_->isVisible()) {
-        DEARTS_LOG_INFO("更新番茄时钟布局");
-        pomodoroLayout_->updateLayout(0, 0);
+    if (pomodoroLayout_) {
+        DEARTS_LOG_INFO("番茄时钟布局存在，isVisible: " + std::string(pomodoroLayout_->isVisible() ? "true" : "false"));
+        if (pomodoroLayout_->isVisible()) {
+            DEARTS_LOG_INFO("更新番茄时钟布局");
+            pomodoroLayout_->updateLayout(0, 0);
+        }
+    } else {
+        DEARTS_LOG_INFO("番茄时钟布局不存在");
     }
     
     // 在这里可以添加自定义更新逻辑

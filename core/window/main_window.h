@@ -53,9 +53,8 @@ public:
     
     /**
      * @brief 更新窗口逻辑
-     * @param deltaTime 时间增量（秒）
      */
-    void update(double deltaTime) override;
+    void update() override;
     
     /**
      * @brief 处理窗口事件

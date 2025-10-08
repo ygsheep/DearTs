@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "流程图.md",
+                "file": "CLAUDE.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "流程图"
+              "title": "CLAUDE"
             }
           }
         ]
@@ -160,6 +160,7 @@
   },
   "left-ribbon": {
     "hiddenItems": {
+      "bases:创建新数据库": false,
       "switcher:打开快速切换": false,
       "graph:查看关系图谱": false,
       "canvas:新建白板": false,
@@ -170,19 +171,35 @@
   },
   "active": "f61c9f856acec904",
   "lastOpenFiles": [
-    "build/Release/include/dearts/plugins/plugin_config.h",
-    "build/Release/include/dearts/plugins",
-    "build/Release/include/dearts/dearts_config.h",
-    "build/Release/include/dearts",
-    "build/Release/include",
+    "README.md",
     "build/Debug/imgui.ini",
     "build/Debug/plugins/external",
     "build/Debug/SDL2_mixer.dll",
     "build/Debug/SDL2_image.dll",
     "build/Debug/SDL2_ttf.dll",
     "build/Debug/SDL2.dll",
+    "build/Debug/resources/icon.ico",
+    "build/Debug/resources/icon/time-task.png",
+    "build/Debug/resources/icon/time-data.png",
+    "build/Debug/resources/icon",
+    "build/Debug/resources/fonts/OPPOSans-M.ttf",
+    "build/Debug/resources/fonts/codicons.ttf",
+    "build/Release/resources/icon/time-task.png",
+    "build/Release/resources/icon/time-data.png",
+    "build/Debug/examples/Debug/resources/icon/time-task.png",
+    "build/Debug/examples/Debug/resources/icon/time-data.png",
+    "build/Debug/bin/resources/icon/time-task.png",
+    "build/Debug/bin/resources/icon/time-data.png",
+    "build/Debug/Debug/resources/icon/time-task.png",
+    "build/Debug/Debug/resources/icon/time-data.png",
+    "demo/WinToast-1.3.2/examples/console-example/README.MD",
+    "demo/WinToast-1.3.2/docs/index.md",
+    "demo/WinToast-1.3.2/request.md",
+    "demo/WinToast-1.3.2/README.md",
+    "Project.md",
+    "core/window/README.md",
     "core/CORE.md",
-    "流程图.md",
-    "Project.md"
+    "架构设计.md",
+    "流程图.md"
   ]
 }

@@ -31,6 +31,7 @@ set(SDL2_ROOT ${THIRD_PARTY_DIR}/SDL2)
 set(SDL2_TTF_ROOT ${THIRD_PARTY_DIR}/SDL2_ttf)
 set(SDL2_IMAGE_ROOT ${THIRD_PARTY_DIR}/SDL2_image)
 set(SDL2_MIXER_ROOT ${THIRD_PARTY_DIR}/SDL2_mixer)
+set(WINTOAST_ROOT ${THIRD_PARTY_DIR}/WinToast)
 
 # 根据平台选择库路径
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)  # 64位系统
@@ -73,6 +74,7 @@ include_directories(
     ${SDL2_TTF_ROOT}/include
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
+    ${WINTOAST_ROOT}
 )
 
 # 配置ImGui
@@ -88,6 +90,36 @@ target_include_directories(imgui PUBLIC
     ${IMGUI_DIR}/backends
 )
 target_compile_features(imgui PUBLIC cxx_std_20)
+
+# 配置WinToast库（仅Windows平台）
+if(WIN32)
+    # WinToast源文件
+    set(WINTOAST_SOURCES
+        ${WINTOAST_ROOT}/wintoastlib.cpp
+    )
+
+    # 创建WinToast静态库
+    add_library(wintoast STATIC ${WINTOAST_SOURCES})
+    target_include_directories(wintoast PUBLIC ${WINTOAST_ROOT})
+    target_compile_features(wintoast PUBLIC cxx_std_20)
+
+    # Windows特定编译定义
+    target_compile_definitions(wintoast PRIVATE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+        _CRT_SECURE_NO_WARNINGS
+    )
+
+    # 链接Windows Runtime库
+    target_link_libraries(wintoast PRIVATE
+        runtimeobject
+        shell32
+        ole32
+        oleaut32
+    )
+
+    message(STATUS "WinToast library configured for Windows notifications")
+endif()
 
 # 添加子目录
 add_subdirectory(core)
@@ -144,6 +176,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     DearTsCore
     imgui
 )
+
+# 链接WinToast库（仅Windows平台）
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE wintoast)
+endif()
 
 # 链接SDL2库
 target_link_libraries(${PROJECT_NAME} PRIVATE

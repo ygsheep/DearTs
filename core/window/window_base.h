@@ -41,9 +41,8 @@ public:
     
     /**
      * @brief 更新窗口逻辑
-     * @param deltaTime 时间增量（秒）
      */
-    virtual void update(double deltaTime);
+    virtual void update();
     
     /**
      * @brief 处理窗口事件
