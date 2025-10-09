@@ -54,6 +54,7 @@ set(CORE_SOURCES
     window/layouts/layout_manager.cpp
     window/layouts/sidebar_layout.cpp
     window/layouts/pomodoro_layout.cpp
+    window/layouts/exchange_record_layout.cpp
     
     # 渲染系统
     render/renderer.cpp
@@ -96,6 +97,7 @@ set(CORE_HEADERS
     window/layouts/layout_manager.h
     window/layouts/sidebar_layout.h
     window/layouts/pomodoro_layout.h
+    window/layouts/exchange_record_layout.h
     
     # 渲染系统
     render/renderer.h
@@ -266,26 +268,31 @@ else()
     )
 endif()
 
-# 预编译头文件
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
-    target_precompile_headers(DearTsCore PRIVATE
-        <memory>
-        <string>
-        <vector>
-        <map>
-        <unordered_map>
-        <functional>
-        <algorithm>
-        <iostream>
-        <fstream>
-        <sstream>
-        <thread>
-        <mutex>
-        <atomic>
-        <chrono>
-        <filesystem>
-    )
-endif()
+# 预编译头文件暂时禁用以避免编译问题
+# if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
+#     target_precompile_headers(DearTsCore PRIVATE
+#         <memory>
+#         <string>
+#         <vector>
+#         <map>
+#         <unordered_map>
+#         <functional>
+#         <algorithm>
+#         <iostream>
+#         <fstream>
+#         <sstream>
+#         <thread>
+#         <mutex>
+#         <atomic>
+#         <chrono>
+#         <filesystem>
+#         <regex>
+#         <SDL.h>
+#         <SDL_events.h>
+#         <imgui.h>
+#         <Windows.h>
+#     )
+# endif()
 
 # 安装配置
 install(TARGETS DearTsCore

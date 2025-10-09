@@ -32,6 +32,7 @@ set(SDL2_TTF_ROOT ${THIRD_PARTY_DIR}/SDL2_ttf)
 set(SDL2_IMAGE_ROOT ${THIRD_PARTY_DIR}/SDL2_image)
 set(SDL2_MIXER_ROOT ${THIRD_PARTY_DIR}/SDL2_mixer)
 set(WINTOAST_ROOT ${THIRD_PARTY_DIR}/WinToast)
+set(FREETYPE_ROOT ${THIRD_PARTY_DIR}/freetype)
 
 # 根据平台选择库路径
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)  # 64位系统
@@ -82,14 +83,23 @@ file(GLOB IMGUI_SOURCES
     ${IMGUI_DIR}/*.cpp
     ${IMGUI_DIR}/backends/imgui_impl_sdl2.cpp
     ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer2.cpp
+    ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp
 )
 
 add_library(imgui STATIC ${IMGUI_SOURCES})
-target_include_directories(imgui PUBLIC 
+target_include_directories(imgui PUBLIC
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
 )
 target_compile_features(imgui PUBLIC cxx_std_20)
+
+# 链接FreeType到ImGui（如果启用）
+if(USE_MANUAL_FREETYPE)
+    target_link_libraries(imgui PRIVATE freetype)
+    target_include_directories(imgui PRIVATE ${FREETYPE_ROOT}/include)
+    target_compile_definitions(imgui PRIVATE IMGUI_ENABLE_FREETYPE)
+    message(STATUS "FreeType linked to ImGui")
+endif()
 
 # 配置WinToast库（仅Windows平台）
 if(WIN32)
@@ -119,6 +129,27 @@ if(WIN32)
     )
 
     message(STATUS "WinToast library configured for Windows notifications")
+endif()
+
+# 配置FreeType库
+option(BUILD_FREETYPE "Build FreeType library" OFF)
+option(USE_MANUAL_FREETYPE "Use manually compiled FreeType library" ON)
+
+if(USE_MANUAL_FREETYPE)
+    # 使用手动编译的FreeType库
+    message(STATUS "Using manually compiled FreeType library")
+
+    # 创建FreeType导入库目标
+    add_library(freetype STATIC IMPORTED)
+    set_target_properties(freetype PROPERTIES
+        IMPORTED_LOCATION ${FREETYPE_ROOT}/lib/freetype.lib
+        INTERFACE_INCLUDE_DIRECTORIES ${FREETYPE_ROOT}/include
+    )
+
+    message(STATUS "Manual FreeType library configured")
+elseif(BUILD_FREETYPE)
+    # 从源码编译FreeType（禁用）
+    message(STATUS "Building FreeType from source (disabled)")
 endif()
 
 # 添加子目录
@@ -176,6 +207,14 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     DearTsCore
     imgui
 )
+
+# 链接FreeType库
+if(USE_MANUAL_FREETYPE)
+    target_link_libraries(${PROJECT_NAME} PRIVATE freetype)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${FREETYPE_ROOT}/include)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_ENABLE_FREETYPE)
+    message(STATUS "FreeType library linked to main project")
+endif()
 
 # 链接WinToast库（仅Windows平台）
 if(WIN32)
