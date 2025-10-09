@@ -1068,7 +1068,7 @@ enum { // encodingID for STBTT_PLATFORM_ID_MICROSOFT
    STBTT_MS_EID_UNICODE_FULL  =10
 };
 
-enum { // encodingID for STBTT_PLATFORM_ID_MAC; same as Script ToolsManager codes
+enum { // encodingID for STBTT_PLATFORM_ID_MAC; same as Script Manager codes
    STBTT_MAC_EID_ROMAN        =0,   STBTT_MAC_EID_ARABIC       =4,
    STBTT_MAC_EID_JAPANESE     =1,   STBTT_MAC_EID_HEBREW       =5,
    STBTT_MAC_EID_CHINESE_TRAD =2,   STBTT_MAC_EID_GREEK        =6,
@@ -4516,8 +4516,8 @@ static int stbtt__compute_crossings_x(float x, float y, int nverts, stbtt_vertex
             q2[0] = (float)x2;
             q2[1] = (float)y2;
             if (equal(q0,q1) || equal(q1,q2)) {
-               x0 = (int)verts[i-1].x;
-               y0 = (int)verts[i-1].y;
+               x0 = (int)verts[i-1].x; //-V1048
+               y0 = (int)verts[i-1].y; //-V1048
                x1 = (int)verts[i  ].x;
                y1 = (int)verts[i  ].y;
                if (y > STBTT_min(y0,y1) && y < STBTT_max(y0,y1) && x > STBTT_min(x0,x1)) {
