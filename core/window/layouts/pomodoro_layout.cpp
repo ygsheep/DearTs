@@ -57,38 +57,29 @@ namespace DearTs {
         }
 
         // 显示当前模式
-        ImGui::SetWindowFontScale(1.2f); // 适度放大模式文本
         ImGui::Text("当前模式: %s", currentModeText_.c_str());
-        ImGui::SetWindowFontScale(1.0f);
         ImGui::Separator();
 
         // 显示倒计时（使用大字体）
         std::string timeText = formatTime(remainingTime_);
-        ImVec2 textSize = ImGui::CalcTextSize(timeText.c_str());
         ImVec2 availableSize = ImGui::GetContentRegionAvail();
-        
-        // 使用更大的字体显示时间
-        // 为了避免字体模糊，我们不使用SetWindowFontScale，而是直接使用更大的字体
+
+        // 使用FontManager获取大字体显示时间
         auto fontManager = DearTs::Core::Resource::FontManager::getInstance();
+        auto largeFont = fontManager ? fontManager->loadLargeFont(32.0f) : nullptr;
+
         std::shared_ptr<DearTs::Core::Resource::FontResource> usedFont = nullptr;
-        
-        if (fontManager) {
-            // 尝试获取一个更大的字体，避免使用缩放
-            auto defaultFont = fontManager->getDefaultFont();
-            if (defaultFont) {
-                defaultFont->pushFont();
-                usedFont = defaultFont;
-            }
+        if (largeFont) {
+            largeFont->pushFont();
+            usedFont = largeFont;
         }
-        
-        // 使用较大的字体大小显示时间文本
-        textSize = ImGui::CalcTextSize(timeText.c_str());
+
+        // 计算文本位置并居中显示
+        ImVec2 textSize = ImGui::CalcTextSize(timeText.c_str());
         ImGui::SetCursorPosX((availableSize.x - textSize.x) * 0.5f);
         ImGui::SetCursorPosY(50);
-        ImGui::SetWindowFontScale(2.0f); // 使用适中的缩放以保持清晰度
         ImGui::Text("%s", timeText.c_str());
-        ImGui::SetWindowFontScale(1.0f); // 立即恢复默认缩放
-        
+
         // 恢复字体
         if (usedFont) {
             usedFont->popFont();
@@ -123,9 +114,7 @@ namespace DearTs {
 
         // 设置工作和休息时间
         ImGui::Separator();
-        ImGui::SetWindowFontScale(1.1f); // 适度放大标题文本
         ImGui::Text("设置时间:");
-        ImGui::SetWindowFontScale(1.0f);
         ImGui::PushItemWidth(100);
 
         static int workMinutes = 25;
