@@ -2,6 +2,7 @@
 #include "layouts/title_bar_layout.h"
 #include "layouts/sidebar_layout.h"
 #include "layouts/pomodoro_layout.h"
+#include "layouts/exchange_record_layout.h"
 #include "../utils/logger.h"
 #include "../resource/font_resource.h"
 #include "../resource/vscode_icons.hpp"
@@ -22,7 +23,8 @@ MainWindow::MainWindow(const std::string& title)
     , showAnotherWindow_(false)
     , clearColor_(0.45f, 0.55f, 0.60f, 1.00f)
     , currentView_(MainViewType::DEFAULT)
-    , pomodoroLayout_(nullptr) {
+    , pomodoroLayout_(nullptr)
+    , exchangeRecordLayout_(nullptr) {
 }
 
 /**
@@ -57,6 +59,17 @@ bool MainWindow::initialize() {
     
     // 添加"高效工具"菜单项到侧边栏
     sidebarLayout->addItem(productivityItem);
+
+    // 创建"鸣潮"可展开菜单项
+    SidebarItem wutheringWavesItem("wuthering-waves", "鸣潮", false, "鸣潮游戏工具", "", true);
+
+    // 添加子项目
+    SidebarItem exchangeRecordItem("exchange-record", "换取记录", false, "声骸换取记录");
+
+    wutheringWavesItem.children.push_back(exchangeRecordItem);
+
+    // 添加"鸣潮"菜单项到侧边栏
+    sidebarLayout->addItem(wutheringWavesItem);
     
     // 设置侧边栏状态变化回调
     sidebarLayout->setStateCallback([this](bool isExpanded, float currentWidth) {
@@ -68,6 +81,14 @@ bool MainWindow::initialize() {
     // 设置侧边栏项目点击回调
     sidebarLayout->setItemClickCallback([this](const std::string& itemId) {
         DEARTS_LOG_INFO("侧边栏项目点击: " + itemId);
+        // 隐藏所有布局
+        if (pomodoroLayout_) {
+            pomodoroLayout_->setVisible(false);
+        }
+        if (exchangeRecordLayout_) {
+            exchangeRecordLayout_->setVisible(false);
+        }
+
         // 根据点击的项目切换视图
         if (itemId == "pomodoro") {
             currentView_ = MainViewType::POMODORO;
@@ -75,12 +96,25 @@ bool MainWindow::initialize() {
                 pomodoroLayout_->setVisible(true);
                 DEARTS_LOG_INFO("番茄时钟布局设置为可见");
             }
+        } else if (itemId == "exchange-record") {
+            currentView_ = MainViewType::EXCHANGE_RECORD;
+            if (exchangeRecordLayout_) {
+                exchangeRecordLayout_->setVisible(true);
+
+                // 检查是否有游戏路径配置
+                if (exchangeRecordLayout_->hasGamePathConfiguration()) {
+                    DEARTS_LOG_INFO("存在游戏路径配置，重新搜索最新URL");
+                    exchangeRecordLayout_->refreshUrlFromSavedPath();
+                } else {
+                    DEARTS_LOG_INFO("无游戏路径配置，开始自动搜索");
+                    exchangeRecordLayout_->startSearch();
+                }
+
+                DEARTS_LOG_INFO("换取记录布局设置为可见");
+            }
         } else {
             currentView_ = MainViewType::DEFAULT;
-            if (pomodoroLayout_) {
-                pomodoroLayout_->setVisible(false);
-                DEARTS_LOG_INFO("番茄时钟布局设置为不可见");
-            }
+            DEARTS_LOG_INFO("切换到默认视图");
         }
     });
     
@@ -97,7 +131,11 @@ bool MainWindow::initialize() {
     // 创建番茄时钟布局
     pomodoroLayout_ = new PomodoroLayout();
     pomodoroLayout_->setVisible(false); // 默认隐藏
-    
+
+    // 创建换取记录布局
+    exchangeRecordLayout_ = new ExchangeRecordLayout();
+    exchangeRecordLayout_->setVisible(false); // 默认隐藏
+
     DEARTS_LOG_INFO("主窗口初始化成功: " + title_);
     return true;
 }
@@ -131,42 +169,72 @@ void MainWindow::render() {
         // 渲染番茄时钟布局
         // 设置窗口位置和大小，为侧边栏留出空间
         ImGui::SetNextWindowPos(ImVec2(sidebarWidth, 30)); // 30是标题栏高度
-        ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x - sidebarWidth, 
+        ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x - sidebarWidth,
                                        ImGui::GetIO().DisplaySize.y - 30));
-        
-        ImGuiWindowFlags mainContentFlags = ImGuiWindowFlags_NoTitleBar | 
-                                           ImGuiWindowFlags_NoResize | 
-                                           ImGuiWindowFlags_NoMove | 
+
+        ImGuiWindowFlags mainContentFlags = ImGuiWindowFlags_NoTitleBar |
+                                           ImGuiWindowFlags_NoResize |
+                                           ImGuiWindowFlags_NoMove |
                                            ImGuiWindowFlags_NoCollapse |
                                            ImGuiWindowFlags_NoBringToFrontOnFocus;
-        
+
+        // 设置深色主题背景
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
         ImGui::Begin("MainContent", nullptr, mainContentFlags);
         pomodoroLayout_->render();
         ImGui::End();
+        ImGui::PopStyleColor(); // 恢复背景色
+    } else if (currentView_ == MainViewType::EXCHANGE_RECORD && exchangeRecordLayout_ && exchangeRecordLayout_->isVisible()) {
+        // 渲染换取记录布局
+        // 设置窗口位置和大小，为侧边栏留出空间
+        ImGui::SetNextWindowPos(ImVec2(sidebarWidth, 30)); // 30是标题栏高度
+        ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x - sidebarWidth,
+                                       ImGui::GetIO().DisplaySize.y - 30));
+
+        ImGuiWindowFlags mainContentFlags = ImGuiWindowFlags_NoTitleBar |
+                                           ImGuiWindowFlags_NoResize |
+                                           ImGuiWindowFlags_NoMove |
+                                           ImGuiWindowFlags_NoCollapse |
+                                           ImGuiWindowFlags_NoBringToFrontOnFocus;
+
+        // 设置深色主题背景
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
+        ImGui::Begin("MainContent", nullptr, mainContentFlags);
+        exchangeRecordLayout_->render();
+        ImGui::End();
+        ImGui::PopStyleColor(); // 恢复背景色
     } else {
         // 渲染主窗口内容，留出侧边栏空间
         {
             static float f = 0.0f;
             static int counter = 0;
-            
+
             // 设置窗口位置和大小，为侧边栏留出空间
             ImGui::SetNextWindowPos(ImVec2(sidebarWidth, 30)); // 30是标题栏高度
-            ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x - sidebarWidth, 
+            ImGui::SetNextWindowSize(ImVec2(ImGui::GetIO().DisplaySize.x - sidebarWidth,
                                            ImGui::GetIO().DisplaySize.y - 30));
-            
-            ImGuiWindowFlags mainContentFlags = ImGuiWindowFlags_NoTitleBar | 
-                                               ImGuiWindowFlags_NoResize | 
-                                               ImGuiWindowFlags_NoMove | 
+
+            ImGuiWindowFlags mainContentFlags = ImGuiWindowFlags_NoTitleBar |
+                                               ImGuiWindowFlags_NoResize |
+                                               ImGuiWindowFlags_NoMove |
                                                ImGuiWindowFlags_NoCollapse |
                                                ImGuiWindowFlags_NoBringToFrontOnFocus;
-            
+
+            // 设置深色主题背景
+            ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
             ImGui::Begin("Hello, DearTs!", nullptr, mainContentFlags);
             
             ImGui::Text("DearTs 主窗口");
             ImGui::Text("应用程序平均 %.3f ms/帧 (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
             ImGui::Text("侧边栏宽度: %.1f", sidebarWidth);
             ImGui::Text("侧边栏状态: %s", sidebar && sidebar->isExpanded() ? "展开" : "收起");
-            ImGui::Text("当前视图: %s", currentView_ == MainViewType::POMODORO ? "番茄时钟" : "默认");
+            const char* viewName = "默认";
+if (currentView_ == MainViewType::POMODORO) {
+    viewName = "番茄时钟";
+} else if (currentView_ == MainViewType::EXCHANGE_RECORD) {
+    viewName = "换取记录";
+}
+ImGui::Text("当前视图: %s", viewName);
             
             ImGui::Separator();
             
@@ -196,8 +264,9 @@ void MainWindow::render() {
             if (ImGui::Button("关闭窗口")) {
                 close();
             }
-            
+
             ImGui::End();
+            ImGui::PopStyleColor(); // 恢复背景色
         }
     }
     
@@ -245,6 +314,13 @@ void MainWindow::update() {
         }
     } else {
         DEARTS_LOG_INFO("番茄时钟布局不存在");
+    }
+
+    // 更新换取记录布局
+    if (exchangeRecordLayout_) {
+        if (exchangeRecordLayout_->isVisible()) {
+            exchangeRecordLayout_->updateLayout(0, 0);
+        }
     }
     
     // 在这里可以添加自定义更新逻辑
