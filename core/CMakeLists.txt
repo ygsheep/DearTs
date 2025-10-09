@@ -49,6 +49,7 @@ set(CORE_SOURCES
     window/window_manager.cpp
     window/window_base.cpp
     window/main_window.cpp
+    window/win_aero_snap_handler.cpp
     window/layouts/layout_base.cpp
     window/layouts/title_bar_layout.cpp
     window/layouts/layout_manager.cpp
@@ -92,6 +93,7 @@ set(CORE_HEADERS
     window/window_manager.h
     window/window_base.h
     window/main_window.h
+    window/win_aero_snap_handler.h
     window/layouts/layout_base.h
     window/layouts/title_bar_layout.h
     window/layouts/layout_manager.h
@@ -219,6 +221,10 @@ target_link_libraries(DearTsCore
         $<$<PLATFORM_ID:Windows>:version>
         $<$<PLATFORM_ID:Windows>:imm32>
         $<$<PLATFORM_ID:Windows>:setupapi>
+        $<$<PLATFORM_ID:Windows>:dwmapi>
+        $<$<PLATFORM_ID:Windows>:user32>
+        $<$<PLATFORM_ID:Windows>:gdi32>
+        $<$<PLATFORM_ID:Windows>:shell32>
         
         # 跨平台库
         $<$<NOT:$<PLATFORM_ID:Windows>>:pthread>
@@ -241,7 +247,6 @@ target_compile_definitions(DearTsCore
         DEARTS_CORE_EXPORTS
         $<$<CONFIG:Debug>:DEARTS_DEBUG>
         $<$<CONFIG:Release>:DEARTS_RELEASE>
-        $<$<PLATFORM_ID:Windows>:WIN32_LEAN_AND_MEAN>
         $<$<PLATFORM_ID:Windows>:NOMINMAX>
     PRIVATE
         DEARTS_CORE_BUILDING

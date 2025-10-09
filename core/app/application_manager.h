@@ -310,11 +310,9 @@ protected:
     virtual void onResume() {}
 
 protected:
-    void processEvents();
-
-private:
     void initializeSubsystems();
     void shutdownSubsystems();
+    void processEvents();
     void updateStats();
     void limitFrameRate();
     

@@ -22,7 +22,7 @@ option(DEARTS_BUILD_TESTS "Build tests" OFF)
 option(DEARTS_BUILD_DOCS "Build documentation" OFF)
 option(DEARTS_BUILD_EXAMPLES "Build examples" OFF)
 option(DEARTS_ENABLE_LOGGING "Enable logging" ON)
-option(DEARTS_ENABLE_PROFILING "Enable profiling" OFF)
+option(DEARTS_ENABLE_PROFILING "Enable profiling" ON)
 
 # 设置第三方库路径
 set(THIRD_PARTY_DIR ${CMAKE_SOURCE_DIR}/lib/third_party)
@@ -368,6 +368,55 @@ endif()
 # 示例配置
 if(DEARTS_BUILD_EXAMPLES AND EXISTS ${CMAKE_SOURCE_DIR}/examples)
     add_subdirectory(examples)
+endif()
+
+# 字体测试Demo (独立构建，不依赖core)
+if(EXISTS ${CMAKE_SOURCE_DIR}/examples/font_test_demo.cpp)
+    add_executable(font_test_demo ${CMAKE_SOURCE_DIR}/examples/font_test_demo.cpp)
+
+    target_include_directories(font_test_demo PRIVATE
+        ${IMGUI_DIR}
+        ${IMGUI_DIR}/backends
+        ${SDL2_ROOT}/include
+    )
+
+    target_link_libraries(font_test_demo PRIVATE
+        imgui
+        ${SDL2_LIB_DIR}/SDL2.lib
+        ${SDL2_LIB_DIR}/SDL2main.lib
+    )
+
+    target_compile_definitions(font_test_demo PRIVATE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+        _CRT_SECURE_NO_WARNINGS
+    )
+
+    # 设置目标属性
+    set_target_properties(font_test_demo PROPERTIES
+        CXX_STANDARD 20
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        OUTPUT_NAME "font_test_demo"
+        DEBUG_POSTFIX "_d"
+    )
+
+    # 复制DLL
+    if(WIN32)
+        add_custom_command(TARGET font_test_demo POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${SDL2_LIB_DIR}/SDL2.dll
+            $<TARGET_FILE_DIR:font_test_demo>/SDL2.dll
+        )
+
+        add_custom_command(TARGET font_test_demo POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/resources
+            $<TARGET_FILE_DIR:font_test_demo>/resources
+        )
+    endif()
+
+    message(STATUS "Font test demo configured")
 endif()
 
 # 配置文件生成

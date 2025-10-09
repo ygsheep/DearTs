@@ -116,6 +116,16 @@ public:
      */
     void setSearchInputFocused(bool focused) { searchInputFocused_ = focused; }
 
+    /**
+     * @brief 更新窗口状态（与SDL同步）
+     */
+    void updateWindowState();
+
+    /**
+     * @brief 获取窗口的实际状态（查询SDL）
+     */
+    bool isActuallyMaximized() const;
+
 private:
     // 标题栏相关属性
     std::string windowTitle_;           ///< 窗口标题
@@ -139,6 +149,9 @@ private:
     
     // 图片资源相关
     std::shared_ptr<DearTs::Core::Resource::TextureResource> iconTexture_;  ///< 标题栏图标纹理
+
+    // 事件处理相关
+    bool buttonClicked_;                  ///< 按钮是否被点击（防止SDL事件干扰）
     
     /**
      * @brief 渲染标题文本

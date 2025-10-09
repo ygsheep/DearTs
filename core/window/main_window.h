@@ -3,7 +3,6 @@
 #include "window_base.h"
 #include "layouts/title_bar_layout.h"
 #include "layouts/sidebar_layout.h"
-#include "../resource/vscode_icons.hpp"
 #include <string>
 #include <imgui.h>
 

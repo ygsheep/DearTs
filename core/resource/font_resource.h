@@ -216,6 +216,12 @@ public:
     static const ImWchar* getChineseGlyphRanges();
     
     /**
+     * @brief 获取Material Symbols字符范围
+     * @return Material Symbols字符范围
+     */
+    static const ImWchar* getMaterialSymbolsGlyphRanges();
+    
+    /**
      * @brief 获取默认字符范围
      * @return 默认字符范围
      */

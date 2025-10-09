@@ -10,9 +10,6 @@
 
 #pragma once
 
-#ifndef DEARTS_CONFIG_MANAGER_H
-#define DEARTS_CONFIG_MANAGER_H
-
 // 直接包含必要的标准库头文件以避免预编译头文件问题
 #include <string>
 #include <unordered_map>
@@ -137,7 +134,7 @@ public:
      * @return 是否存在
      */
     bool exists(const std::string& key) const;
-    
+
     /**
      * @brief 清空所有配置
      */
@@ -156,5 +153,3 @@ private:
 } // namespace Utils
 } // namespace Core
 } // namespace DearTs
-
-#endif // DEARTS_CONFIG_MANAGER_H
