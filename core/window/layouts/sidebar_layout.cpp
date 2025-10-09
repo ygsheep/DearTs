@@ -226,29 +226,11 @@ namespace DearTs {
        * 渲染展开状态的侧边栏
        */
       void SidebarLayout::renderExpanded() {
-        // 使用字体管理器的默认字体（如果可用）
-        auto fontManager = DearTs::Core::Resource::FontManager::getInstance();
-        std::shared_ptr<DearTs::Core::Resource::FontResource> defaultFont = nullptr;
-        std::shared_ptr<DearTs::Core::Resource::FontResource> iconFont = nullptr;
-        if (fontManager) {
-          defaultFont = fontManager->getDefaultFont();
-          if (defaultFont) {
-            defaultFont->pushFont();
-          }
-          // 获取图标字体
-          iconFont = fontManager->getFont("icons");
-        }
-
         // 渲染项目列表（设置上边距为20像素）
         ImGui::SetCursorPos(ImVec2(0, 20));
 
         for (auto &item: items_) {
           renderItem(item, true);
-        }
-
-        // 恢复之前的字体
-        if (defaultFont) {
-          defaultFont->popFont();
         }
       }
 
@@ -256,29 +238,11 @@ namespace DearTs {
        * 渲染收起状态的侧边栏
        */
       void SidebarLayout::renderCollapsed() {
-        // 使用字体管理器的默认字体（如果可用）
-        auto fontManager = DearTs::Core::Resource::FontManager::getInstance();
-        std::shared_ptr<DearTs::Core::Resource::FontResource> defaultFont = nullptr;
-        std::shared_ptr<DearTs::Core::Resource::FontResource> iconFont = nullptr;
-        if (fontManager) {
-          defaultFont = fontManager->getDefaultFont();
-          if (defaultFont) {
-            defaultFont->pushFont();
-          }
-          // 获取图标字体
-          iconFont = fontManager->getFont("icons");
-        }
-
         // 渲染项目图标（设置上边距为20像素）
         ImGui::SetCursorPos(ImVec2(0, 20));
 
         for (auto &item: items_) {
           renderItem(item, false);
-        }
-
-        // 恢复之前的字体
-        if (defaultFont) {
-          defaultFont->popFont();
         }
       }
 
@@ -287,20 +251,6 @@ namespace DearTs {
        */
       void SidebarLayout::renderItem(const SidebarItem &item, bool isExpanded) {
         float itemHeight = 20.0f;
-        float iconSize = 16.0f;
-
-        // 使用字体管理器的默认字体（如果可用）
-        auto fontManager = DearTs::Core::Resource::FontManager::getInstance();
-        std::shared_ptr<DearTs::Core::Resource::FontResource> defaultFont = nullptr;
-        std::shared_ptr<DearTs::Core::Resource::FontResource> iconFont = nullptr;
-        if (fontManager) {
-          defaultFont = fontManager->getDefaultFont();
-          if (defaultFont) {
-            defaultFont->pushFont();
-          }
-          // 获取图标字体
-          iconFont = fontManager->getFont("icons");
-        }
 
         // 使用ImGui的折叠菜单组件
         ImGui::SetCursorPosX(10.0f);
@@ -350,123 +300,6 @@ namespace DearTs {
 
         // 减少缩进
         ImGui::Unindent(10.0f);
-
-        // 其他项目使用原有渲染方式
-        // 使用ImGui::Selectable渲染项目
-        // ImGui::SetCursorPosX(isExpanded ? 8.0f : (collapsedWidth_ - iconSize) / 2.0f);
-        //
-        // ImVec2 cursorPos = ImGui::GetCursorPos();
-        //
-        // // 设置项目颜色
-        // ImVec4 bgColor = itemNormalColor_;
-        // ImVec4 textColor = itemTextColor_;
-        //
-        // if (item.isActive) {
-        //   bgColor = itemActiveColor_;
-        //   textColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-        // }
-        //
-        // // 使用ImGui::PushStyleColor设置选中项的背景色
-        // ImGui::PushStyleColor(ImGuiCol_Header, bgColor);
-        // ImGui::PushStyleColor(ImGuiCol_HeaderHovered, itemHoverColor_);
-        // ImGui::PushStyleColor(ImGuiCol_HeaderActive, itemActiveColor_);
-        // ImGui::PushStyleColor(ImGuiCol_Text, textColor);
-        //
-        // // 使用ImGui::Selectable创建可选择的菜单项
-        // ImGuiSelectableFlags flags = ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowItemOverlap;
-        // bool isSelected = item.isActive;
-        //
-        // // 显示图标（优先使用图片，如果没有图片则使用字符图标）
-        // float iconX = cursorPos.x + (isExpanded ? 12.0f : (collapsedWidth_ - iconSize) / 2.0f);
-        // float iconY = cursorPos.y + (itemHeight - iconSize) / 2.0f;
-        // ImGui::SetCursorPos(ImVec2(iconX, iconY));
-        //
-        // if (!item.iconPath.empty()) {
-        //   // 使用资源管理器加载并显示图片
-        //   auto resourceManager = DearTs::Core::Resource::ResourceManager::getInstance();
-        //   if (resourceManager) {
-        //     auto textureResource = resourceManager->getTexture(item.iconPath);
-        //     if (textureResource && textureResource->getTexture()) {
-        //       // 使用ImGui显示纹理，将SDL_Texture*转换为ImTextureID
-        //       ImGui::Image((ImTextureID) textureResource->getTexture(), ImVec2(iconSize, iconSize));
-        //     } else {
-        //       // 如果图片加载失败，不显示图标
-        //       // 可以选择显示一个默认图标或者留空
-        //     }
-        //   } else {
-        //     // 如果资源管理器不可用，不显示图标
-        //   }
-        // }
-        // // 如果没有图片路径，不显示图标
-        //
-        // // 创建可选择项
-        // ImGui::SameLine();
-        // ImGui::SetCursorPos(
-        //     ImVec2(cursorPos.x + (isExpanded ? 32.0f : (collapsedWidth_ + iconSize) / 2.0f), cursorPos.y));
-        // std::string selectableId = "##" + item.id;
-        // bool itemClicked =
-        //     ImGui::Selectable(selectableId.c_str(), isSelected, flags,
-        //                       ImVec2(isExpanded ? (currentWidth_ - 40) : (collapsedWidth_ - 16), itemHeight));
-        //
-        // // 处理点击事件
-        // if (itemClicked) {
-        //   if (item.isExpandable) {
-        //     // 如果是可展开项，切换展开状态
-        //     SidebarItem *mutableItem = const_cast<SidebarItem *>(&item);
-        //     mutableItem->isExpanded = !mutableItem->isExpanded;
-        //   } else {
-        //     // 如果是普通项，处理点击事件
-        //     handleItemClick(item.id);
-        //   }
-        // }
-        //
-        // // 显示文本（仅在展开时）
-        // if (isExpanded) {
-        //   ImGui::SameLine();
-        //   ImGui::SetCursorPos(
-        //       ImVec2(cursorPos.x + 36.0f, cursorPos.y + (itemHeight - ImGui::GetTextLineHeight()) / 2.0f));
-        //   ImGui::Text("%s", item.text.c_str());
-        //
-        //   // 如果是可展开项，显示展开/收起图标
-        //   if (item.isExpandable) {
-        //     ImGui::SetCursorPos(
-        //         ImVec2(currentWidth_ - 20.0f, cursorPos.y + (itemHeight - ImGui::GetTextLineHeight()) / 2.0f));
-        //     if (iconFont) {
-        //       iconFont->pushFont();
-        //     }
-        //     ImGui::Text("%s", item.isExpanded ? DearTs::Core::Resource::ICON_VS_CHEVRON_DOWN
-        //                                       : DearTs::Core::Resource::ICON_VS_CHEVRON_RIGHT);
-        //     if (iconFont) {
-        //       iconFont->popFont();
-        //     }
-        //   }
-        //
-        //   // 显示提示
-        //   bool isHovered = ImGui::IsItemHovered();
-        //   if (isHovered && !item.tooltip.empty()) {
-        //     ImGui::BeginTooltip();
-        //     ImGui::Text("%s", item.tooltip.c_str());
-        //     ImGui::EndTooltip();
-        //   }
-        //
-        //   // 如果是可展开项且已展开，渲染子菜单
-        //   if (item.isExpandable && item.isExpanded && !item.children.empty()) {
-        //     // 创建子菜单
-        //     ImGui::Indent(20.0f);
-        //     for (const auto &child: item.children) {
-        //       renderItem(child, isExpanded);
-        //     }
-        //     ImGui::Unindent(20.0f);
-        //   }
-        // }
-        //
-        // // 恢复样式颜色
-        // ImGui::PopStyleColor(4);
-
-        // 恢复之前的字体
-        if (defaultFont) {
-          defaultFont->popFont();
-        }
       }
 
       /**
