@@ -12,6 +12,7 @@ namespace DearTs {
 namespace Core {
 namespace Window {
 class PomodoroLayout; // 番茄时钟布局前向声明
+class ExchangeRecordLayout; // 换取记录布局前向声明
 } // namespace Window
 } // namespace Core
 } // namespace DearTs
@@ -24,8 +25,9 @@ namespace Window {
  * @brief 主窗口视图类型枚举
  */
 enum class MainViewType {
-    DEFAULT,     ///< 默认视图
-    POMODORO     ///< 番茄时钟视图
+    DEFAULT,         ///< 默认视图
+    POMODORO,        ///< 番茄时钟视图
+    EXCHANGE_RECORD  ///< 换取记录视图
 };
 
 /**
@@ -88,6 +90,9 @@ private:
     
     // 番茄时钟相关
     PomodoroLayout* pomodoroLayout_;  ///< 番茄时钟布局
+
+    // 换取记录相关
+    ExchangeRecordLayout* exchangeRecordLayout_;  ///< 换取记录布局
 };
 
 } // namespace Window
