@@ -726,12 +726,10 @@ namespace DearTs {
       }
 
       void WindowManager::updateAllWindows() {
-        DEARTS_LOG_INFO("WindowManager::updateAllWindows() 被调用");
+        // updateAllWindows方法被频繁调用，移除冗余日志输出
         auto windows = getAllWindows();
-        DEARTS_LOG_INFO("找到窗口数量: " + std::to_string(windows.size()));
         for (auto &window: windows) {
           if (window && window->isCreated()) {
-            DEARTS_LOG_INFO("更新窗口 ID: " + std::to_string(window->getId()));
             window->update();
           }
         }
@@ -739,9 +737,7 @@ namespace DearTs {
 
 
       void WindowManager::renderAllWindows() {
-        DEARTS_LOG_INFO("调用WindowManager::renderAllWindows()");
         auto windows = getAllWindows();
-        DEARTS_LOG_INFO("找到 " + std::to_string(windows.size()) + " 个窗口");
 
         // 检查是否有窗口正在拖拽
         bool any_window_dragging = false;
@@ -760,54 +756,41 @@ namespace DearTs {
 
           // 在拖拽过程中降低渲染频率到30FPS
           if (elapsed.count() < 33) { // 33ms ≈ 30FPS
-            DEARTS_LOG_INFO("跳过渲染以降低拖拽时的帧率");
             return;
           }
 
           last_render_time = now;
-          DEARTS_LOG_INFO("窗口正在拖拽，降低整体渲染频率");
         } else {
           last_render_time = std::chrono::steady_clock::now();
         }
 
         for (auto &window: windows) {
           if (window && window->isCreated() && window->isVisible()) {
-            DEARTS_LOG_INFO("渲染窗口ID: " + std::to_string(window->getId()));
-
             // 检查是否是SDLRenderer并开始ImGui帧
             auto renderer = window->getRenderer();
 
             // 渲染ImGui（如果使用渲染器）
             if (renderer) {
-              DEARTS_LOG_INFO("为窗口ID使用渲染器: " + std::to_string(window->getId()));
 
               // 获取SDLRenderer来调用newImGuiFrame和renderImGui方法
-              DEARTS_LOG_INFO("检查窗口ID的渲染器是否为SDLRenderer: " + std::to_string(window->getId()));
+              // 检查渲染器类型
               auto sdlRenderer = dynamic_cast<DearTs::Core::Render::SDLRenderer *>(renderer);
-              DEARTS_LOG_INFO("窗口ID " + std::to_string(window->getId()) +
-                              " 的dynamic_cast结果: " + (sdlRenderer ? "成功" : "失败"));
 
               // 检查是否是适配器，如果是则尝试获取底层渲染器
               if (!sdlRenderer) {
                 auto adapter = dynamic_cast<DearTs::Core::Render::IRendererToWindowRendererAdapter *>(renderer);
                 if (adapter) {
-                  DEARTS_LOG_INFO("窗口ID的渲染器是适配器: " + std::to_string(window->getId()));
                   // 从适配器中获取底层渲染器
                   auto underlyingRenderer = adapter->getRenderer();
                   if (underlyingRenderer) {
                     sdlRenderer = dynamic_cast<DearTs::Core::Render::SDLRenderer *>(underlyingRenderer.get());
-                    DEARTS_LOG_INFO("窗口ID " + std::to_string(window->getId()) +
-                                    " 的底层渲染器dynamic_cast: " + (sdlRenderer ? "成功" : "失败"));
                   }
                 }
               }
 
               if (sdlRenderer) {
-                DEARTS_LOG_INFO("找到SDLRenderer，为窗口ID启动ImGui帧: " + std::to_string(window->getId()));
-
                 // 开始ImGui帧
                 sdlRenderer->newImGuiFrame();
-                DEARTS_LOG_INFO("ImGui新帧已启动");
 
                 // 清除屏幕背景（在ImGui帧开始后清除，避免重影）
                 // 注意：这个清除操作应该在ImGui渲染之前进行，以避免覆盖ImGui内容
@@ -821,23 +804,16 @@ namespace DearTs {
                 if (!any_window_dragging) {
                   // 只在非拖拽时渲染复杂内容
                   ImGui::ShowDemoWindow();
-                  DEARTS_LOG_INFO("显示ImGui演示窗口");
                 }
 
                 // 渲染ImGui
                 ImGui::Render();
-                DEARTS_LOG_INFO("调用ImGui::Render()");
 
                 ImDrawData *draw_data = ImGui::GetDrawData();
-                DEARTS_LOG_INFO("获取ImGui绘制数据，CmdListsCount: " +
-                                std::to_string(draw_data ? draw_data->CmdListsCount : -1));
-
                 sdlRenderer->renderImGui(draw_data);
-                DEARTS_LOG_INFO("使用SDLRenderer渲染ImGui");
 
                 // 呈现
                 sdlRenderer->present();
-                DEARTS_LOG_INFO("调用SDLRenderer present()");
               } else {
                 // 如果不是SDLRenderer，使用适配器渲染器
                 renderer->beginFrame();
@@ -851,25 +827,19 @@ namespace DearTs {
                 renderer->present();
               }
             } else {
-              DEARTS_LOG_INFO("未找到窗口ID的渲染器: " + std::to_string(window->getId()));
               // 如果没有渲染器，仍然渲染窗口内容
               window->render();
             }
-          } else {
-            if (!window) {
-              DEARTS_LOG_INFO("窗口为空");
-            } else if (!window->isCreated()) {
-              DEARTS_LOG_INFO("窗口未创建，ID: " + std::to_string(window->getId()));
-            } else if (!window->isVisible()) {
-              DEARTS_LOG_INFO("窗口不可见，ID: " + std::to_string(window->getId()));
-            }
           }
         }
-        DEARTS_LOG_INFO("WindowManager::renderAllWindows()完成");
+        // renderAllWindows完成
       }
 
       void WindowManager::handleSDLEvent(const SDL_Event &event) {
-        DEARTS_LOG_INFO("调用WindowManager::handleSDLEvent()，事件类型: " + std::to_string(event.type));
+        // 只对重要事件记录日志，避免频繁输出
+        if (event.type == SDL_WINDOWEVENT || event.type == SDL_QUIT) {
+          DEARTS_LOG_DEBUG("WindowManager处理事件，类型: " + std::to_string(event.type));
+        }
 
         // 处理窗口事件
         // if (event.type == SDL_WINDOWEVENT) {

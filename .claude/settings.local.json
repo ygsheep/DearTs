@@ -4,7 +4,16 @@
       "Bash(cmake:*)",
       "Bash(DearTs_d.exe)",
       "Bash(dir:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(cl:*)",
+      "Bash(findstr:*)",
+      "Bash(DearTs.exe)",
+      "Bash(dumpbin:*)",
+      "Bash(objdump:*)",
+      "Bash(ninja:*)"
     ],
     "deny": [],
     "ask": []

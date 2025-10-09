@@ -7,6 +7,10 @@
 #include <memory>
 #include <string>
 
+#if defined(_WIN32)
+#include "win_aero_snap_handler.h"
+#endif
+
 namespace DearTs {
 namespace Core {
 namespace Window {
@@ -164,12 +168,23 @@ public:
      * @brief 获取布局管理器（const版本）
      */
     const LayoutManager& getLayoutManager() const { return layoutManager_; }
-    
+
+#if defined(_WIN32)
+    /**
+     * @brief 获取Aero Snap处理器
+     */
+    std::shared_ptr<AeroSnapHandler> getAeroSnapHandler() const { return aeroSnapHandler_; }
+#endif
+
 protected:
     std::shared_ptr<Window> window_;  ///< 窗口对象
     std::string title_;               ///< 窗口标题
     WindowConfig config_;             ///< 窗口配置
     LayoutManager layoutManager_;     ///< 布局管理器
+
+#if defined(_WIN32)
+    std::shared_ptr<AeroSnapHandler> aeroSnapHandler_;  ///< Aero Snap处理器
+#endif
 };
 
 } // namespace Window

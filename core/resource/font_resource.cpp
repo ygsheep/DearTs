@@ -10,6 +10,7 @@
 #include "../utils/file_utils.h"
 
 #include <imgui.h>
+#include <misc/freetype/imgui_freetype.h>
 #include <iostream>
 #include <algorithm>
 
@@ -38,10 +39,18 @@ bool FontManager::initialize() {
         io.Fonts->Clear();
 
         // 设置全局字体缩放，提升字体清晰度
-        io.FontGlobalScale = 1.0f;
-        
-        // 加载默认字体（使用13px作为全局默认字体大小）
-        if (!loadDefaultFont(13.0f)) {
+        io.FontGlobalScale = 1.5f;  // 进一步放大以提升清晰度
+
+        // 设置FreeType加载器
+        #ifdef IMGUI_ENABLE_FREETYPE
+        const ImFontLoader* freetypeLoader = ImGuiFreeType::GetFontLoader();
+        if (freetypeLoader != nullptr) {
+            io.Fonts->SetFontLoader(freetypeLoader);
+        }
+        #endif
+
+        // 加载默认字体（使用15px作为全局默认字体大小）
+        if (!loadDefaultFont(11.0f)) {
             DEARTS_LOG_ERROR("加载默认字体失败");
             return false;
         }
@@ -83,14 +92,16 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
         bool fontExists = Utils::FileUtils::exists(fontPath);
         DEARTS_LOG_INFO("检查字体文件: " + fontPath + ", 存在: " + (fontExists ? "是" : "否"));
         
-        // 配置字体 - 参考ImHex的字体配置
+        // 配置字体 - 优化FreeType渲染设置，进一步提升清晰度
         ImFontConfig config;
         config.SizePixels = fontSize * scaleFactor;
-        config.OversampleH = 1;  // ImHex使用1，避免过度模糊
-        config.OversampleV = 1;  // 保持字体清晰
+        config.OversampleH = 3;  // 提高水平采样率以增强清晰度
+        config.OversampleV = 2;  // 提高垂直采样率以增强清晰度
         config.PixelSnapH = true;
-        // 增加字体清晰度设置
         config.RasterizerMultiply = 1.0f;  // 避免过度加粗
+
+        // 启用FreeType特定的优化设置，使用和demo相同的配置
+        config.FontLoaderFlags = ImGuiFreeTypeLoaderFlags_NoHinting;  // 禁用提示以保持字体原始设计，更适合中文字体
         strcpy_s(config.Name, sizeof(config.Name), "default");
         
         // 加载主字体（支持中文）
@@ -124,82 +135,46 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
             }
         }
         
-        // 构建图标字体文件的绝对路径
-        std::string iconFontPath = "resources/fonts/codicons.ttf";
+        // 构建Material Symbols字体文件的绝对路径
+        std::string materialSymbolsFontPath = "resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf";
         if (!exeDir.empty()) {
-            iconFontPath = exeDir + "/" + iconFontPath;
+            materialSymbolsFontPath = exeDir + "/" + materialSymbolsFontPath;
             // 规范化路径
-            iconFontPath = Utils::FileUtils::normalizePath(iconFontPath);
+            materialSymbolsFontPath = Utils::FileUtils::normalizePath(materialSymbolsFontPath);
         }
-        bool iconFontExists = Utils::FileUtils::exists(iconFontPath);
-        DEARTS_LOG_INFO("检查图标字体文件: " + iconFontPath + ", 存在: " + (iconFontExists ? "是" : "否"));
-        if (iconFontExists) {
-            ImFontConfig iconConfig;
-            iconConfig.MergeMode = true;
-            iconConfig.PixelSnapH = true;
-            iconConfig.OversampleH = 2;  // 图标字体也需要过采样
-            iconConfig.OversampleV = 1;
-            iconConfig.GlyphMinAdvanceX = fontSize * scaleFactor;
-            strcpy_s(iconConfig.Name, sizeof(iconConfig.Name), "icons");
+        bool materialSymbolsFontExists = Utils::FileUtils::exists(materialSymbolsFontPath);
+        DEARTS_LOG_INFO("检查Material Symbols字体文件: " + materialSymbolsFontPath + ", 存在: " + (materialSymbolsFontExists ? "是" : "否"));
+        if (materialSymbolsFontExists) {
+            ImFontConfig materialSymbolsConfig;
+            materialSymbolsConfig.MergeMode = true;
+            materialSymbolsConfig.PixelSnapH = true;
+            materialSymbolsConfig.OversampleH = 2;
+            materialSymbolsConfig.OversampleV = 1;
+            materialSymbolsConfig.GlyphMinAdvanceX = fontSize * scaleFactor;
+            // Material Symbols字体使用FreeType优化，和demo保持一致
+            materialSymbolsConfig.FontLoaderFlags = ImGuiFreeTypeLoaderFlags_NoHinting;
+            strcpy_s(materialSymbolsConfig.Name, sizeof(materialSymbolsConfig.Name), "material_symbols");
             
-            // 使用正确的VS Code图标范围
-            static const ImWchar icon_ranges[] = { 0xea60, 0xec25, 0 }; // VS Code图标范围
-            ImFont* iconFont = io.Fonts->AddFontFromFileTTF(
-                iconFontPath.c_str(),
+            // Material Symbols图标范围
+            static const ImWchar material_symbols_ranges[] = { 0xe003, 0xf8ff, 0 }; // Material Symbols图标范围
+            ImFont* materialSymbolsFont = io.Fonts->AddFontFromFileTTF(
+                materialSymbolsFontPath.c_str(),
                 fontSize * scaleFactor,
-                &iconConfig,
-                icon_ranges
+                &materialSymbolsConfig,
+                material_symbols_ranges
             );
             
-            if (iconFont) {
-                // 创建图标字体资源并添加到映射中
-                FontConfig iconFontConfig("icons", iconFontPath, fontSize, scaleFactor, icon_ranges, true);
-                auto iconFontResource = std::make_shared<FontResource>(iconFontPath, iconFont, iconFontConfig);
-                fonts_["icons"] = iconFontResource;
-                DEARTS_LOG_INFO("图标字体加载并存储成功");
+            if (materialSymbolsFont) {
+                // 创建Material Symbols字体资源并添加到映射中
+                FontConfig materialSymbolsFontConfig("material_symbols", materialSymbolsFontPath, fontSize, scaleFactor, material_symbols_ranges, true);
+                auto materialSymbolsFontResource = std::make_shared<FontResource>(materialSymbolsFontPath, materialSymbolsFont, materialSymbolsFontConfig);
+                fonts_["material_symbols"] = materialSymbolsFontResource;
+                DEARTS_LOG_INFO("Material Symbols字体加载并存储成功");
             } else {
-                DEARTS_LOG_WARN("从 " + iconFontPath + " 加载图标字体失败");
+                DEARTS_LOG_WARN("从 " + materialSymbolsFontPath + " 加载Material Symbols字体失败");
             }
         } else {
-            DEARTS_LOG_WARN("未找到图标字体: " + iconFontPath);
-        }
-        
-        // 构建blendericons字体文件的绝对路径
-        std::string blenderIconFontPath = "resources/fonts/blendericons.ttf";
-        if (!exeDir.empty()) {
-            blenderIconFontPath = exeDir + "/" + blenderIconFontPath;
-            // 规范化路径
-            blenderIconFontPath = Utils::FileUtils::normalizePath(blenderIconFontPath);
-        }
-        bool blenderIconFontExists = Utils::FileUtils::exists(blenderIconFontPath);
-        DEARTS_LOG_INFO("检查Blender图标字体文件: " + blenderIconFontPath + ", 存在: " + (blenderIconFontExists ? "是" : "否"));
-        if (blenderIconFontExists) {
-            ImFontConfig blenderIconConfig;
-            blenderIconConfig.MergeMode = true;
-            blenderIconConfig.PixelSnapH = true;
-            blenderIconConfig.GlyphMinAdvanceX = fontSize * scaleFactor;
-            strcpy_s(blenderIconConfig.Name, sizeof(blenderIconConfig.Name), "blendericons");
-            
-            // Blender图标范围
-            static const ImWchar blender_icon_ranges[] = { 0xe000, 0xe900, 0 }; // Blender图标范围
-            ImFont* blenderIconFont = io.Fonts->AddFontFromFileTTF(
-                blenderIconFontPath.c_str(),
-                fontSize * scaleFactor,
-                &blenderIconConfig,
-                blender_icon_ranges
-            );
-            
-            if (blenderIconFont) {
-                // 创建Blender图标字体资源并添加到映射中
-                FontConfig blenderIconFontConfig("blendericons", blenderIconFontPath, fontSize, scaleFactor, blender_icon_ranges, true);
-                auto blenderIconFontResource = std::make_shared<FontResource>(blenderIconFontPath, blenderIconFont, blenderIconFontConfig);
-                fonts_["blendericons"] = blenderIconFontResource;
-                DEARTS_LOG_INFO("Blender图标字体加载并存储成功");
-            } else {
-                DEARTS_LOG_WARN("从 " + blenderIconFontPath + " 加载Blender图标字体失败");
-            }
-        } else {
-            DEARTS_LOG_WARN("未找到Blender图标字体: " + blenderIconFontPath);
+            DEARTS_LOG_WARN("未找到Material Symbols字体: " + materialSymbolsFontPath);
         }
         
         // 构建Noto nerd字体文件的绝对路径
@@ -216,6 +191,8 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
             notoNerdConfig.MergeMode = true;
             notoNerdConfig.PixelSnapH = true;
             notoNerdConfig.GlyphMinAdvanceX = fontSize * scaleFactor;
+            // Noto nerd字体使用FreeType优化，和demo保持一致
+            notoNerdConfig.FontLoaderFlags = ImGuiFreeTypeLoaderFlags_NoHinting;
             strcpy_s(notoNerdConfig.Name, sizeof(notoNerdConfig.Name), "noto_nerd");
             
             // Nerd字体范围（包含各种图标和符号）
@@ -250,8 +227,6 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
         } else {
             DEARTS_LOG_WARN("未找到Noto nerd字体: " + notoNerdFontPath);
         }
-        
-        // 新的ImGui后端自动处理字体图集重建
         
         // 创建字体资源
         FontConfig fontConfig("default", fontPath, fontSize, scaleFactor, io.Fonts->GetGlyphRangesChineseFull(), false);
@@ -322,14 +297,16 @@ std::shared_ptr<FontResource> FontManager::loadFontFromFile(const std::string& n
         
         ImGuiIO& io = ImGui::GetIO();
         
-        // 配置字体 - 参考ImHex的字体配置
+        // 配置字体 - 使用优化的FreeType渲染设置
         ImFontConfig fontConfig;
         fontConfig.SizePixels = config.size * config.scale;
         fontConfig.MergeMode = config.mergeMode;
-        fontConfig.OversampleH = 1;  // ImHex使用1，避免过度模糊
-        fontConfig.OversampleV = 1;  // 保持字体清晰
+        fontConfig.OversampleH = 2;  // 提高水平采样率以增强清晰度
+        fontConfig.OversampleV = 1;  // 保持垂直采样率为1以避免模糊
         fontConfig.PixelSnapH = true;
         fontConfig.RasterizerMultiply = 1.0f;  // 避免过度加粗
+        // 启用FreeType优化
+        fontConfig.FontLoaderFlags = ImGuiFreeTypeLoaderFlags_LightHinting;
         strcpy_s(fontConfig.Name, sizeof(fontConfig.Name), name.c_str());
         
         // 加载字体
@@ -423,6 +400,14 @@ const ImWchar* FontManager::getChineseGlyphRanges() {
         0x31F0, 0x31FF, // Katakana Phonetic Extensions
         0xFF00, 0xFFEF, // Half-width characters
         0x4e00, 0x9FAF, // CJK Ideograms
+        0,
+    };
+    return &ranges[0];
+}
+
+const ImWchar* FontManager::getMaterialSymbolsGlyphRanges() {
+    static const ImWchar ranges[] = {
+        0xe003, 0xf8ff, // Material Symbols range
         0,
     };
     return &ranges[0];

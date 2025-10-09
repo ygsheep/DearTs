@@ -1,7 +1,6 @@
 #pragma once
 
 #include "layout_base.h"
-#include "../../resource/vscode_icons.hpp"
 #include <string>
 #include <vector>
 #include <imgui.h>

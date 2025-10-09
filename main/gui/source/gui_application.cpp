@@ -57,7 +57,7 @@ namespace DearTs {
     // 运行主循环直到应用程序请求退出或所有窗口都关闭
     while (getState() != Core::App::ApplicationState::STOPPING && getState() != Core::App::ApplicationState::STOPPED) {
       // 更新应用程序状态
-      update(1.0 / 60.0); // 假设60FPS
+      update(1.0 / config_.target_fps); // 假设60FPS
 
       // 检查是否还有窗口存在，如果没有则退出
       auto &windowManager = DearTs::Core::Window::WindowManager::getInstance();
@@ -69,7 +69,7 @@ namespace DearTs {
       render();
 
       // 简单的帧率控制
-      std::this_thread::sleep_for(std::chrono::milliseconds(16)); // 约60 FPS
+      // std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(config_.target_fps / 4))); // 约60 FPS
     }
 
     return 0;

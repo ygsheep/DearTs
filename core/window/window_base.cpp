@@ -17,8 +17,8 @@ WindowBase::WindowBase(const std::string& title)
     config_.title = title_;
     config_.size = WindowSize(1280, 720);
     config_.position = WindowPosition::centered();
-    config_.flags = WindowFlags::BORDERLESS | WindowFlags::RESIZABLE;
-    
+    config_.flags = WindowFlags::BORDERLESS;  // 使用无边框窗口
+
     // 设置布局管理器的父窗口
     layoutManager_.setParentWindow(this);
 }
@@ -42,7 +42,13 @@ bool WindowBase::initialize() {
     
     // 设置窗口的用户数据为this指针，便于在事件处理中获取WindowBase实例
     window_->setUserData(this);
-    
+
+#if defined(_WIN32)
+    // 无边框窗口不需要Aero Snap处理器，禁用以避免冲突
+    aeroSnapHandler_.reset();
+    DEARTS_LOG_INFO("无边框窗口模式，Aero Snap处理器已禁用");
+#endif
+
     DEARTS_LOG_INFO("窗口初始化成功: " + title_);
     return true;
 }

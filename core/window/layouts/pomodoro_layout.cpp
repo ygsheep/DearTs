@@ -154,7 +154,7 @@ namespace DearTs {
        * 更新番茄时钟布局
        */
       void PomodoroLayout::updateLayout(float width, float height) {
-        DEARTS_LOG_INFO("PomodoroLayout::updateLayout() 被调用");
+        // updateLayout方法被频繁调用，移除冗余日志输出
 
         // 更新计时器
         updateTimer();
@@ -333,18 +333,12 @@ namespace DearTs {
        * 更新计时器状态
        */
       void PomodoroLayout::updateTimer() {
-        DEARTS_LOG_INFO("updateTimer() 被调用 - isVisible_: " + std::string(isVisible_ ? "true" : "false") +
-                        ", isRunning_: " + std::string(isRunning_ ? "true" : "false"));
-
         auto currentTime = std::chrono::high_resolution_clock::now();
         double deltaTime = std::chrono::duration<double>(currentTime - lastUpdateTime_).count();
         lastUpdateTime_ = currentTime;
 
-        DEARTS_LOG_INFO("updateTimer() - deltaTime: " + std::to_string(deltaTime) + "s, accumulatedTime_: " + std::to_string(accumulatedTime_));
-
         // 只有在可见且运行时才更新计时器
         if (isVisible_ && isRunning_) {
-          DEARTS_LOG_INFO("updateTimer() - 满足更新条件，开始更新计时器");
           accumulatedTime_ += deltaTime;
 
           // 每秒更新一次
@@ -353,8 +347,8 @@ namespace DearTs {
             remainingTime_ -= secondsToSubtract;
             accumulatedTime_ -= secondsToSubtract;
 
-            // 记录倒计时更新
-            DEARTS_LOG_INFO("番茄时钟倒计时更新，剩余时间: " + std::to_string(remainingTime_) + "秒");
+            // 只在倒计时有显著变化时记录日志
+            DEARTS_LOG_INFO("番茄时钟倒计时更新 - 剩余时间: " + std::to_string(remainingTime_) + "秒");
 
             // 检查是否到达0
             if (remainingTime_ <= 0) {
@@ -371,11 +365,7 @@ namespace DearTs {
               // 计时结束，切换模式
               switchMode();
             }
-          } else {
-            DEARTS_LOG_INFO("updateTimer() - accumulatedTime_ 不足1秒，继续等待: " + std::to_string(accumulatedTime_));
           }
-        } else {
-          DEARTS_LOG_INFO("updateTimer() - 不满足更新条件，跳过计时器更新");
         }
       }
 
