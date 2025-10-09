@@ -31,14 +31,17 @@ bool FontManager::initialize() {
     if (initialized_) {
         return true;
     }
-    
+
     try {
         // 清除现有字体
         ImGuiIO& io = ImGui::GetIO();
         io.Fonts->Clear();
+
+        // 设置全局字体缩放，提升字体清晰度
+        io.FontGlobalScale = 1.0f;
         
-        // 加载默认字体
-        if (!loadDefaultFont()) {
+        // 加载默认字体（使用13px作为全局默认字体大小）
+        if (!loadDefaultFont(13.0f)) {
             DEARTS_LOG_ERROR("加载默认字体失败");
             return false;
         }
@@ -80,12 +83,14 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
         bool fontExists = Utils::FileUtils::exists(fontPath);
         DEARTS_LOG_INFO("检查字体文件: " + fontPath + ", 存在: " + (fontExists ? "是" : "否"));
         
-        // 配置字体
+        // 配置字体 - 参考ImHex的字体配置
         ImFontConfig config;
         config.SizePixels = fontSize * scaleFactor;
-        config.OversampleH = 3;
-        config.OversampleV = 1;
+        config.OversampleH = 1;  // ImHex使用1，避免过度模糊
+        config.OversampleV = 1;  // 保持字体清晰
         config.PixelSnapH = true;
+        // 增加字体清晰度设置
+        config.RasterizerMultiply = 1.0f;  // 避免过度加粗
         strcpy_s(config.Name, sizeof(config.Name), "default");
         
         // 加载主字体（支持中文）
@@ -132,6 +137,8 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
             ImFontConfig iconConfig;
             iconConfig.MergeMode = true;
             iconConfig.PixelSnapH = true;
+            iconConfig.OversampleH = 2;  // 图标字体也需要过采样
+            iconConfig.OversampleV = 1;
             iconConfig.GlyphMinAdvanceX = fontSize * scaleFactor;
             strcpy_s(iconConfig.Name, sizeof(iconConfig.Name), "icons");
             
@@ -244,21 +251,20 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
             DEARTS_LOG_WARN("未找到Noto nerd字体: " + notoNerdFontPath);
         }
         
-        // 重建字体图集
-        if (!rebuildFontAtlas()) {
-            DEARTS_LOG_ERROR("重建字体图集失败");
-            return false;
-        }
+        // 新的ImGui后端自动处理字体图集重建
         
         // 创建字体资源
         FontConfig fontConfig("default", fontPath, fontSize, scaleFactor, io.Fonts->GetGlyphRangesChineseFull(), false);
         auto fontResource = std::make_shared<FontResource>(fontPath, mainFont, fontConfig);
-        
+
         fonts_["default"] = fontResource;
         defaultFont_ = fontResource;
         currentScale_ = scaleFactor;
-        
-        DEARTS_LOG_INFO("默认字体加载成功");
+
+        // 设置为ImGui的全局默认字体，这样就不需要在每个布局中手动push/pop字体了
+        io.FontDefault = mainFont;
+
+        DEARTS_LOG_INFO("默认字体加载成功并设为全局默认字体");
         return true;
     } catch (const std::exception& e) {
         DEARTS_LOG_ERROR("加载默认字体失败: " + std::string(e.what()));
@@ -266,13 +272,45 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
     }
 }
 
+std::shared_ptr<FontResource> FontManager::loadLargeFont(float fontSize) {
+    auto it = fonts_.find("large");
+    if (it != fonts_.end()) {
+        return it->second;
+    }
+
+    FontConfig config("large", "", fontSize, 1.0f, getChineseGlyphRanges(), false);
+    return loadFontFromFile("large", "", config);
+}
+
+std::shared_ptr<FontResource> FontManager::loadTitleFont(float fontSize) {
+    auto it = fonts_.find("title");
+    if (it != fonts_.end()) {
+        return it->second;
+    }
+
+    FontConfig config("title", "", fontSize, 1.0f, getChineseGlyphRanges(), false);
+    return loadFontFromFile("title", "", config);
+}
+
 std::shared_ptr<FontResource> FontManager::loadFontFromFile(const std::string& name,
                                                            const std::string& path,
                                                            const FontConfig& config) {
     try {
+        // 确定字体文件路径
+        std::string fontPath = path;
+        if (fontPath.empty()) {
+            // 如果没有提供路径，使用默认字体路径
+            std::string exeDir = Utils::FileUtils::getExecutableDirectory();
+            fontPath = "resources/fonts/OPPOSans-M.ttf";
+            if (!exeDir.empty()) {
+                fontPath = exeDir + "/" + fontPath;
+                fontPath = Utils::FileUtils::normalizePath(fontPath);
+            }
+        }
+
         // 检查文件是否存在
-        if (!Utils::FileUtils::exists(path)) {
-            DEARTS_LOG_ERROR("Font file not found: " + path);
+        if (!Utils::FileUtils::exists(fontPath)) {
+            DEARTS_LOG_ERROR("Font file not found: " + fontPath);
             return nullptr;
         }
         
@@ -284,17 +322,19 @@ std::shared_ptr<FontResource> FontManager::loadFontFromFile(const std::string& n
         
         ImGuiIO& io = ImGui::GetIO();
         
-        // 配置字体
+        // 配置字体 - 参考ImHex的字体配置
         ImFontConfig fontConfig;
         fontConfig.SizePixels = config.size * config.scale;
         fontConfig.MergeMode = config.mergeMode;
-        fontConfig.OversampleH = 2;
-        fontConfig.OversampleV = 1;
+        fontConfig.OversampleH = 1;  // ImHex使用1，避免过度模糊
+        fontConfig.OversampleV = 1;  // 保持字体清晰
+        fontConfig.PixelSnapH = true;
+        fontConfig.RasterizerMultiply = 1.0f;  // 避免过度加粗
         strcpy_s(fontConfig.Name, sizeof(fontConfig.Name), name.c_str());
         
         // 加载字体
         ImFont* font = io.Fonts->AddFontFromFileTTF(
-            path.c_str(),
+            fontPath.c_str(),
             fontConfig.SizePixels,
             &fontConfig,
             config.glyphRanges ? config.glyphRanges : getDefaultGlyphRanges()
@@ -304,13 +344,10 @@ std::shared_ptr<FontResource> FontManager::loadFontFromFile(const std::string& n
             return nullptr;
         }
         
-        // 重建字体图集
-        if (!rebuildFontAtlas()) {
-            return nullptr;
-        }
+        // 新的ImGui后端自动处理字体图集重建
         
         // 创建字体资源
-        auto fontResource = std::make_shared<FontResource>(path, font, config);
+        auto fontResource = std::make_shared<FontResource>(fontPath, font, config);
         fonts_[name] = fontResource;
         
         return fontResource;
@@ -340,8 +377,13 @@ bool FontManager::setDefaultFont(const std::string& name) {
     auto font = getFont(name);
     if (font) {
         defaultFont_ = font;
+        // 设置为ImGui的全局默认字体
+        ImGuiIO& io = ImGui::GetIO();
+        io.FontDefault = font->getFont();
+        DEARTS_LOG_INFO("全局默认字体已设置为: " + name);
         return true;
     }
+    DEARTS_LOG_WARN("无法设置全局默认字体，字体不存在: " + name);
     return false;
 }
 
@@ -349,15 +391,6 @@ std::shared_ptr<FontResource> FontManager::getDefaultFont() {
     return defaultFont_;
 }
 
-bool FontManager::rebuildFontAtlas() {
-    try {
-        ImGuiIO& io = ImGui::GetIO();
-        return io.Fonts->Build();
-    } catch (const std::exception& e) {
-        DEARTS_LOG_ERROR("rebuildFontAtlas(): " + std::string(e.what()));
-        return false;
-    }
-}
 
 void FontManager::unloadFont(const std::string& name) {
     auto it = fonts_.find(name);
@@ -368,9 +401,8 @@ void FontManager::unloadFont(const std::string& name) {
         }
         
         fonts_.erase(it);
-        
-        // 重建字体图集
-        rebuildFontAtlas();
+
+        // 新的ImGui后端自动处理字体图集重建
     }
 }
 
@@ -394,6 +426,16 @@ const ImWchar* FontManager::getChineseGlyphRanges() {
         0,
     };
     return &ranges[0];
+}
+
+void FontManager::setGlobalFontScale(float scale) {
+    ImGuiIO& io = ImGui::GetIO();
+    io.FontGlobalScale = scale;
+}
+
+float FontManager::getGlobalFontScale() const {
+    ImGuiIO& io = ImGui::GetIO();
+    return io.FontGlobalScale;
 }
 
 const ImWchar* FontManager::getDefaultGlyphRanges() {

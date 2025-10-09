@@ -126,6 +126,20 @@ public:
      * @return 是否加载成功
      */
     bool loadDefaultFont(float fontSize = 11.0f, float scaleFactor = 1.0f);
+
+    /**
+     * @brief 加载大字体
+     * @param fontSize 字体大小
+     * @return 字体资源指针
+     */
+    std::shared_ptr<FontResource> loadLargeFont(float fontSize = 16.0f);
+
+    /**
+     * @brief 加载标题字体
+     * @param fontSize 字体大小
+     * @return 字体资源指针
+     */
+    std::shared_ptr<FontResource> loadTitleFont(float fontSize = 20.0f);
     
     /**
      * @brief 从文件加载字体
@@ -171,11 +185,18 @@ public:
      */
     std::shared_ptr<FontResource> getDefaultFont();
     
+  
     /**
-     * @brief 重建字体图集
-     * @return 是否重建成功
+     * @brief 设置全局字体缩放
+     * @param scale 缩放因子
      */
-    bool rebuildFontAtlas();
+    void setGlobalFontScale(float scale);
+
+    /**
+     * @brief 获取全局字体缩放
+     * @return 当前缩放因子
+     */
+    float getGlobalFontScale() const;
     
     /**
      * @brief 卸载字体
