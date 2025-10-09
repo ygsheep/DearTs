@@ -512,7 +512,7 @@ void WindowManager::updateTitleBarStyle() {
  */
 void WindowManager::recalculateTitleBarHeight() {
     ImGuiIO& io = ImGui::GetIO();
-    float fontSize = io.FontDefault ? io.FontDefault->FontSize : 13.0f;
+    float fontSize = 13.0f;
     float dpiScale = io.DisplayFramebufferScale.y;
     
     // 基础高度 + 字体大小 + DPI缩放 + 内边距
