@@ -75,18 +75,98 @@ bool AeroSnapHandler::initialize() {
         return false;
     }
 
-    // 扩展窗口框架到客户区
-    extendFrameIntoClientArea(hwnd_);
+    // 获取当前窗口样式并隐藏原生标题栏
+    LONG_PTR style = GetWindowLongPtr(hwnd_, GWL_STYLE);
+    LONG_PTR exStyle = GetWindowLongPtr(hwnd_, GWL_EXSTYLE);
+
+    // ImHex风格的窗口样式修改 - 更精确的边框控制
+    style &= ~WS_CAPTION;  // 移除标题栏
+    style &= ~WS_THICKFRAME; // ImHex也移除了粗边框，然后重新添加需要的部分
+    // 保留 Aero Snap 需要的基本功能
+    style |= WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX; // 重新启用这些功能
+
+    // 移除扩展样式的边框效果
+    exStyle &= ~(WS_EX_CLIENTEDGE | WS_EX_WINDOWEDGE | WS_EX_DLGMODALFRAME);
+
+    // ImHex风格 - 添加合成窗口属性
+    exStyle |= WS_EX_COMPOSITED; // 启用窗口合成以减少闪烁
+
+    // 应用新的窗口样式
+    SetWindowLongPtr(hwnd_, GWL_STYLE, style);
+    SetWindowLongPtr(hwnd_, GWL_EXSTYLE, exStyle);
+
+    // 使用ImHex风格的DWM扩展设置
+    MARGINS margins = {1, 1, 1, 1}; // ImHex使用1,1,1,1而不是-1
+    DwmExtendFrameIntoClientArea(hwnd_, &margins);
+
+    // 根据ImHex实现，添加必要的DWM设置以支持Aero Snap
+    {
+        constexpr BOOL value = TRUE;
+        DwmSetWindowAttribute(hwnd_, DWMWA_NCRENDERING_ENABLED, &value, sizeof(value));
+    }
+    {
+        constexpr DWMNCRENDERINGPOLICY value = DWMNCRP_ENABLED;
+        DwmSetWindowAttribute(hwnd_, DWMWA_NCRENDERING_POLICY, &value, sizeof(value));
+    }
+
+    // ImHex风格的增强DWM设置
+    {
+        // 启用MMCSS (Multimedia Class Scheduler Service)
+        DwmEnableMMCSS(TRUE);
+    }
+    {
+        // 启用沉浸式深色模式
+        constexpr BOOL value = TRUE;
+        DwmSetWindowAttribute(hwnd_, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
+    }
+
+    // 设置标题栏颜色，与自定义标题栏背景色匹配
+    {
+        // 设置标题栏背景色为深灰色 (与ImGui的WindowBg颜色匹配)
+        DWORD color = RGB(30, 30, 30); // RGB(0.12*255, 0.12*255, 0.12*255) ≈ (30, 30, 30)
+        DwmSetWindowAttribute(hwnd_, DWMWA_CAPTION_COLOR, &color, sizeof(color));
+    }
+    {
+        // 设置标题栏文本颜色为浅灰色
+        DWORD color = RGB(230, 230, 230); // RGB(0.9*255, 0.9*255, 0.9*255) ≈ (230, 230, 230)
+        DwmSetWindowAttribute(hwnd_, DWMWA_TEXT_COLOR, &color, sizeof(color));
+    }
+
+    DEARTS_LOG_INFO("Aero Snap处理器初始化 - 保守的边框隐藏方法");
 
     // 绑定处理器实例到窗口
     bindToWindow(hwnd_);
 
+    // ImHex风格的精确时序控制 - 使用高精度定时器
+    LARGE_INTEGER frequency;
+    QueryPerformanceFrequency(&frequency);
+    LARGE_INTEGER startTime, endTime;
+    QueryPerformanceCounter(&startTime);
+
     // 强制刷新窗口样式，确保DWM效果立即生效
     refreshWindowStyle(hwnd_);
-    DEARTS_LOG_INFO("Aero Snap处理器DWM初始化刷新完成");
+
+    // 等待DWM完成处理 (ImHex风格的时序同步)
+    constexpr int maxWaitTime = 100; // 最大等待100ms
+    constexpr int checkInterval = 1;  // 每1ms检查一次
+    int waitedTime = 0;
+
+    do {
+        Sleep(checkInterval);
+        waitedTime += checkInterval;
+        QueryPerformanceCounter(&endTime);
+
+        // 检查DWM是否已经完成处理
+        if (static_cast<double>((endTime.QuadPart - startTime.QuadPart) * 1000) / frequency.QuadPart > 10) {
+            break; // 如果已经超过10ms，认为DWM处理完成
+        }
+    } while (waitedTime < maxWaitTime);
+
+    DEARTS_LOG_INFO("Aero Snap处理器DWM初始化刷新完成 (精确时序控制: " +
+                   std::to_string(static_cast<double>((endTime.QuadPart - startTime.QuadPart) * 1000) / frequency.QuadPart) + "ms)");
 
     initialized_ = true;
-    DEARTS_LOG_INFO("Aero Snap处理器初始化成功 (v2.0 with timing fixes)");
+    DEARTS_LOG_INFO("Aero Snap处理器初始化成功 (v3.0 with ImHex-style timing)");
     return true;
 }
 
@@ -122,12 +202,12 @@ bool AeroSnapHandler::handleWindowMessage(HWND hwnd, UINT msg, WPARAM wParam, LP
 
     switch (msg) {
         case WM_NCACTIVATE:
-            // 保持窗口激活状态，确保边框正确显示
-            return TRUE;
+            // 让 Windows 处理 Aero Snap
+            return DefWindowProc(hwnd, msg, wParam, lParam);
 
         case WM_NCPAINT:
-            // 处理非客户区绘制，确保Aero效果
-            return TRUE;
+            // 让 Windows 处理 Aero Snap
+            return DefWindowProc(hwnd, msg, wParam, lParam);
 
         case WM_NCHITTEST:
             // 执行命中测试，支持窗口边缘调整大小
@@ -208,8 +288,18 @@ void AeroSnapHandler::startDragging(int mouseX, int mouseY) {
     windowStartX_ = windowRect.left;
     windowStartY_ = windowRect.top;
 
+    // 计算相对于窗口客户区的坐标
+    // WM_NCLBUTTONDOWN的lParam需要相对于窗口左上角的坐标
+    int clientX = mouseX - windowRect.left;
+    int clientY = mouseY - windowRect.top;
+
+    DEARTS_LOG_INFO("AeroSnapHandler: 发送WM_NCLBUTTONDOWN，屏幕坐标:(" +
+                   std::to_string(mouseX) + "," + std::to_string(mouseY) +
+                   ") 窗口坐标:(" + std::to_string(clientX) + "," + std::to_string(clientY) + ")");
+
     // 发送系统拖拽消息，触发Aero Snap
-    PostMessage(hwnd_, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(mouseX, mouseY));
+    // 使用相对于窗口的坐标，而不是屏幕坐标
+    PostMessage(hwnd_, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(clientX, clientY));
 }
 
 /**
@@ -230,6 +320,70 @@ bool AeroSnapHandler::isInTitleBarArea(int x, int y, float titleBarHeight) const
         if (x < windowWidth - 150) {
             return true;
         }
+    }
+
+    return false;
+}
+
+/**
+ * 处理SDL事件
+ */
+bool AeroSnapHandler::handleEvent(const SDL_Event& event) {
+    if (!initialized_ || !aeroSnapEnabled_ || !hwnd_) {
+        return false;
+    }
+
+    switch (event.type) {
+        case SDL_MOUSEBUTTONDOWN:
+            if (event.button.button == SDL_BUTTON_LEFT) {
+                DEARTS_LOG_INFO("AeroSnapHandler: 处理鼠标按下事件");
+
+                // 获取鼠标相对于SDL窗口的坐标
+                int mouseX, mouseY;
+                int windowX, windowY;
+                SDL_GetWindowPosition(sdlWindow_, &windowX, &windowY);
+                SDL_GetGlobalMouseState(&mouseX, &mouseY);
+
+                // 转换为窗口相对坐标
+                int relativeX = mouseX - windowX;
+                int relativeY = mouseY - windowY;
+
+                DEARTS_LOG_INFO("AeroSnapHandler: 鼠标位置(" + std::to_string(relativeX) + "," + std::to_string(relativeY) + ") 标题栏高度: " + std::to_string(static_cast<int>(titleBarHeight_)));
+
+                if (isInTitleBarArea(relativeX, relativeY, titleBarHeight_)) {
+                    DEARTS_LOG_INFO("AeroSnapHandler: 在标题栏区域，开始拖拽");
+                    // 开始拖拽操作，使用屏幕坐标
+                    startDragging(mouseX, mouseY);
+                    return true;
+                } else {
+                    DEARTS_LOG_INFO("AeroSnapHandler: 不在标题栏区域");
+                }
+            }
+            break;
+
+        case SDL_MOUSEBUTTONUP:
+            if (event.button.button == SDL_BUTTON_LEFT && isDragging_) {
+                // 结束拖拽
+                isDragging_ = false;
+                return true;
+            }
+            break;
+
+        case SDL_MOUSEMOTION:
+            // 鼠标移动事件已在Windows消息处理中处理
+            // 这里可以添加额外的逻辑，如果需要的话
+            break;
+
+        case SDL_WINDOWEVENT:
+            if (event.window.event == SDL_WINDOWEVENT_MAXIMIZED ||
+                event.window.event == SDL_WINDOWEVENT_RESTORED ||
+                event.window.event == SDL_WINDOWEVENT_MOVED ||
+                event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                // 窗口状态改变时刷新DWM效果
+                refreshWindowStyle(hwnd_);
+                return true;
+            }
+            break;
     }
 
     return false;
@@ -360,6 +514,10 @@ LRESULT AeroSnapHandler::handleNcMouseMessage(HWND hwnd, UINT msg, WPARAM wParam
                 GetWindowRect(hwnd, &windowRect);
                 windowStartX_ = windowRect.left;
                 windowStartY_ = windowRect.top;
+
+                DEARTS_LOG_INFO("AeroSnapHandler: WM_NCLBUTTONDOWN处理 - 让Windows处理系统拖拽");
+                // 对于HTCAPTION，直接让Windows处理，这样可以触发Aero Snap
+                return DefWindowProc(hwnd, msg, wParam, lParam);
             }
             break;
 
@@ -372,7 +530,7 @@ LRESULT AeroSnapHandler::handleNcMouseMessage(HWND hwnd, UINT msg, WPARAM wParam
             break;
     }
 
-    // 调用默认处理
+    // 对于其他情况，调用默认处理
     if (originalWndProc_) {
         return CallWindowProc(originalWndProc_, hwnd, msg, wParam, lParam);
     }
@@ -440,7 +598,9 @@ LRESULT AeroSnapHandler::hitTestNCA(HWND hwnd, int x, int y) {
         if (relativeX >= width - 150) {
             return HTCLIENT; // 让ImGui处理控制按钮
         }
-        return HTCAPTION; // 标题栏区域
+        // 在Aero Snap模式下，标题栏区域也返回HTCLIENT，让SDL处理事件
+        // 这样TitleBarLayout就能收到鼠标事件，然后由AeroSnapHandler的SDL事件处理来触发拖拽
+        return HTCLIENT; // 让SDL处理标题栏区域的鼠标事件
     }
 
     // 检查边框区域（用于调整大小）
@@ -488,21 +648,31 @@ void AeroSnapHandler::refreshWindowStyle(HWND hwnd) {
     InvalidateRect(hwnd, nullptr, TRUE);
     UpdateWindow(hwnd);
 
-    // 获取当前窗口样式
+    // 获取当前窗口样式并确保隐藏原生标题栏
     LONG_PTR style = GetWindowLongPtr(hwnd, GWL_STYLE);
     LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
 
-    // 重新设置样式，强制Windows重新评估窗口外观
+    // ImHex风格的窗口样式确保
+    style &= ~WS_CAPTION;  // 移除标题栏
+    style &= ~WS_THICKFRAME; // 移除粗边框
+    style |= WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX; // 重新启用Aero Snap需要的功能
+
+    // 移除所有扩展样式的边框效果
+    exStyle &= ~(WS_EX_CLIENTEDGE | WS_EX_WINDOWEDGE | WS_EX_DLGMODALFRAME);
+    exStyle |= WS_EX_COMPOSITED; // 确保合成属性启用
+
+    // 重新应用样式
     SetWindowLongPtr(hwnd, GWL_STYLE, style);
     SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
+
+    // 重新应用DWM扩展（ImHex风格）
+    MARGINS margins = {1, 1, 1, 1}; // ImHex使用1,1,1,1而不是-1
+    DwmExtendFrameIntoClientArea(hwnd, &margins);
 
     // 强制窗口重新计算非客户区
     SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
                  SWP_FRAMECHANGED | SWP_DRAWFRAME);
-
-    // 再次发送DWM扩展，确保效果立即生效
-    extendFrameIntoClientArea(hwnd);
 }
 
 /**
