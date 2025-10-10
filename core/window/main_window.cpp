@@ -24,6 +24,9 @@ MainWindow::MainWindow(const std::string& title)
     , currentView_(MainViewType::DEFAULT)
     , pomodoroLayout_(nullptr)
     , exchangeRecordLayout_(nullptr) {
+    // 设置为 Aero Snap 模式（在构造函数中设置，确保在初始化前生效）
+    setWindowMode(WindowMode::AERO_SNAP);
+    DEARTS_LOG_INFO("MainWindow构造函数: 窗口模式设置为 Aero Snap");
 }
 
 /**
@@ -31,7 +34,7 @@ MainWindow::MainWindow(const std::string& title)
  */
 bool MainWindow::initialize() {
     DEARTS_LOG_INFO("初始化主窗口: " + title_);
-    
+
     // 调用基类初始化
     if (!WindowBase::initialize()) {
         DEARTS_LOG_ERROR("基类窗口初始化失败: " + title_);
@@ -234,73 +237,7 @@ if (currentView_ == MainViewType::POMODORO) {
     viewName = "换取记录";
 }
 ImGui::Text("当前视图: %s", viewName);
-
 ImGui::Separator();
-
-// FreeType彩色字符信息
-ImGui::Text("FreeType字体渲染信息:");
-ImGui::Text("- FreeType支持: %s", "已启用");
-
-// 检查是否有Material Symbols字体支持彩色字符
-auto materialSymbolsFont = DearTs::Core::Resource::FontManager::getInstance()->getFont("material_symbols");
-if (materialSymbolsFont) {
-    ImGui::Text("- Material Symbols字体: 已加载");
-    ImGui::Text("- 可以尝试使用彩色图标字符");
-
-    // 测试一些Material Symbols彩色字符
-    ImGui::Text("Material Symbols图标测试:");
-    ImGui::SameLine();
-
-    // 使用Material Symbols字体显示一些图标
-    {
-        FONT_SCOPE("material_symbols");
-        ImGui::Text("测试基本Material Symbols字符:");
-
-        // 测试一些常见的Material Symbols字符 (使用正确的Unicode范围)
-        ImGui::Text("\uEB8B \uEB8C \uEB8D \uEB8E \uEB8F");  // home, settings, etc.
-        ImGui::Text("如果显示乱码，说明字体文件或字符映射有问题");
-
-        ImGui::Separator();
-        ImGui::Text("字体调试信息:");
-
-        // 检查字体是否真的被加载
-        auto font = DearTs::Core::Resource::FontManager::getInstance()->getFont("material_symbols");
-        if (font && font->getFont()) {
-            ImGui::Text("✓ Material Symbols字体对象有效");
-
-            // 显示字体基本信息
-            ImGui::Text("- 字体大小: %.1f", font->getConfig().size);
-            ImGui::Text("- 字体路径: %s", font->getConfig().path.c_str());
-            ImGui::Text("- 字体名称: %s", font->getConfig().name.c_str());
-
-            // 检查FreeType标志
-            auto flags = font->getConfig().glyphRanges != nullptr;
-            ImGui::Text("- 有字符范围设置: %s", flags ? "是" : "否");
-
-            ImGui::Text("LoadColor标志测试:");
-            bool hasLoadColor = (font->getConfig().mergeMode); // 简化检查
-            ImGui::Text("- LoadColor标志: %s", hasLoadColor ? "可能启用" : "未启用");
-
-        } else {
-            ImGui::Text("✗ Material Symbols字体对象无效");
-        }
-    }
-
-    ImGui::Text("注意: 如果图标显示为方框，可能是字体不支持彩色字符或需要LoadColor标志");
-} else {
-    ImGui::Text("- Material Symbols字体: 未加载");
-}
-
-// 关于LoadColor标志的说明
-ImGui::Separator();
-ImGui::Text("FreeType LoadColor标志说明:");
-ImGui::Text("- ImGuiFreeTypeBuilderFlags_LoadColor 可加载彩色字符");
-ImGui::Text("- 适用于支持COLR/CPAL格式的OpenType字体");
-ImGui::Text("- 可显示彩色图标和表情符号");
-ImGui::Text("- 参见ImGui FONTS.md中的'使用彩色字符/表情符号'部分");
-
-ImGui::Separator();
-            
             ImGui::Text("计数器示例:");
             ImGui::Text("计数器值: %d", counter);
             
@@ -389,7 +326,7 @@ void MainWindow::update() {
 void MainWindow::handleEvent(const SDL_Event& event) {
     // 调用基类事件处理（会将事件传递给所有布局）
     WindowBase::handleEvent(event);
-    
+
     // 在这里可以添加自定义事件处理逻辑
 }
 

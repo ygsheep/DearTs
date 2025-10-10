@@ -4,6 +4,7 @@
 #include "layouts/title_bar_layout.h"
 #include "layouts/sidebar_layout.h"
 #include <string>
+#include <memory>
 #include <imgui.h>
 
 // 前向声明
