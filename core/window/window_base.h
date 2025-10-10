@@ -16,6 +16,14 @@ namespace Core {
 namespace Window {
 
 /**
+ * @brief 窗口模式枚举
+ */
+enum class WindowMode {
+    STANDARD,       ///< 标准无边框窗口（使用自定义拖拽和最大化逻辑）
+    AERO_SNAP      ///< 特化无边框窗口（使用 Windows Aero Snap）
+};
+
+/**
  * @brief 窗口基类
  * 所有自定义窗口类的基类，提供通用的窗口功能
  */
@@ -176,11 +184,30 @@ public:
     std::shared_ptr<AeroSnapHandler> getAeroSnapHandler() const { return aeroSnapHandler_; }
 #endif
 
+    /**
+     * @brief 设置窗口模式
+     * @param mode 窗口模式
+     */
+    void setWindowMode(WindowMode mode);
+
+    /**
+     * @brief 获取窗口模式
+     * @return 当前窗口模式
+     */
+    WindowMode getWindowMode() const { return windowMode_; }
+
+    /**
+     * @brief 检查是否使用 Aero Snap 模式
+     * @return 是否使用 Aero Snap
+     */
+    bool isAeroSnapMode() const { return windowMode_ == WindowMode::AERO_SNAP; }
+
 protected:
     std::shared_ptr<Window> window_;  ///< 窗口对象
     std::string title_;               ///< 窗口标题
     WindowConfig config_;             ///< 窗口配置
     LayoutManager layoutManager_;     ///< 布局管理器
+    WindowMode windowMode_;           ///< 窗口模式
 
 #if defined(_WIN32)
     std::shared_ptr<AeroSnapHandler> aeroSnapHandler_;  ///< Aero Snap处理器

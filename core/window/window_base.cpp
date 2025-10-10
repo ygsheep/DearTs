@@ -12,12 +12,14 @@ namespace Window {
  * 初始化窗口配置
  */
 WindowBase::WindowBase(const std::string& title)
-    : title_(title), layoutManager_() {
-    // 设置默认窗口配置为无边框窗口
+    : title_(title), layoutManager_(), windowMode_(WindowMode::STANDARD) {
+    // 设置默认窗口配置
     config_.title = title_;
     config_.size = WindowSize(1280, 720);
     config_.position = WindowPosition::centered();
-    config_.flags = WindowFlags::BORDERLESS;  // 使用无边框窗口
+
+    // 根据窗口模式设置不同的窗口标志
+    config_.flags = WindowFlags::BORDERLESS;  // 默认使用无边框窗口
 
     // 设置布局管理器的父窗口
     layoutManager_.setParentWindow(this);
@@ -44,9 +46,30 @@ bool WindowBase::initialize() {
     window_->setUserData(this);
 
 #if defined(_WIN32)
-    // 无边框窗口不需要Aero Snap处理器，禁用以避免冲突
-    aeroSnapHandler_.reset();
-    DEARTS_LOG_INFO("无边框窗口模式，Aero Snap处理器已禁用");
+    // 根据窗口模式决定是否启用 Aero Snap 处理器
+    if (windowMode_ == WindowMode::AERO_SNAP) {
+        // 创建 Aero Snap 处理器，需要传递SDL_Window*而不是WindowBase*
+        SDL_Window* sdlWindow = window_ ? window_->getSDLWindow() : nullptr;
+        if (sdlWindow) {
+            aeroSnapHandler_ = std::make_shared<AeroSnapHandler>(sdlWindow);
+            if (aeroSnapHandler_) {
+                if (aeroSnapHandler_->initialize()) {
+                    DEARTS_LOG_INFO("Aero Snap 模式已启用");
+                } else {
+                    DEARTS_LOG_ERROR("Aero Snap 处理器初始化失败");
+                    aeroSnapHandler_.reset();
+                }
+            } else {
+                DEARTS_LOG_WARN("Aero Snap 处理器创建失败");
+            }
+        } else {
+            DEARTS_LOG_ERROR("无法获取SDL窗口句柄，Aero Snap处理器创建失败");
+        }
+    } else {
+        // 标准模式禁用 Aero Snap 处理器
+        aeroSnapHandler_.reset();
+        DEARTS_LOG_INFO("标准无边框窗口模式，Aero Snap处理器已禁用");
+    }
 #endif
 
     DEARTS_LOG_INFO("窗口初始化成功: " + title_);
@@ -77,6 +100,35 @@ void WindowBase::update() {
  * @param event SDL事件
  */
 void WindowBase::handleEvent(const SDL_Event& event) {
+    // 添加调试日志
+    if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
+        DEARTS_LOG_INFO("WindowBase::handleEvent - 鼠标左键按下事件");
+    }
+
+#if defined(_WIN32)
+    // 优先使用 Aero Snap 处理器处理事件（如果存在且窗口模式为AERO_SNAP）
+    if (aeroSnapHandler_ && windowMode_ == WindowMode::AERO_SNAP) {
+        if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
+            DEARTS_LOG_INFO("WindowBase::handleEvent - 调用AeroSnapHandler处理事件");
+        }
+        if (aeroSnapHandler_->handleEvent(event)) {
+            // 事件已被 Aero Snap 处理器处理，不需要继续传递
+            if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
+                DEARTS_LOG_INFO("WindowBase::handleEvent - AeroSnapHandler已处理事件，停止传递");
+            }
+            return;
+        } else {
+            if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
+                DEARTS_LOG_INFO("WindowBase::handleEvent - AeroSnapHandler未处理事件，继续传递给布局");
+            }
+        }
+    } else {
+        if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT) {
+            DEARTS_LOG_INFO("WindowBase::handleEvent - 无AeroSnapHandler或窗口不是无边框，直接传递给布局");
+        }
+    }
+#endif
+
     // 通过布局管理器将事件传递给所有布局
     layoutManager_.handleEvent(event);
 }
@@ -232,6 +284,59 @@ LayoutBase* WindowBase::getLayout(const std::string& name) const {
 void WindowBase::removeLayout(const std::string& name) {
     // 通过布局管理器移除布局
     layoutManager_.removeLayout(name);
+}
+
+/**
+ * 设置窗口模式
+ * @param mode 窗口模式
+ */
+void WindowBase::setWindowMode(WindowMode mode) {
+    if (windowMode_ != mode) {
+        windowMode_ = mode;
+
+        // 记录窗口模式变化
+        if (windowMode_ == WindowMode::AERO_SNAP) {
+            DEARTS_LOG_INFO("窗口模式设置为 Aero Snap 模式");
+            // Aero Snap 模式需要使用有边框、可调整大小的窗口
+            config_.flags = WindowFlags::RESIZABLE;  // 使用有边框、可调整大小的窗口以支持 Aero Snap
+        } else {
+            DEARTS_LOG_INFO("窗口模式设置为标准模式");
+            // 标准模式使用无边框窗口
+            config_.flags = WindowFlags::BORDERLESS;
+        }
+
+#if defined(_WIN32)
+        // 如果窗口已经创建，需要重新配置 Aero Snap 处理器
+        if (window_) {
+            if (windowMode_ == WindowMode::AERO_SNAP) {
+                // 创建 Aero Snap 处理器，需要传递SDL_Window*而不是WindowBase*
+                SDL_Window* sdlWindow = window_ ? window_->getSDLWindow() : nullptr;
+                if (sdlWindow) {
+                    aeroSnapHandler_ = std::make_shared<AeroSnapHandler>(sdlWindow);
+                    if (aeroSnapHandler_) {
+                        if (aeroSnapHandler_->initialize()) {
+                            DEARTS_LOG_INFO("Aero Snap 处理器已启用");
+                        } else {
+                            DEARTS_LOG_ERROR("Aero Snap 处理器初始化失败");
+                            aeroSnapHandler_.reset();
+                        }
+                    } else {
+                        DEARTS_LOG_WARN("Aero Snap 处理器创建失败");
+                    }
+                } else {
+                    DEARTS_LOG_ERROR("无法获取SDL窗口句柄，Aero Snap处理器创建失败");
+                }
+            } else {
+                // 标准模式禁用 Aero Snap 处理器
+                aeroSnapHandler_.reset();
+                DEARTS_LOG_INFO("标准无边框窗口模式，Aero Snap处理器已禁用");
+            }
+        } else {
+            // 窗口还未创建，Aero Snap 处理器将在 initialize() 中创建
+            DEARTS_LOG_INFO("窗口尚未创建，Aero Snap 处理器将在初始化时创建");
+        }
+#endif
+    }
 }
 
 } // namespace Window
