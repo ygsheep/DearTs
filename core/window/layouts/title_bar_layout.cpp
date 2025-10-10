@@ -64,10 +64,14 @@ void TitleBarLayout::render() {
 
     // 设置标题栏样式
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f); // 保持边框宽度
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 6.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.12f, 0.12f, 0.12f, 1.0f)); // 深色背景
+
+    // 将背景色和边框色设置为相同的深灰色
+    ImVec4 titleBarColor = ImVec4(0.12f, 0.12f, 0.12f, 1.0f); // 深灰色
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, titleBarColor);
+    ImGui::PushStyleColor(ImGuiCol_Border, titleBarColor); // 边框色与背景色相同
 
     if (ImGui::Begin("##MainWindowTitleBar", nullptr, window_flags)) {
         // 渲染标题栏内容
@@ -80,7 +84,7 @@ void TitleBarLayout::render() {
     }
 
     ImGui::End();
-    ImGui::PopStyleColor(); // WindowBg
+    ImGui::PopStyleColor(2); // WindowBg, Border
     ImGui::PopStyleVar(4);
 
     // 渲染搜索对话框
@@ -100,12 +104,23 @@ void TitleBarLayout::updateLayout(float width, float height) {
  * 处理标题栏事件
  */
 void TitleBarLayout::handleEvent(const SDL_Event& event) {
+    // 检查是否使用 Aero Snap 模式
+    bool usingAeroSnap = false;
+#if defined(_WIN32)
+    if (parentWindow_) {
+        usingAeroSnap = parentWindow_->isAeroSnapMode();
+    }
+#endif
+
     switch (event.type) {
         case SDL_MOUSEBUTTONDOWN:
             if (event.button.button == SDL_BUTTON_LEFT) {
+                // 重置按钮点击状态
+                buttonClicked_ = false;
+
                 // 检查是否在标题栏区域（排除按钮区域）
                 if (isInTitleBarArea(event.button.x, event.button.y)) {
-                    DEARTS_LOG_INFO("SDL事件触发拖拽");
+                    DEARTS_LOG_INFO("SDL事件触发拖拽" + std::string(usingAeroSnap ? "（Aero Snap 模式）" : "（标准模式）"));
                     startDragging(event.button.x, event.button.y);
                 } else {
                     DEARTS_LOG_INFO("SDL事件不在标题栏区域，忽略");
@@ -115,8 +130,10 @@ void TitleBarLayout::handleEvent(const SDL_Event& event) {
 
         case SDL_MOUSEBUTTONUP:
             if (event.button.button == SDL_BUTTON_LEFT) {
-                DEARTS_LOG_INFO("SDL鼠标释放事件");
+                DEARTS_LOG_INFO("SDL鼠标释放事件" + std::string(usingAeroSnap ? "（Aero Snap 模式）" : "（标准模式）"));
                 stopDragging();
+                // 重置按钮点击状态
+                buttonClicked_ = false;
             }
             break;
 
@@ -153,6 +170,14 @@ bool TitleBarLayout::isInTitleBarArea(int x, int y) const {
         return false;
     }
 
+    // 检查是否使用 Aero Snap 模式
+    bool usingAeroSnap = false;
+#if defined(_WIN32)
+    if (parentWindow_) {
+        usingAeroSnap = parentWindow_->isAeroSnapMode();
+    }
+#endif
+
     int windowWidth, windowHeight;
     SDL_GetWindowSize(parentWindow_->getSDLWindow(), &windowWidth, &windowHeight);
 
@@ -161,7 +186,8 @@ bool TitleBarLayout::isInTitleBarArea(int x, int y) const {
     const float buttonWidth = buttonHeight * 1.5f;
     const float buttonsStartX = windowWidth - buttonWidth * 3; // 3个按钮的起始位置
 
-    DEARTS_LOG_INFO("标题栏区域检测 - 鼠标坐标: (" + std::to_string(x) + "," + std::to_string(y) +
+    DEARTS_LOG_INFO("标题栏区域检测" + std::string(usingAeroSnap ? "（Aero Snap 模式）" : "（标准模式）") +
+                   " - 鼠标坐标: (" + std::to_string(x) + "," + std::to_string(y) +
                    ") 窗口宽度: " + std::to_string(windowWidth) +
                    " 按钮区域: " + std::to_string(buttonsStartX) + "-" + std::to_string(windowWidth) +
                    " 标题栏高度: " + std::to_string(static_cast<int>(titleBarHeight_)));
@@ -172,19 +198,28 @@ bool TitleBarLayout::isInTitleBarArea(int x, int y) const {
         return false;
     }
 
+    // 在 Aero Snap 模式下，可能需要更严格的按钮区域检测
+    // 因为 Aero Snap 可能会处理屏幕边缘的拖拽操作
+    float adjustedButtonsStartX = buttonsStartX;
+    if (usingAeroSnap) {
+        // 在 Aero Snap 模式下，稍微扩大按钮区域以避免冲突
+        adjustedButtonsStartX -= 5.0f; // 扩大5像素的检测区域
+    }
+
     // 排除按钮区域（右侧3个按钮区域）
-    if (x >= buttonsStartX && x <= windowWidth) {
+    if (x >= adjustedButtonsStartX && x <= windowWidth) {
         DEARTS_LOG_INFO("鼠标在按钮区域，不触发拖拽 - x: " + std::to_string(x) +
-                       " 按钮区域起始: " + std::to_string(buttonsStartX));
+                       " 按钮区域起始: " + std::to_string(adjustedButtonsStartX) +
+                       std::string(usingAeroSnap ? "（Aero Snap 模式）" : ""));
         return false;
     }
 
     // 检查是否在窗口有效范围内
-    bool inTitleArea = x >= 0 && x < buttonsStartX && y >= 0 && y <= static_cast<int>(titleBarHeight_);
+    bool inTitleArea = x >= 0 && x < adjustedButtonsStartX && y >= 0 && y <= static_cast<int>(titleBarHeight_);
 
     if (inTitleArea) {
         DEARTS_LOG_INFO("鼠标在标题栏区域，触发拖拽 - x: " + std::to_string(x) +
-                       " y: " + std::to_string(y));
+                       " y: " + std::to_string(y) + std::string(usingAeroSnap ? "（Aero Snap 模式）" : ""));
     } else {
         DEARTS_LOG_INFO("鼠标不在标题栏区域 - x: " + std::to_string(x) + " y: " + std::to_string(y));
     }
@@ -476,23 +511,34 @@ void TitleBarLayout::renderTitle() {
     
     ImVec2 titleSize = ImGui::CalcTextSize(title);
     
+    // 获取调整后的标题栏高度（用于垂直居中）
+    float currentTitleBarHeight = titleBarHeight_;
+#if defined(_WIN32)
+    if (parentWindow_) {
+        bool usingAeroSnap = parentWindow_->isAeroSnapMode();
+        if (usingAeroSnap) {
+            currentTitleBarHeight = titleBarHeight_ + 4.0f;
+        }
+    }
+#endif
+
     // 渲染图标（如果已加载）
     float iconXPos = 8.0f;
     if (iconTexture_ && iconTexture_->getTexture()) {
         // 设置光标位置
         ImGui::SetCursorPosX(iconXPos);
-        ImGui::SetCursorPosY((titleBarHeight_ - 16.0f) * 0.5f); // 假设图标高度为16px
-        
+        ImGui::SetCursorPosY((currentTitleBarHeight - 16.0f) * 0.5f); // 假设图标高度为16px，使用当前高度居中
+
         // 渲染图标（使用ImGui的Image函数）
         ImGui::Image((ImTextureID)iconTexture_->getTexture(), ImVec2(16.0f, 16.0f));
-        
+
         // 更新标题文本的X位置，使其在图标右侧
         iconXPos += 20.0f; // 图标宽度(16) + 间距(4)
     }
-    
+
     // 渲染标题文本
     ImGui::SetCursorPosX(iconXPos);
-    ImGui::SetCursorPosY((titleBarHeight_ - titleSize.y) * 0.5f);
+    ImGui::SetCursorPosY((currentTitleBarHeight - titleSize.y) * 0.5f);
     ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.9f, 1.0f), "%s", title);
     
     // 恢复之前的字体
@@ -505,19 +551,31 @@ void TitleBarLayout::renderTitle() {
  * 渲染搜索框
  */
 void TitleBarLayout::renderSearchBox() {
+    // 获取调整后的标题栏高度
+    float currentTitleBarHeight = titleBarHeight_;
+#if defined(_WIN32)
+    if (parentWindow_) {
+        bool usingAeroSnap = parentWindow_->isAeroSnapMode();
+        if (usingAeroSnap) {
+            currentTitleBarHeight = titleBarHeight_ + 4.0f;
+        }
+    }
+#endif
+
+    // 在主窗口中显示搜索框
     const float windowWidth = ImGui::GetWindowWidth();
     const float searchBoxWidth = 200.0f;
-    const float searchBoxHeight = titleBarHeight_ - 8.0f;
-    const float buttonWidth = (titleBarHeight_ - 2.0f) * 1.5f;
+    const float searchBoxHeight = currentTitleBarHeight - 8.0f;
+    const float buttonWidth = (currentTitleBarHeight - 2.0f) * 1.5f;
     const float buttonsWidth = buttonWidth * 3; // 3个按钮
     const float searchBoxPosX = (windowWidth - searchBoxWidth) * 0.5f;
-    
+
     ImVec2 titleSize = ImGui::CalcTextSize(windowTitle_.c_str());
-    
+
     // 确保搜索框不与标题和按钮重叠
     if (searchBoxPosX > titleSize.x + 30.0f && searchBoxPosX + searchBoxWidth < windowWidth - buttonsWidth - 20.0f) {
-        ImGui::SetCursorPos(ImVec2(searchBoxPosX, (titleBarHeight_ - searchBoxHeight) * 0.5f));
-        
+        ImGui::SetCursorPos(ImVec2(searchBoxPosX, (currentTitleBarHeight - searchBoxHeight) * 0.5f));
+
         // 使用字体管理器的默认字体（如果可用）
         auto fontManager = DearTs::Core::Resource::FontManager::getInstance();
         std::shared_ptr<DearTs::Core::Resource::FontResource> defaultFont = nullptr;
@@ -527,7 +585,7 @@ void TitleBarLayout::renderSearchBox() {
                 defaultFont->pushFont();
             }
         }
-        
+
         // 搜索框样式
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.2f, 0.2f, 0.8f));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.25f, 0.25f, 0.9f));
@@ -535,24 +593,24 @@ void TitleBarLayout::renderSearchBox() {
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 4.0f));
-        
+
         // 搜索框按钮
         const char* searchDisplayText = strlen(searchBuffer_) > 0 ? searchBuffer_ : "搜索...";
         if (ImGui::Button(searchDisplayText, ImVec2(searchBoxWidth, searchBoxHeight))) {
             showSearchDialog_ = true;
             searchInputFocused_ = true;
         }
-        
+
         // 搜索框工具提示
         if (ImGui::IsItemHovered()) {
             ImGui::BeginTooltip();
             ImGui::Text("点击搜索或按 Ctrl+F");
             ImGui::EndTooltip();
         }
-        
+
         ImGui::PopStyleVar(3);
         ImGui::PopStyleColor(3);
-        
+
         // 恢复之前的字体
         if (defaultFont) {
             defaultFont->popFont();
@@ -564,8 +622,19 @@ void TitleBarLayout::renderSearchBox() {
  * 渲染窗口控制按钮
  */
 void TitleBarLayout::renderControlButtons() {
+    // 获取调整后的标题栏高度
+    float currentTitleBarHeight = titleBarHeight_;
+#if defined(_WIN32)
+    if (parentWindow_) {
+        bool usingAeroSnap = parentWindow_->isAeroSnapMode();
+        if (usingAeroSnap) {
+            currentTitleBarHeight = titleBarHeight_ + 4.0f;
+        }
+    }
+#endif
+
     const float windowWidth = ImGui::GetWindowWidth();
-    const float buttonHeight = titleBarHeight_ - 2.0f;
+    const float buttonHeight = currentTitleBarHeight - 2.0f;
     const float buttonWidth = buttonHeight * 1.5f;
     
     // 使用字体管理器的图标字体（如果可用）
