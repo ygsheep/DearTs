@@ -13,7 +13,14 @@
       "Bash(DearTs.exe)",
       "Bash(dumpbin:*)",
       "Bash(objdump:*)",
-      "Bash(ninja:*)"
+      "Bash(ninja:*)",
+      "Bash(./Debug/DearTs_d.exe:*)",
+      "Bash(\"build\\Debug\\Debug\\DearTs_d.exe\")",
+      "Bash(copy:*)",
+      "Bash(./DearTs_d.exe)",
+      "Bash(./DearTs_d_new.exe)",
+      "Bash(git tag:*)",
+      "Read(//d/develop/CPlusPlus/Dear_SDL/**)"
     ],
     "deny": [],
     "ask": []

@@ -1,3 +1,7 @@
+# 其他
+.obsidian/
+IFLOW.md
+
 # IDE 配置文件
 .vs/
 .vscode/
@@ -15,6 +19,7 @@ out/
 *.user
 *.userosscache
 *.sln.docstates.json
+CMakeSettings.json
 
 # CMake 构建文件
 build/
@@ -44,6 +49,7 @@ compile_commands.json
 *.su
 *.idb
 *.pdb
+imgui.ini
 
 # 日志文件
 *.log
