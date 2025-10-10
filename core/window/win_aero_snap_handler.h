@@ -100,6 +100,13 @@ public:
     bool isMaximized() const;
 
     /**
+     * @brief 处理SDL事件
+     * @param event SDL事件
+     * @return 是否已处理事件
+     */
+    bool handleEvent(const SDL_Event& event);
+
+    /**
      * @brief 最大化/还原窗口
      */
     void toggleMaximize();
