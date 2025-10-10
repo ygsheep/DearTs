@@ -2,7 +2,6 @@
 .vs/
 .vscode/
 .idea/
-out/
 *.swp
 *.swo
 *~
