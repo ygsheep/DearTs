@@ -76,6 +76,7 @@ include_directories(
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${WINTOAST_ROOT}
+    ${FREETYPE_ROOT}/include
 )
 
 # 配置ImGui
