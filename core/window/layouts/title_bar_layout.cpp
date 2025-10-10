@@ -105,13 +105,17 @@ void TitleBarLayout::handleEvent(const SDL_Event& event) {
             if (event.button.button == SDL_BUTTON_LEFT) {
                 // 检查是否在标题栏区域（排除按钮区域）
                 if (isInTitleBarArea(event.button.x, event.button.y)) {
+                    DEARTS_LOG_INFO("SDL事件触发拖拽");
                     startDragging(event.button.x, event.button.y);
+                } else {
+                    DEARTS_LOG_INFO("SDL事件不在标题栏区域，忽略");
                 }
             }
             break;
 
         case SDL_MOUSEBUTTONUP:
             if (event.button.button == SDL_BUTTON_LEFT) {
+                DEARTS_LOG_INFO("SDL鼠标释放事件");
                 stopDragging();
             }
             break;
