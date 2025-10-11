@@ -57,7 +57,7 @@ namespace DearTs {
     // 运行主循环直到应用程序请求退出或所有窗口都关闭
     while (getState() != Core::App::ApplicationState::STOPPING && getState() != Core::App::ApplicationState::STOPPED) {
       // 更新应用程序状态
-      update(1.0 / config_.target_fps); // 假设60FPS
+      update(1.0 / m_config.target_fps); // 假设60FPS
 
       // 检查是否还有窗口存在，如果没有则退出
       auto &windowManager = DearTs::Core::Window::WindowManager::getInstance();
@@ -69,7 +69,7 @@ namespace DearTs {
       render();
 
       // 简单的帧率控制
-      // std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(config_.target_fps / 4))); // 约60 FPS
+      // std::this_thread::sleep_for(std::chrono::milliseconds(static_cast<int>(m_config.target_fps / 4))); // 约60 FPS
     }
 
     return 0;
@@ -280,7 +280,7 @@ namespace DearTs {
       // 处理SDL事件
       switch (event.type) {
         case SDL_QUIT:
-          DEARTS_LOG_INFO("SDL_QUIT event received, requesting exit and closing all windows");
+          DEARTS_LOG_INFO("🛑 收到SDL_QUIT事件，准备退出并关闭所有窗口");
           requestExit();
           // 手动关闭所有窗口，确保窗口关闭流程被触发
         {
@@ -288,7 +288,7 @@ namespace DearTs {
           auto windows = window_manager.getAllWindows();
           for (auto& window : windows) {
             if (window) {
-              DEARTS_LOG_INFO("SDL_QUIT: Closing window ID: " + std::to_string(window->getId()));
+              DEARTS_LOG_INFO("🚪 SDL_QUIT: 正在关闭窗口 ID: " + std::to_string(window->getId()));
               window->close();
             }
           }
@@ -303,10 +303,10 @@ namespace DearTs {
     // 检查是否有窗口请求关闭
     auto& window_manager = DearTs::Core::Window::WindowManager::getInstance();
     if (window_manager.hasWindowsToClose()) {
-      DEARTS_LOG_INFO("Found windows to close, closing them");
+      DEARTS_LOG_INFO("🔍 发现需要关闭的窗口，正在处理...");
       window_manager.closeWindowsToClose();
       if (window_manager.getWindowCount() == 0) {
-        DEARTS_LOG_INFO("No windows left, requesting exit");
+        DEARTS_LOG_INFO("🏠 所有窗口已关闭，请求退出");
         requestExit();
       }
     }
