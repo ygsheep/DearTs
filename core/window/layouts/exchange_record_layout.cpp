@@ -1,14 +1,18 @@
 #include "exchange_record_layout.h"
+#include <Windows.h>
+#include <objbase.h>
+#include <Shlobj.h>
+#include <shobjidl.h>
 #include <SDL.h>
+#include <SDL_syswm.h>
 #include <iostream>
 #include <algorithm>
-#include <Windows.h>
-#include <Shlobj.h>
 #include <imgui.h>
 #include <imgui_impl_sdl2.h>
 #include "../resource/font_resource.h"
 #include "../utils/logger.h"
 #include "../utils/file_utils.h"
+#include "../window_manager.h"
 
 namespace DearTs {
 namespace Core {
@@ -29,7 +33,7 @@ ExchangeRecordLayout::ExchangeRecordLayout()
     , isSearching_(false)
     , currentProgress_(0) {
 
-    // 初始化时不设置全局缩放，使用原始字体大小
+    DEARTS_LOG_INFO("ExchangeRecordLayout构造函数");
 
     // 加载保存的配置
     loadConfiguration();
@@ -820,6 +824,11 @@ void ExchangeRecordLayout::renderManualInput() {
             updateStatus("已选择游戏路径: " + manualGamePath_, ExchangeRecordState::SEARCHING);
             // 自动检查选择路径
             setGamePath(manualGamePath_);
+            // 更新输入框内容
+            strcpy_s(pathBuffer, sizeof(pathBuffer), manualGamePath_.c_str());
+        } else {
+            // 如果文件夹选择失败，提示用户手动输入
+            updateStatus("文件夹选择失败，请手动输入游戏路径或重试", ExchangeRecordState::SEARCH_ERROR);
         }
     }
     ImGui::SameLine();
@@ -878,38 +887,177 @@ void ExchangeRecordLayout::renderActionButtons() {
 /**
  * @brief 浏览并选择游戏路径
  */
+// 浏览文件夹回调函数
+static int CALLBACK BrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lParam, LPARAM lpData) {
+    switch (uMsg) {
+        case BFFM_INITIALIZED:
+            DEARTS_LOG_INFO("文件夹选择对话框已初始化");
+            // 设置初始目录
+            SendMessageA(hwnd, BFFM_SETSELECTIONA, TRUE, lpData);
+            break;
+        case BFFM_SELCHANGED:
+            DEARTS_LOG_INFO("文件夹选择已改变");
+            // 获取当前选择的文件夹并显示
+            char szPath[MAX_PATH];
+            if (SHGetPathFromIDListA(reinterpret_cast<LPITEMIDLIST>(lParam), szPath)) {
+                DEARTS_LOG_INFO("当前选择: " + std::string(szPath));
+            }
+            break;
+        case BFFM_VALIDATEFAILED:
+            DEARTS_LOG_INFO("文件夹选择验证失败");
+            break;
+    }
+    return 0;
+}
+
 bool ExchangeRecordLayout::browseForGamePath() {
-    // 使用Windows文件夹选择对话框
-    BROWSEINFOA bi = {0};
-    char szPath[MAX_PATH] = {0};
+    DEARTS_LOG_INFO("开始现代化文件夹选择过程");
 
-    // 设置浏览信息
-    bi.hwndOwner = nullptr;  // 可以设置为父窗口句柄
-    bi.lpszTitle = "选择鸣潮游戏安装目录";
-    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
-    bi.lpfn = nullptr;
-    bi.lParam = 0;
-    bi.iImage = 0;
-
-    // 显示文件夹选择对话框
-    LPITEMIDLIST pidl = SHBrowseForFolderA(&bi);
-    if (pidl != nullptr) {
-        // 获取选择的文件夹路径
-        if (SHGetPathFromIDListA(pidl, szPath)) {
-            manualGamePath_ = std::string(szPath);
-            DEARTS_LOG_INFO("用户选择的游戏路径: " + manualGamePath_);
-
-            // 释放内存
-            CoTaskMemFree(pidl);
-            return true;
-        }
-
-        // 释放内存
-        CoTaskMemFree(pidl);
+    // 初始化COM
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(hr)) {
+        DEARTS_LOG_ERROR("COM初始化失败: " + std::to_string(hr));
+        return false;
     }
 
-    DEARTS_LOG_INFO("用户取消了文件夹选择");
-    return false;
+    bool result = false;
+
+    try {
+        // 清空SDL事件队列
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {}
+
+        // 获取主窗口句柄作为父窗口
+        HWND hwndOwner = nullptr;
+        SDL_Window* sdlWindow = nullptr;
+
+        // 尝试获取主窗口的SDL句柄
+        auto& windowManager = DearTs::Core::Window::WindowManager::getInstance();
+        auto windows = windowManager.getAllWindows();
+        if (!windows.empty() && windows[0]) {
+            sdlWindow = windows[0]->getSDLWindow();
+            if (sdlWindow) {
+                SDL_SysWMinfo wmInfo;
+                SDL_VERSION(&wmInfo.version);
+                if (SDL_GetWindowWMInfo(sdlWindow, &wmInfo)) {
+                    if (wmInfo.subsystem == SDL_SYSWM_WINDOWS) {
+                        hwndOwner = wmInfo.info.win.window;
+                        DEARTS_LOG_INFO("获取到主窗口句柄: " + std::to_string(reinterpret_cast<uintptr_t>(hwndOwner)));
+                    }
+                }
+            }
+        }
+
+        // 创建现代化的文件夹选择对话框
+        IFileOpenDialog* pFileOpenDialog = nullptr;
+        hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_ALL,
+                            IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpenDialog));
+
+        if (SUCCEEDED(hr)) {
+            DEARTS_LOG_INFO("成功创建IFileOpenDialog实例");
+
+            // 配置对话框为文件夹选择模式
+            DWORD dwOptions;
+            hr = pFileOpenDialog->GetOptions(&dwOptions);
+            if (SUCCEEDED(hr)) {
+                hr = pFileOpenDialog->SetOptions(dwOptions | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
+                DEARTS_LOG_INFO("设置对话框选项为文件夹选择模式");
+            }
+
+            // 设置对话框标题
+            hr = pFileOpenDialog->SetTitle(L"选择鸣潮游戏安装目录");
+            if (SUCCEEDED(hr)) {
+                DEARTS_LOG_INFO("设置对话框标题成功");
+            }
+
+            // 如果有之前的路径，设置为默认文件夹
+            if (!manualGamePath_.empty()) {
+                IShellItem* pItem = nullptr;
+                std::wstring widePath(manualGamePath_.begin(), manualGamePath_.end());
+                hr = SHCreateItemFromParsingName(widePath.c_str(), nullptr, IID_IShellItem,
+                                               reinterpret_cast<void**>(&pItem));
+                if (SUCCEEDED(hr)) {
+                    pFileOpenDialog->SetFolder(pItem);
+                    pItem->Release();
+                    DEARTS_LOG_INFO("设置默认文件夹: " + manualGamePath_);
+                }
+            }
+
+            // 显示对话框
+            hr = pFileOpenDialog->Show(hwndOwner);
+
+            if (SUCCEEDED(hr)) {
+                DEARTS_LOG_INFO("用户确认了文件夹选择");
+
+                // 获取选择的结果
+                IShellItem* pItem;
+                hr = pFileOpenDialog->GetResult(&pItem);
+                if (SUCCEEDED(hr)) {
+                    PWSTR pszFilePath;
+                    hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+                    if (SUCCEEDED(hr)) {
+                        // 转换为UTF-8字符串
+                        std::wstring widePath(pszFilePath);
+                        manualGamePath_ = std::string(widePath.begin(), widePath.end());
+                        result = true;
+
+                        DEARTS_LOG_INFO("成功获取用户选择的文件夹路径: " + manualGamePath_);
+                        CoTaskMemFree(pszFilePath);
+                    } else {
+                        DEARTS_LOG_ERROR("无法获取文件夹显示名称");
+                    }
+                    pItem->Release();
+                } else {
+                    DEARTS_LOG_ERROR("无法获取对话框结果");
+                }
+            } else if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+                DEARTS_LOG_INFO("用户取消了文件夹选择");
+            } else {
+                DEARTS_LOG_ERROR("显示对话框失败: " + std::to_string(hr));
+            }
+
+            pFileOpenDialog->Release();
+        } else {
+            DEARTS_LOG_ERROR("创建IFileOpenDialog失败: " + std::to_string(hr));
+
+            // 如果现代对话框创建失败，回退到传统方法
+            DEARTS_LOG_INFO("回退到传统文件夹选择对话框");
+
+            // 配置传统文件夹选择对话框
+            BROWSEINFOA bi = {0};
+            char szPath[MAX_PATH] = {0};
+
+            bi.hwndOwner = hwndOwner;
+            bi.lpszTitle = "选择鸣潮游戏安装目录";
+            bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_USENEWUI;
+            bi.lpfn = BrowseCallbackProc;
+            bi.lParam = reinterpret_cast<LPARAM>(manualGamePath_.c_str());
+            bi.iImage = 0;
+
+            LPITEMIDLIST pidl = SHBrowseForFolderA(&bi);
+            if (pidl != nullptr) {
+                if (SHGetPathFromIDListA(pidl, szPath)) {
+                    manualGamePath_ = std::string(szPath);
+                    result = true;
+                    DEARTS_LOG_INFO("传统方式成功获取文件夹路径: " + manualGamePath_);
+                }
+                CoTaskMemFree(pidl);
+            }
+        }
+
+        // 清空可能积压的SDL事件
+        while (SDL_PollEvent(&event)) {}
+
+    } catch (const std::exception& e) {
+        DEARTS_LOG_ERROR("文件夹选择过程中发生异常: " + std::string(e.what()));
+        result = false;
+    }
+
+    // 清理COM
+    CoUninitialize();
+
+    DEARTS_LOG_INFO("文件夹选择过程结束，结果: " + std::string(result ? "成功" : "失败"));
+    return result;
 }
 
 /**

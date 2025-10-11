@@ -137,6 +137,7 @@ public:
      */
     void refreshUrlFromSavedPath();
 
+  
 private:
     ExchangeRecordState currentState_;        ///< 当前状态
     std::string foundUrl_;                   ///< 找到的URL

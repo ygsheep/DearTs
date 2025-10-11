@@ -24,9 +24,9 @@ MainWindow::MainWindow(const std::string& title)
     , currentView_(MainViewType::DEFAULT)
     , pomodoroLayout_(nullptr)
     , exchangeRecordLayout_(nullptr) {
-    // 设置为 Aero Snap 模式（在构造函数中设置，确保在初始化前生效）
-    setWindowMode(WindowMode::AERO_SNAP);
-    DEARTS_LOG_INFO("MainWindow构造函数: 窗口模式设置为 Aero Snap");
+    // 设置为无边框窗口模式，关闭Aero Snap以确保文件夹选择功能正常工作
+    setWindowMode(WindowMode::STANDARD);
+    DEARTS_LOG_INFO("MainWindow构造函数: 窗口模式设置为无边框窗口（关闭Aero Snap）");
 }
 
 /**
