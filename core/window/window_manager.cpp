@@ -32,61 +32,61 @@ namespace DearTs {
       // 静态成员初始化
       // ============================================================================
 
-      std::atomic<uint32_t> Window::next_id_{1};
+      std::atomic<uint32_t> Window::s_nextId{1};
 
       // ============================================================================
       // Window 实现
       // ============================================================================
 
       Window::Window(const WindowConfig &config) :
-          id_(next_id_.fetch_add(1)), config_(config), sdl_window_(nullptr), state_(WindowState::NORMAL),
-          should_close_(false), is_dragging_(false), user_data_(nullptr), event_handler_(nullptr) {
+          m_id(s_nextId.fetch_add(1)), m_config(config), m_sdlWindow(nullptr), m_state(WindowState::NORMAL),
+          m_shouldClose(false), m_isDragging(false), m_userData(nullptr), m_eventHandler(nullptr) {
 
-        DEARTS_LOG_DEBUG("创建窗口，ID: " + std::to_string(id_));
-        DEARTS_LOG_DEBUG("窗口配置图标路径: " + config_.icon_path);
+        DEARTS_LOG_DEBUG("创建窗口，ID: " + std::to_string(m_id));
+        DEARTS_LOG_DEBUG("窗口配置图标路径: " + m_config.icon_path);
       }
 
       Window::~Window() {
         destroy();
-        DEARTS_LOG_DEBUG("销毁窗口，ID: " + std::to_string(id_));
+        DEARTS_LOG_DEBUG("销毁窗口，ID: " + std::to_string(m_id));
       }
 
       bool Window::create() {
-        if (sdl_window_) {
+        if (m_sdlWindow) {
           DEARTS_LOG_WARN("窗口已创建");
           return true;
         }
 
         // 创建SDL窗口
-        sdl_window_ = SDL_CreateWindow(config_.title.c_str(), config_.position.x, config_.position.y,
-                                       config_.size.width, config_.size.height, static_cast<uint32_t>(config_.flags));
+        m_sdlWindow = SDL_CreateWindow(m_config.title.c_str(), m_config.position.x, m_config.position.y,
+                                       m_config.size.width, m_config.size.height, static_cast<uint32_t>(m_config.flags));
 
-        if (!sdl_window_) {
+        if (!m_sdlWindow) {
           DEARTS_LOG_ERROR("创建SDL窗口失败: " + std::string(SDL_GetError()));
           return false;
         }
 
         // 设置窗口大小限制
-        if (config_.min_size.width > 0 && config_.min_size.height > 0) {
-          SDL_SetWindowMinimumSize(sdl_window_, config_.min_size.width, config_.min_size.height);
+        if (m_config.min_size.width > 0 && m_config.min_size.height > 0) {
+          SDL_SetWindowMinimumSize(m_sdlWindow, m_config.min_size.width, m_config.min_size.height);
         }
 
-        if (config_.max_size.width > 0 && config_.max_size.height > 0) {
-          SDL_SetWindowMaximumSize(sdl_window_, config_.max_size.width, config_.max_size.height);
+        if (m_config.max_size.width > 0 && m_config.max_size.height > 0) {
+          SDL_SetWindowMaximumSize(m_sdlWindow, m_config.max_size.width, m_config.max_size.height);
         }
 
         // 设置窗口图标
-        DEARTS_LOG_DEBUG("窗口创建: 检查图标路径: " + config_.icon_path);
-        if (!config_.icon_path.empty()) {
-          DEARTS_LOG_DEBUG("窗口创建: 从路径设置图标: " + config_.icon_path);
-          setIcon(config_.icon_path);
+        DEARTS_LOG_DEBUG("窗口创建: 检查图标路径: " + m_config.icon_path);
+        if (!m_config.icon_path.empty()) {
+          DEARTS_LOG_DEBUG("窗口创建: 从路径设置图标: " + m_config.icon_path);
+          setIcon(m_config.icon_path);
         } else {
           DEARTS_LOG_DEBUG("窗口创建: 图标路径为空");
         }
 
         // 初始化渲染器
-        if (renderer_) {
-          if (!renderer_->initialize(sdl_window_)) {
+        if (m_renderer) {
+          if (!m_renderer->initialize(m_sdlWindow)) {
             DEARTS_LOG_ERROR("初始化窗口渲染器失败");
             destroy();
             return false;
@@ -99,225 +99,212 @@ namespace DearTs {
         // 分发窗口创建事件
         dispatchEvent(Events::EventType::EVT_WINDOW_CREATED);
 
-        DEARTS_LOG_INFO("窗口创建成功: " + config_.title + " (" + std::to_string(config_.size.width) + "x" +
-                        std::to_string(config_.size.height) + ")");
+        DEARTS_LOG_INFO("🪟 窗口创建成功: " + m_config.title + " (" + std::to_string(m_config.size.width) + "x" +
+                        std::to_string(m_config.size.height) + ")");
 
         return true;
       }
 
       void Window::destroy() {
-        if (!sdl_window_) {
+        if (!m_sdlWindow) {
           return;
         }
 
         // 关闭渲染器
-        if (renderer_) {
-          renderer_->shutdown();
+        if (m_renderer) {
+          m_renderer->shutdown();
         }
 
         // 分发窗口销毁事件
         dispatchEvent(Events::EventType::EVT_WINDOW_DESTROYED);
 
         // 销毁SDL窗口
-        SDL_DestroyWindow(sdl_window_);
-        sdl_window_ = nullptr;
+        SDL_DestroyWindow(m_sdlWindow);
+        m_sdlWindow = nullptr;
 
-        state_ = WindowState::CLOSED;
+        m_state = WindowState::CLOSED;
 
-        DEARTS_LOG_INFO("Window destroyed: " + config_.title);
+        DEARTS_LOG_INFO("💥 窗口已销毁: " + m_config.title);
       }
 
       void Window::show() {
-        if (sdl_window_) {
-          SDL_ShowWindow(sdl_window_);
+        if (m_sdlWindow) {
+          SDL_ShowWindow(m_sdlWindow);
           updateState();
         }
       }
 
       void Window::hide() {
-        if (sdl_window_) {
-          SDL_HideWindow(sdl_window_);
-          state_ = WindowState::HIDDEN;
+        if (m_sdlWindow) {
+          SDL_HideWindow(m_sdlWindow);
+          m_state = WindowState::HIDDEN;
         }
       }
 
       void Window::minimize() {
-        if (sdl_window_) {
-          SDL_MinimizeWindow(sdl_window_);
-          state_ = WindowState::MINIMIZED;
+        if (m_sdlWindow) {
+          SDL_MinimizeWindow(m_sdlWindow);
+          m_state = WindowState::MINIMIZED;
           dispatchEvent(Events::EventType::EVT_WINDOW_MINIMIZED);
         }
       }
 
       void Window::maximize() {
-        if (sdl_window_) {
-          SDL_MaximizeWindow(sdl_window_);
-          state_ = WindowState::MAXIMIZED;
+        if (m_sdlWindow) {
+          SDL_MaximizeWindow(m_sdlWindow);
+          m_state = WindowState::MAXIMIZED;
           dispatchEvent(Events::EventType::EVT_WINDOW_MAXIMIZED);
         }
       }
 
       void Window::restore() {
-        if (sdl_window_) {
-          SDL_RestoreWindow(sdl_window_);
-          state_ = WindowState::NORMAL;
+        if (m_sdlWindow) {
+          SDL_RestoreWindow(m_sdlWindow);
+          m_state = WindowState::NORMAL;
           dispatchEvent(Events::EventType::EVT_WINDOW_RESTORED);
         }
       }
 
       void Window::setFullscreen(bool fullscreen, bool desktop_fullscreen) {
-        if (!sdl_window_) {
+        if (!m_sdlWindow) {
           return;
         }
 
         uint32_t flags = 0;
         if (fullscreen) {
           flags = desktop_fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : SDL_WINDOW_FULLSCREEN;
-          state_ = WindowState::FULLSCREEN;
+          m_state = WindowState::FULLSCREEN;
         } else {
-          state_ = WindowState::NORMAL;
+          m_state = WindowState::NORMAL;
         }
 
-        if (SDL_SetWindowFullscreen(sdl_window_, flags) != 0) {
+        if (SDL_SetWindowFullscreen(m_sdlWindow, flags) != 0) {
           DEARTS_LOG_ERROR("Failed to set fullscreen mode: " + std::string(SDL_GetError()));
         }
       }
 
       void Window::close() {
-        DEARTS_LOG_INFO("Window::close() called for window ID: " + std::to_string(id_));
-        should_close_ = true;
-        DEARTS_LOG_INFO("Window::close() - should_close_ set to true for window ID: " + std::to_string(id_));
+        DEARTS_LOG_INFO("🔒 窗口关闭中: ID " + std::to_string(m_id));
+        m_shouldClose = true;
+        DEARTS_LOG_INFO("⚠️ 窗口关闭标志已设置: ID " + std::to_string(m_id));
         dispatchEvent(Events::EventType::EVT_WINDOW_CLOSE_REQUESTED);
-        DEARTS_LOG_INFO("Window::close() completed for window ID: " + std::to_string(id_));
+        DEARTS_LOG_INFO("✅ 窗口关闭流程完成: ID " + std::to_string(m_id));
       }
 
       void Window::update() {
-        DEARTS_LOG_DEBUG("Window::update() called for window ID: " + std::to_string(id_));
-        if (!sdl_window_) {
-          DEARTS_LOG_DEBUG("Window::update() - sdl_window_ is null");
+        if (!m_sdlWindow) {
           return;
         }
 
-        // 调用 WindowBase 的 update 方法（如果存在）
-        if (user_data_) {
-          auto *windowBase = static_cast<WindowBase *>(user_data_);
+        if (m_userData) {
+          auto* windowBase = static_cast<WindowBase*>(m_userData);
           windowBase->update();
         }
 
         updateState();
-        DEARTS_LOG_DEBUG("Window::update() completed for window ID: " + std::to_string(id_));
       }
 
       void Window::render() {
-        DEARTS_LOG_DEBUG("Window::render() called for window ID: " + std::to_string(id_));
-        if (!sdl_window_ || !renderer_) {
-          DEARTS_LOG_DEBUG("Window::render() - sdl_window_ or renderer_ is null");
+        if (!m_sdlWindow || !m_renderer) {
           return;
         }
 
-        renderer_->beginFrame();
-
-        // 清空屏幕为深色背景
-        // 使用颜色值(36,36,36)更接近用户指出的遮挡标题栏的颜色
-        renderer_->clear(36.0f / 255.0f, 36.0f / 255.0f, 36.0f / 255.0f, 1.0f);
-
-        // 如果ImGui已初始化，可以在这里添加一些基本的ImGui界面
-        // 但实际的ImGui渲染会在WindowManager::renderAllWindows中处理
-
-        renderer_->endFrame();
-        DEARTS_LOG_DEBUG("Window::render() completed for window ID: " + std::to_string(id_));
+        m_renderer->beginFrame();
+        m_renderer->clear(36.0f / 255.0f, 36.0f / 255.0f, 36.0f / 255.0f, 1.0f);
+        m_renderer->endFrame();
       }
 
 
       std::string Window::getTitle() const {
-        if (sdl_window_) {
-          return SDL_GetWindowTitle(sdl_window_);
+        if (m_sdlWindow) {
+          return SDL_GetWindowTitle(m_sdlWindow);
         }
-        return config_.title;
+        return m_config.title;
       }
 
       void Window::setTitle(const std::string &title) {
-        config_.title = title;
-        if (sdl_window_) {
-          SDL_SetWindowTitle(sdl_window_, title.c_str());
+        m_config.title = title;
+        if (m_sdlWindow) {
+          SDL_SetWindowTitle(m_sdlWindow, title.c_str());
         }
       }
 
       WindowPosition Window::getPosition() const {
-        if (sdl_window_) {
-          int x, y;
-          SDL_GetWindowPosition(sdl_window_, &x, &y);
-          return WindowPosition(x, y);
+        if (!m_sdlWindow) {
+          return m_config.position;
         }
-        return config_.position;
+
+        int x, y;
+        SDL_GetWindowPosition(m_sdlWindow, &x, &y);
+        return WindowPosition(x, y);
       }
 
       void Window::setPosition(const WindowPosition &position) {
-        config_.position = position;
-        if (sdl_window_) {
-          SDL_SetWindowPosition(sdl_window_, position.x, position.y);
+        m_config.position = position;
+        if (m_sdlWindow) {
+          SDL_SetWindowPosition(m_sdlWindow, position.x, position.y);
           dispatchEvent(Events::EventType::EVT_WINDOW_MOVED);
         }
       }
 
       WindowSize Window::getSize() const {
-        if (sdl_window_) {
+        if (m_sdlWindow) {
           int w, h;
-          SDL_GetWindowSize(sdl_window_, &w, &h);
+          SDL_GetWindowSize(m_sdlWindow, &w, &h);
           return WindowSize(w, h);
         }
-        return config_.size;
+        return m_config.size;
       }
 
       void Window::setSize(const WindowSize &size) {
-        config_.size = size;
-        if (sdl_window_) {
-          SDL_SetWindowSize(sdl_window_, size.width, size.height);
+        m_config.size = size;
+        if (m_sdlWindow) {
+          SDL_SetWindowSize(m_sdlWindow, size.width, size.height);
           dispatchEvent(Events::EventType::EVT_WINDOW_RESIZED);
         }
       }
 
       WindowSize Window::getMinSize() const {
-        if (sdl_window_) {
+        if (m_sdlWindow) {
           int w, h;
-          SDL_GetWindowMinimumSize(sdl_window_, &w, &h);
+          SDL_GetWindowMinimumSize(m_sdlWindow, &w, &h);
           return WindowSize(w, h);
         }
-        return config_.min_size;
+        return m_config.min_size;
       }
 
       void Window::setMinSize(const WindowSize &size) {
-        config_.min_size = size;
-        if (sdl_window_) {
-          SDL_SetWindowMinimumSize(sdl_window_, size.width, size.height);
+        m_config.min_size = size;
+        if (m_sdlWindow) {
+          SDL_SetWindowMinimumSize(m_sdlWindow, size.width, size.height);
         }
       }
 
       WindowSize Window::getMaxSize() const {
-        if (sdl_window_) {
+        if (m_sdlWindow) {
           int w, h;
-          SDL_GetWindowMaximumSize(sdl_window_, &w, &h);
+          SDL_GetWindowMaximumSize(m_sdlWindow, &w, &h);
           return WindowSize(w, h);
         }
-        return config_.max_size;
+        return m_config.max_size;
       }
 
       void Window::setMaxSize(const WindowSize &size) {
-        config_.max_size = size;
-        if (sdl_window_) {
-          SDL_SetWindowMaximumSize(sdl_window_, size.width, size.height);
+        m_config.max_size = size;
+        if (m_sdlWindow) {
+          SDL_SetWindowMaximumSize(m_sdlWindow, size.width, size.height);
         }
       }
 
       WindowFlags Window::getFlags() const {
-        if (sdl_window_) {
-          return static_cast<WindowFlags>(SDL_GetWindowFlags(sdl_window_));
+        if (m_sdlWindow) {
+          return static_cast<WindowFlags>(SDL_GetWindowFlags(m_sdlWindow));
         }
-        return config_.flags;
+        return m_config.flags;
       }
 
       bool Window::setIcon(const std::string &icon_path) {
-        if (!sdl_window_ || icon_path.empty()) {
+        if (!m_sdlWindow || icon_path.empty()) {
           DEARTS_LOG_DEBUG("setIcon: Window or icon path is invalid");
           return false;
         }
@@ -343,18 +330,18 @@ namespace DearTs {
         DEARTS_LOG_DEBUG("setIcon: Surface loaded successfully, setting window icon");
 
         // 设置窗口图标
-        SDL_SetWindowIcon(sdl_window_, icon);
+        SDL_SetWindowIcon(m_sdlWindow, icon);
 
-        config_.icon_path = icon_path;
+        m_config.icon_path = icon_path;
 
         DEARTS_LOG_DEBUG("Window icon set: " + icon_path);
         return true;
       }
 
       float Window::getOpacity() const {
-        if (sdl_window_) {
+        if (m_sdlWindow) {
           float opacity;
-          if (SDL_GetWindowOpacity(sdl_window_, &opacity) == 0) {
+          if (SDL_GetWindowOpacity(m_sdlWindow, &opacity) == 0) {
             return opacity;
           }
         }
@@ -362,40 +349,40 @@ namespace DearTs {
       }
 
       void Window::setOpacity(float opacity) const {
-        if (sdl_window_) {
+        if (m_sdlWindow) {
           opacity = std::clamp(opacity, 0.0f, 1.0f);
-          if (SDL_SetWindowOpacity(sdl_window_, opacity) != 0) {
+          if (SDL_SetWindowOpacity(m_sdlWindow, opacity) != 0) {
             DEARTS_LOG_ERROR("Failed to set window opacity: " + std::string(SDL_GetError()));
           }
         }
       }
 
       bool Window::isVisible() const {
-        if (sdl_window_) {
-          const uint32_t flags = SDL_GetWindowFlags(sdl_window_);
+        if (m_sdlWindow) {
+          const uint32_t flags = SDL_GetWindowFlags(m_sdlWindow);
           return (flags & SDL_WINDOW_SHOWN) != 0;
         }
         return false;
       }
 
       bool Window::hasFocus() const {
-        if (sdl_window_) {
-          const uint32_t flags = SDL_GetWindowFlags(sdl_window_);
+        if (m_sdlWindow) {
+          const uint32_t flags = SDL_GetWindowFlags(m_sdlWindow);
           return (flags & SDL_WINDOW_INPUT_FOCUS) != 0;
         }
         return false;
       }
 
       int Window::getDisplayIndex() const {
-        if (sdl_window_) {
-          const int index = SDL_GetWindowDisplayIndex(sdl_window_);
+        if (m_sdlWindow) {
+          const int index = SDL_GetWindowDisplayIndex(m_sdlWindow);
           return index >= 0 ? index : 0;
         }
-        return config_.display_index;
+        return m_config.display_index;
       }
 
       float Window::getDPIScale() const {
-        if (sdl_window_) {
+        if (m_sdlWindow) {
           const int display_index = getDisplayIndex();
           float ddpi, hdpi, vdpi;
           if (SDL_GetDisplayDPI(display_index, &ddpi, &hdpi, &vdpi) == 0) {
@@ -406,101 +393,101 @@ namespace DearTs {
       }
 
       void Window::setRenderer(std::unique_ptr<WindowRenderer> renderer) {
-        if (renderer_) {
-          renderer_->shutdown();
+        if (m_renderer) {
+          m_renderer->shutdown();
         }
 
-        renderer_ = std::move(renderer);
+        m_renderer = std::move(renderer);
 
-        if (renderer_ && sdl_window_) {
-          if (!renderer_->initialize(sdl_window_)) {
+        if (m_renderer && m_sdlWindow) {
+          if (!m_renderer->initialize(m_sdlWindow)) {
             DEARTS_LOG_ERROR("Failed to initialize new renderer");
-            renderer_.reset();
+            m_renderer.reset();
           }
         }
       }
 
-      void Window::setEventHandler(std::shared_ptr<WindowEventHandler> handler) { event_handler_ = handler; }
+      void Window::setEventHandler(std::shared_ptr<WindowEventHandler> handler) { m_eventHandler = handler; }
 
       void Window::handleSDLEvent(const SDL_Event &event) {
         switch (event.type) {
           case SDL_WINDOWEVENT:
-            if (event.window.windowID == SDL_GetWindowID(sdl_window_)) {
+            if (event.window.windowID == SDL_GetWindowID(m_sdlWindow)) {
               switch (event.window.event) {
                 case SDL_WINDOWEVENT_CLOSE:
-                  if (event_handler_ && event_handler_->onWindowClose(this)) {
+                  if (m_eventHandler && m_eventHandler->onWindowClose(this)) {
                     close();
                   }
                   break;
 
                 case SDL_WINDOWEVENT_RESIZED:
-                  if (event_handler_) {
-                    event_handler_->onWindowResize(this, event.window.data1, event.window.data2);
+                  if (m_eventHandler) {
+                    m_eventHandler->onWindowResize(this, event.window.data1, event.window.data2);
                   }
                   dispatchEvent(Events::EventType::EVT_WINDOW_RESIZED);
                   break;
 
                 case SDL_WINDOWEVENT_MOVED:
-                  if (event_handler_) {
-                    event_handler_->onWindowMove(this, event.window.data1, event.window.data2);
+                  if (m_eventHandler) {
+                    m_eventHandler->onWindowMove(this, event.window.data1, event.window.data2);
                   }
                   dispatchEvent(Events::EventType::EVT_WINDOW_MOVED);
                   break;
 
                 case SDL_WINDOWEVENT_FOCUS_GAINED:
-                  if (event_handler_) {
-                    event_handler_->onWindowFocusGained(this);
+                  if (m_eventHandler) {
+                    m_eventHandler->onWindowFocusGained(this);
                   }
                   dispatchEvent(Events::EventType::EVT_WINDOW_FOCUS_GAINED);
                   break;
 
                 case SDL_WINDOWEVENT_FOCUS_LOST:
-                  if (event_handler_) {
-                    event_handler_->onWindowFocusLost(this);
+                  if (m_eventHandler) {
+                    m_eventHandler->onWindowFocusLost(this);
                   }
                   dispatchEvent(Events::EventType::EVT_WINDOW_FOCUS_LOST);
                   break;
 
                 case SDL_WINDOWEVENT_MINIMIZED:
-                  state_ = WindowState::MINIMIZED;
-                  if (event_handler_) {
-                    event_handler_->onWindowMinimized(this);
+                  m_state = WindowState::MINIMIZED;
+                  if (m_eventHandler) {
+                    m_eventHandler->onWindowMinimized(this);
                   }
                   dispatchEvent(Events::EventType::EVT_WINDOW_MINIMIZED);
                   break;
 
                 case SDL_WINDOWEVENT_MAXIMIZED:
-                  state_ = WindowState::MAXIMIZED;
-                  if (event_handler_) {
-                    event_handler_->onWindowMaximized(this);
+                  m_state = WindowState::MAXIMIZED;
+                  if (m_eventHandler) {
+                    m_eventHandler->onWindowMaximized(this);
                   }
                   dispatchEvent(Events::EventType::EVT_WINDOW_MAXIMIZED);
                   break;
 
                 case SDL_WINDOWEVENT_RESTORED:
-                  state_ = WindowState::NORMAL;
-                  if (event_handler_) {
-                    event_handler_->onWindowRestored(this);
+                  m_state = WindowState::NORMAL;
+                  if (m_eventHandler) {
+                    m_eventHandler->onWindowRestored(this);
                   }
                   dispatchEvent(Events::EventType::EVT_WINDOW_RESTORED);
                   break;
 
                 case SDL_WINDOWEVENT_SHOWN:
-                  if (event_handler_) {
-                    event_handler_->onWindowShown(this);
+                  if (m_eventHandler) {
+                    m_eventHandler->onWindowShown(this);
                   }
                   break;
 
                 case SDL_WINDOWEVENT_HIDDEN:
-                  state_ = WindowState::HIDDEN;
-                  if (event_handler_) {
-                    event_handler_->onWindowHidden(this);
+                  m_state = WindowState::HIDDEN;
+                  if (m_eventHandler) {
+                    m_eventHandler->onWindowHidden(this);
                   }
                   break;
 
                 case SDL_WINDOWEVENT_EXPOSED:
-                  if (event_handler_) {
-                    event_handler_->onWindowExposed(this);
+                  if (m_eventHandler) {
+                    m_eventHandler->onWindowExposed(this);
                   }
                   break;
                 default:
@@ -515,8 +502,8 @@ namespace DearTs {
           case SDL_MOUSEMOTION:
           case SDL_MOUSEWHEEL:
             // 将鼠标事件传递给 WindowBase 处理
-            if (user_data_) {
-              auto *windowBase = static_cast<WindowBase *>(user_data_);
+            if (m_userData) {
+              auto *windowBase = static_cast<WindowBase *>(m_userData);
               windowBase->handleEvent(event);
             }
             break;
@@ -524,22 +511,22 @@ namespace DearTs {
       }
 
       void Window::updateState() {
-        if (!sdl_window_) {
+        if (!m_sdlWindow) {
           return;
         }
 
-        uint32_t flags = SDL_GetWindowFlags(sdl_window_);
+        uint32_t flags = SDL_GetWindowFlags(m_sdlWindow);
 
         if (flags & SDL_WINDOW_MINIMIZED) {
-          state_ = WindowState::MINIMIZED;
+          m_state = WindowState::MINIMIZED;
         } else if (flags & SDL_WINDOW_MAXIMIZED) {
-          state_ = WindowState::MAXIMIZED;
+          m_state = WindowState::MAXIMIZED;
         } else if (flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP)) {
-          state_ = WindowState::FULLSCREEN;
+          m_state = WindowState::FULLSCREEN;
         } else if (!(flags & SDL_WINDOW_SHOWN)) {
-          state_ = WindowState::HIDDEN;
+          m_state = WindowState::HIDDEN;
         } else {
-          state_ = WindowState::NORMAL;
+          m_state = WindowState::NORMAL;
         }
       }
 
@@ -547,7 +534,7 @@ namespace DearTs {
         // 这里可以创建具体的窗口事件并分发
         // 目前只是记录日志
         DEARTS_LOG_DEBUG("Window event dispatched: " + std::to_string(static_cast<uint32_t>(type)) + " for window " +
-                         std::to_string(id_));
+                         std::to_string(m_id));
       }
 
       // ============================================================================
@@ -560,7 +547,7 @@ namespace DearTs {
       }
 
       bool WindowManager::initialize() {
-        if (initialized_) {
+        if (m_initialized) {
           return true;
         }
 
@@ -577,29 +564,29 @@ namespace DearTs {
         }
 
         // 设置默认配置
-        default_config_ = WindowConfig();
-        global_vsync_ = true;
+        m_defaultConfig = WindowConfig();
+        m_globalVSync = true;
 
-        initialized_ = true;
+        m_initialized = true;
 
-        DEARTS_LOG_INFO("窗口管理器初始化成功");
+        DEARTS_LOG_INFO("🖼️ 窗口管理器初始化成功！");
         return true;
       }
 
       void WindowManager::shutdown() {
-        if (!initialized_) {
+        if (!m_initialized) {
           return;
         }
 
         // 销毁所有窗口
         {
-          std::lock_guard<std::mutex> lock(windows_mutex_);
-          for (auto &[id, window]: windows_) {
+          std::lock_guard<std::mutex> lock(m_windowsMutex);
+          for (auto& [id, window] : m_windows) {
             if (window) {
               window->destroy();
             }
           }
-          windows_.clear();
+          m_windows.clear();
         }
 
         // 关闭SDL_image
@@ -608,13 +595,13 @@ namespace DearTs {
         // 关闭SDL视频子系统
         SDL_QuitSubSystem(SDL_INIT_VIDEO);
 
-        initialized_ = false;
+        m_initialized = false;
 
-        DEARTS_LOG_INFO("Window manager shutdown completed");
+        DEARTS_LOG_INFO("🔒 窗口管理器已关闭");
       }
 
       std::shared_ptr<Window> WindowManager::createWindow(const WindowConfig &config) {
-        if (!initialized_) {
+        if (!m_initialized) {
           DEARTS_LOG_ERROR("Window manager not initialized");
           return nullptr;
         }
@@ -629,16 +616,16 @@ namespace DearTs {
         // 这里不再调用window->initializeTitleBar()
 
         {
-          std::lock_guard<std::mutex> lock(windows_mutex_);
-          windows_[window->getId()] = window;
+          std::lock_guard<std::mutex> lock(m_windowsMutex);
+          m_windows[window->getId()] = window;
         }
 
-        DEARTS_LOG_INFO("Window created: " + config.title + " (ID: " + std::to_string(window->getId()) + ")");
+        DEARTS_LOG_INFO("✨ 新窗口已创建: " + config.title + " (ID: " + std::to_string(window->getId()) + ")");
         return window;
       }
 
       bool WindowManager::addWindow(std::shared_ptr<Window> window) {
-        if (!initialized_) {
+        if (!m_initialized) {
           DEARTS_LOG_ERROR("Window manager not initialized");
           return false;
         }
@@ -652,27 +639,27 @@ namespace DearTs {
         // 这里不再调用window->initializeTitleBar()
 
         {
-          std::lock_guard<std::mutex> lock(windows_mutex_);
-          windows_[window->getId()] = window;
+          std::lock_guard<std::mutex> lock(m_windowsMutex);
+          m_windows[window->getId()] = window;
         }
 
-        DEARTS_LOG_INFO("Window added: " + window->getTitle() + " (ID: " + std::to_string(window->getId()) + ")");
+        DEARTS_LOG_INFO("➕ 窗口已添加: " + window->getTitle() + " (ID: " + std::to_string(window->getId()) + ")");
         return true;
       }
 
       void WindowManager::destroyWindow(uint32_t window_id) {
-        DEARTS_LOG_INFO("WindowManager::destroyWindow() called for window ID: " + std::to_string(window_id));
-        std::lock_guard<std::mutex> lock(windows_mutex_);
+        DEARTS_LOG_INFO("🗑️ 窗口管理器：准备销毁窗口 ID: " + std::to_string(window_id));
+        std::lock_guard<std::mutex> lock(m_windowsMutex);
 
-        auto it = windows_.find(window_id);
-        if (it != windows_.end()) {
+        auto it = m_windows.find(window_id);
+        if (it != m_windows.end()) {
           if (it->second) {
-            DEARTS_LOG_INFO("Calling destroy() on window ID: " + std::to_string(window_id));
+            DEARTS_LOG_INFO("🔥 正在销毁窗口 ID: " + std::to_string(window_id));
             it->second->destroy();
           }
-          windows_.erase(it);
+          m_windows.erase(it);
 
-          DEARTS_LOG_INFO("Window destroyed: ID " + std::to_string(window_id));
+          DEARTS_LOG_INFO("✅ 窗口已销毁，ID: " + std::to_string(window_id));
         } else {
           DEARTS_LOG_WARN("Window not found for destruction: ID " + std::to_string(window_id));
         }
@@ -685,16 +672,16 @@ namespace DearTs {
       }
 
       std::shared_ptr<Window> WindowManager::getWindow(uint32_t window_id) const {
-        std::lock_guard<std::mutex> lock(windows_mutex_);
+        std::lock_guard<std::mutex> lock(m_windowsMutex);
 
-        auto it = windows_.find(window_id);
-        return (it != windows_.end()) ? it->second : nullptr;
+        auto it = m_windows.find(window_id);
+        return (it != m_windows.end()) ? it->second : nullptr;
       }
 
       std::shared_ptr<Window> WindowManager::getWindowBySDLId(uint32_t sdl_window_id) const {
-        std::lock_guard<std::mutex> lock(windows_mutex_);
+        std::lock_guard<std::mutex> lock(m_windowsMutex);
 
-        for (const auto &[id, window]: windows_) {
+        for (const auto& [id, window] : m_windows) {
           if (window && window->getSDLWindow()) {
             if (SDL_GetWindowID(window->getSDLWindow()) == sdl_window_id) {
               return window;
@@ -706,12 +693,12 @@ namespace DearTs {
       }
 
       std::vector<std::shared_ptr<Window>> WindowManager::getAllWindows() const {
-        std::lock_guard<std::mutex> lock(windows_mutex_);
+        std::lock_guard<std::mutex> lock(m_windowsMutex);
 
         std::vector<std::shared_ptr<Window>> result;
-        result.reserve(windows_.size());
+        result.reserve(m_windows.size());
 
-        for (const auto &[id, window]: windows_) {
+        for (const auto& [id, window] : m_windows) {
           if (window) {
             result.push_back(window);
           }
@@ -721,14 +708,13 @@ namespace DearTs {
       }
 
       size_t WindowManager::getWindowCount() const {
-        std::lock_guard<std::mutex> lock(windows_mutex_);
-        return windows_.size();
+        std::lock_guard<std::mutex> lock(m_windowsMutex);
+        return m_windows.size();
       }
 
       void WindowManager::updateAllWindows() {
-        // updateAllWindows方法被频繁调用，移除冗余日志输出
         auto windows = getAllWindows();
-        for (auto &window: windows) {
+        for (auto& window : windows) {
           if (window && window->isCreated()) {
             window->update();
           }
@@ -886,20 +872,20 @@ namespace DearTs {
       }
 
       void WindowManager::closeWindowsToClose() {
-        DEARTS_LOG_INFO("WindowManager::closeWindowsToClose() called");
+        DEARTS_LOG_INFO("🔍 检查需要关闭的窗口...");
         auto windows = getAllWindows();
-        DEARTS_LOG_INFO("Found " + std::to_string(windows.size()) + " windows to check for closing");
+        DEARTS_LOG_INFO("📊 找到 " + std::to_string(windows.size()) + " 个窗口需要检查");
 
         int closed_count = 0;
         for (auto &window: windows) {
           if (window && window->shouldClose()) {
-            DEARTS_LOG_INFO("Closing window ID: " + std::to_string(window->getId()));
+            DEARTS_LOG_INFO("🚪 正在关闭窗口 ID: " + std::to_string(window->getId()));
             destroyWindow(window->getId());
             closed_count++;
           }
         }
 
-        DEARTS_LOG_INFO("Closed " + std::to_string(closed_count) + " windows");
+        DEARTS_LOG_INFO("✅ 已关闭 " + std::to_string(closed_count) + " 个窗口");
       }
 
       int WindowManager::getDisplayCount() const { return SDL_GetNumVideoDisplays(); }
@@ -961,12 +947,12 @@ namespace DearTs {
       DisplayInfo WindowManager::getPrimaryDisplay() const { return getDisplayInfo(0); }
 
       void WindowManager::setGlobalVSync(bool enabled) {
-        global_vsync_ = enabled;
-        DEARTS_LOG_INFO("Global VSync set to: " + std::string(enabled ? "enabled" : "disabled"));
+        m_globalVSync = enabled;
+        DEARTS_LOG_INFO("🎮 垂直同步设置: " + std::string(enabled ? "已启用 🟢" : "已禁用 🔴"));
       }
 
       void WindowManager::setDefaultWindowConfig(const WindowConfig &config) {
-        default_config_ = config;
+        m_defaultConfig = config;
         DEARTS_LOG_DEBUG("Default window config updated");
       }
 

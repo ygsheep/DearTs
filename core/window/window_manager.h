@@ -92,7 +92,7 @@ struct WindowPosition {
     int x;
     int y;
     
-    WindowPosition(int x = SDL_WINDOWPOS_CENTERED, int y = SDL_WINDOWPOS_CENTERED)
+    explicit WindowPosition(int x = SDL_WINDOWPOS_CENTERED, int y = SDL_WINDOWPOS_CENTERED)
         : x(x), y(y) {}
     
     static WindowPosition centered() {
@@ -111,7 +111,7 @@ struct WindowSize {
     int width;
     int height;
     
-    WindowSize(int w = 800, int h = 600) : width(w), height(h) {}
+    explicit WindowSize(int w = 800, int h = 600) : width(w), height(h) {}
     
     float aspectRatio() const {
         return height > 0 ? static_cast<float>(width) / height : 0.0f;
@@ -464,12 +464,12 @@ public:
     /**
      * @brief 获取窗口ID
      */
-    uint32_t getId() const { return id_; }
-    
+    uint32_t getId() const { return m_id; }
+
     /**
      * @brief 获取SDL窗口句柄
      */
-    SDL_Window* getSDLWindow() const { return sdl_window_; }
+    SDL_Window* getSDLWindow() const { return m_sdlWindow; }
     
     /**
      * @brief 获取窗口标题
@@ -524,7 +524,7 @@ public:
     /**
      * @brief 获取窗口状态
      */
-    WindowState getState() const { return state_; }
+    WindowState getState() const { return m_state; }
     
     /**
      * @brief 获取窗口标志
@@ -559,12 +559,12 @@ public:
     /**
      * @brief 检查窗口是否已创建
      */
-    bool isCreated() const { return sdl_window_ != nullptr; }
+    bool isCreated() const { return m_sdlWindow != nullptr; }
     
     /**
      * @brief 检查窗口是否应该关闭
      */
-    bool shouldClose() const { return should_close_; }
+    bool shouldClose() const { return m_shouldClose; }
     
     /**
      * @brief 获取显示器索引
@@ -588,7 +588,7 @@ public:
     /**
      * @brief 获取渲染器
      */
-    WindowRenderer* getRenderer() const { return renderer_.get(); }
+    WindowRenderer* getRenderer() const { return m_renderer.get(); }
     
     // ========================================================================
     // 事件处理
@@ -602,7 +602,7 @@ public:
     /**
      * @brief 获取事件处理器
      */
-    std::shared_ptr<WindowEventHandler> getEventHandler() const { return event_handler_; }
+    std::shared_ptr<WindowEventHandler> getEventHandler() const { return m_eventHandler; }
     
     /**
      * @brief 处理SDL事件
@@ -616,48 +616,46 @@ public:
     /**
      * @brief 设置用户数据
      */
-    void setUserData(void* data) { user_data_ = data; }
+    void setUserData(void* data) { m_userData = data; }
     
     /**
      * @brief 获取用户数据
      */
-    void* getUserData() const { return user_data_; }
-    
+    void* getUserData() const { return m_userData; }
+
     /**
      * @brief 设置拖拽状态
      */
-    void setDragging(bool dragging) { is_dragging_ = dragging; }
-    
+    void setDragging(bool dragging) { m_isDragging = dragging; }
+
     /**
      * @brief 检查是否正在拖拽
      */
-    bool isDragging() const { return is_dragging_; }
+    bool isDragging() const { return m_isDragging; }
     
 private:
     /**
      * @brief 更新窗口状态
      */
     void updateState();
-    
+
     /**
      * @brief 分发窗口事件
      */
     void dispatchEvent(DearTs::Core::Events::EventType type);
-    
-    uint32_t id_;                                           ///< 窗口ID
-    WindowConfig config_;                                   ///< 窗口配置
-    SDL_Window* sdl_window_;                               ///< SDL窗口句柄
-    WindowState state_;                                     ///< 窗口状态
-    bool should_close_;                                     ///< 是否应该关闭
-    bool is_dragging_;                                      ///< 是否正在拖拽窗口
-    void* user_data_;                                       ///< 用户数据
-    
-    std::unique_ptr<WindowRenderer> renderer_;              ///< 渲染器
-    std::shared_ptr<WindowEventHandler> event_handler_;     ///< 事件处理器
-    
-    
-    
-    static std::atomic<uint32_t> next_id_;                  ///< 下一个窗口ID
+
+    uint32_t m_id;                                          ///< 窗口ID
+    WindowConfig m_config;                                  ///< 窗口配置
+    SDL_Window* m_sdlWindow;                                ///< SDL窗口句柄
+    WindowState m_state;                                    ///< 窗口状态
+    bool m_shouldClose;                                     ///< 是否应该关闭
+    bool m_isDragging;                                      ///< 是否正在拖拽窗口
+    void* m_userData;                                       ///< 用户数据
+
+    std::unique_ptr<WindowRenderer> m_renderer;             ///< 渲染器
+    std::shared_ptr<WindowEventHandler> m_eventHandler;      ///< 事件处理器
+
+    static std::atomic<uint32_t> s_nextId;                  ///< 下一个窗口ID
 };
 
 } // namespace DearTs::Core::Window
@@ -789,36 +787,38 @@ public:
     /**
      * @brief 获取全局垂直同步状态
      */
-    bool getGlobalVSync() const { return global_vsync_; }
-    
+    bool getGlobalVSync() const { return m_globalVSync; }
+
     /**
      * @brief 设置默认窗口配置
      */
     void setDefaultWindowConfig(const WindowConfig& config);
-    
+
     /**
      * @brief 获取默认窗口配置
      */
-    const WindowConfig& getDefaultWindowConfig() const { return default_config_; }
-    
+    const WindowConfig& getDefaultWindowConfig() const { return m_defaultConfig; }
+
     /**
      * @brief 检查是否已初始化
      */
-    bool isInitialized() const { return initialized_; }
+    bool isInitialized() const { return m_initialized; }
     
 private:
-    WindowManager() = default;
+    WindowManager()
+        : m_globalVSync(true) {
+    }
     ~WindowManager() = default;
     
     WindowManager(const WindowManager&) = delete;
     WindowManager& operator=(const WindowManager&) = delete;
     
-    std::unordered_map<uint32_t, std::shared_ptr<Window>> windows_;     ///< 窗口映射
-    mutable std::mutex windows_mutex_;                                  ///< 窗口互斥锁
-    
-    WindowConfig default_config_;                                       ///< 默认窗口配置
-    bool global_vsync_;                                                 ///< 全局垂直同步
-    std::atomic<bool> initialized_{false};                             ///< 初始化标志
+    std::unordered_map<uint32_t, std::shared_ptr<Window>> m_windows;     ///< 窗口映射
+    mutable std::mutex m_windowsMutex;                                  ///< 窗口互斥锁
+
+    WindowConfig m_defaultConfig;                                       ///< 默认窗口配置
+    bool m_globalVSync;                                                 ///< 全局垂直同步
+    std::atomic<bool> m_initialized{false};                            ///< 初始化标志
 };
 
 } // namespace DearTs::Core::Window
