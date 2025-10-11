@@ -32,12 +32,12 @@ struct FontConfig {
     /**
      * @brief 构造函数
      */
-    FontConfig(const std::string& name = "",
-               const std::string& path = "",
-               float size = 11.0f,
-               float scale = 1.0f,
-               const ImWchar* glyphRanges = nullptr,
-               bool mergeMode = false)
+    explicit FontConfig(const std::string& name = "",
+                         const std::string& path = "",
+                         float size = 11.0f,
+                         float scale = 1.0f,
+                         const ImWchar* glyphRanges = nullptr,
+                         bool mergeMode = false)
         : name(name), path(path), size(size), scale(scale),
           glyphRanges(glyphRanges), mergeMode(mergeMode) {}
 };

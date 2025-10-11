@@ -78,8 +78,8 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
         
         // 获取可执行文件目录
         std::string exeDir = Utils::FileUtils::getExecutableDirectory();
-        DEARTS_LOG_INFO("可执行文件目录: " + exeDir);
-        
+        DEARTS_LOG_INFO("📂 可执行文件目录: " + exeDir);
+
         // 构建字体文件的绝对路径
         std::string fontPath = "resources/fonts/OPPOSans-M.ttf";
         if (!exeDir.empty()) {
@@ -87,10 +87,10 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
             // 规范化路径
             fontPath = Utils::FileUtils::normalizePath(fontPath);
         }
-        
+
         // 检查字体文件是否存在
         bool fontExists = Utils::FileUtils::exists(fontPath);
-        DEARTS_LOG_INFO("检查字体文件: " + fontPath + ", 存在: " + (fontExists ? "是" : "否"));
+        DEARTS_LOG_INFO("🔍 检查字体文件: " + fontPath + ", 存在: " + (fontExists ? "是 ✅" : "否 ❌"));
         
         // 配置字体 - 优化FreeType渲染设置，进一步提升清晰度
         ImFontConfig config;
@@ -143,7 +143,7 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
             materialSymbolsFontPath = Utils::FileUtils::normalizePath(materialSymbolsFontPath);
         }
         bool materialSymbolsFontExists = Utils::FileUtils::exists(materialSymbolsFontPath);
-        DEARTS_LOG_INFO("检查Material Symbols字体文件: " + materialSymbolsFontPath + ", 存在: " + (materialSymbolsFontExists ? "是" : "否"));
+        DEARTS_LOG_INFO("🎯 检查Material Symbols字体: " + materialSymbolsFontPath + ", 存在: " + (materialSymbolsFontExists ? "是 ✅" : "否 ❌"));
         if (materialSymbolsFontExists) {
             ImFontConfig materialSymbolsConfig;
             materialSymbolsConfig.MergeMode = true;
@@ -169,7 +169,7 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
                 FontConfig materialSymbolsFontConfig("material_symbols", materialSymbolsFontPath, fontSize, scaleFactor, material_symbols_ranges, true);
                 auto materialSymbolsFontResource = std::make_shared<FontResource>(materialSymbolsFontPath, materialSymbolsFont, materialSymbolsFontConfig);
                 fonts_["material_symbols"] = materialSymbolsFontResource;
-                DEARTS_LOG_INFO("Material Symbols字体加载并存储成功");
+                DEARTS_LOG_INFO("🎨 Material Symbols字体加载并存储成功！");
             } else {
                 DEARTS_LOG_WARN("从 " + materialSymbolsFontPath + " 加载Material Symbols字体失败");
             }
@@ -185,7 +185,7 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
             notoNerdFontPath = Utils::FileUtils::normalizePath(notoNerdFontPath);
         }
         bool notoNerdFontExists = Utils::FileUtils::exists(notoNerdFontPath);
-        DEARTS_LOG_INFO("检查Noto nerd字体文件: " + notoNerdFontPath + ", 存在: " + (notoNerdFontExists ? "是" : "否"));
+        DEARTS_LOG_INFO("🔧 检查Noto nerd字体: " + notoNerdFontPath + ", 存在: " + (notoNerdFontExists ? "是 ✅" : "否 ❌"));
         if (notoNerdFontExists) {
             ImFontConfig notoNerdConfig;
             notoNerdConfig.MergeMode = true;
@@ -220,7 +220,7 @@ bool FontManager::loadDefaultFont(float fontSize, float scaleFactor) {
                 FontConfig notoNerdFontConfig("noto_nerd", notoNerdFontPath, fontSize, scaleFactor, noto_nerd_ranges, true);
                 auto notoNerdFontResource = std::make_shared<FontResource>(notoNerdFontPath, notoNerdFont, notoNerdFontConfig);
                 fonts_["noto_nerd"] = notoNerdFontResource;
-                DEARTS_LOG_INFO("Noto nerd字体加载并存储成功");
+                DEARTS_LOG_INFO("⭐ Noto nerd字体加载并存储成功！");
             } else {
                 DEARTS_LOG_WARN("从 " + notoNerdFontPath + " 加载Noto nerd字体失败");
             }
@@ -357,7 +357,7 @@ bool FontManager::setDefaultFont(const std::string& name) {
         // 设置为ImGui的全局默认字体
         ImGuiIO& io = ImGui::GetIO();
         io.FontDefault = font->getFont();
-        DEARTS_LOG_INFO("全局默认字体已设置为: " + name);
+        DEARTS_LOG_INFO("🌐 全局默认字体已设置为: " + name);
         return true;
     }
     DEARTS_LOG_WARN("无法设置全局默认字体，字体不存在: " + name);
