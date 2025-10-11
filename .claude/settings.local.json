@@ -20,7 +20,10 @@
       "Bash(./DearTs_d.exe)",
       "Bash(./DearTs_d_new.exe)",
       "Bash(git tag:*)",
-      "Read(//d/develop/CPlusPlus/Dear_SDL/**)"
+      "Read(//d/develop/CPlusPlus/Dear_SDL/**)",
+      "Bash(g++:*)",
+      "Bash(where:*)",
+      "Bash(\"D:\\Programs\\Microsoft\\Vs2026\\VC\\Tools\\MSVC\\14.50.35615\\bin\\Hostx86\\x86\\cl.exe\":*)"
     ],
     "deny": [],
     "ask": []
