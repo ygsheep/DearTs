@@ -33,7 +33,7 @@ ConfigManager& ConfigManager::getInstance() {
  * @return 是否加载成功
  */
 bool ConfigManager::loadFromFile(const std::string& filename) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(m_mutex);
     
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -60,7 +60,7 @@ bool ConfigManager::loadFromFile(const std::string& filename) {
             value.erase(value.find_last_not_of(" \t") + 1);
             
             if (!key.empty()) {
-                config_data_[key] = value;
+                m_configData[key] = value;
             }
         }
     }
@@ -75,10 +75,10 @@ bool ConfigManager::loadFromFile(const std::string& filename) {
  * @return 配置值
  */
 std::string ConfigManager::getString(const std::string& key, const std::string& default_value) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    auto it = config_data_.find(key);
-    if (it != config_data_.end()) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    auto it = m_configData.find(key);
+    if (it != m_configData.end()) {
         return it->second;
     }
     return default_value;
@@ -152,8 +152,8 @@ double ConfigManager::getDouble(const std::string& key, double default_value) co
  * @param value 配置值
  */
 void ConfigManager::setString(const std::string& key, const std::string& value) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    config_data_[key] = value;
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_configData[key] = value;
 }
 
 /**
@@ -189,16 +189,16 @@ void ConfigManager::setDouble(const std::string& key, double value) {
  * @return 是否存在
  */
 bool ConfigManager::exists(const std::string& key) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return config_data_.find(key) != config_data_.end();
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_configData.find(key) != m_configData.end();
 }
 
 /**
  * @brief 清空所有配置
  */
 void ConfigManager::clear() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    config_data_.clear();
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_configData.clear();
 }
 
 /**
@@ -206,15 +206,15 @@ void ConfigManager::clear() {
  * @param path 文件路径
  */
 void ConfigManager::saveToFile(const std::string &path) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
+    std::lock_guard<std::mutex> lock(m_mutex);
+
     std::ofstream file(path);
     if (!file.is_open()) {
         return;
     }
-    
-    for (const auto& [key, value] : config_data_) {
-        file << key << "=" << value << "\n";
+
+    for (const auto& [key, value] : m_configData) {
+        file << key << '=' << value << '\n';
     }
 }
 

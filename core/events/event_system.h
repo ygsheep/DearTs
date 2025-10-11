@@ -96,7 +96,7 @@ public:
     void clear();
 
 private:
-    std::unordered_map<EventType, std::vector<EventHandler>, EventTypeHash> handlers_;
+    std::unordered_map<EventType, std::vector<EventHandler>, EventTypeHash> m_handlers;
 };
 
 /**
@@ -109,15 +109,15 @@ public:
     void initialize();
     void shutdown();
 
-    EventDispatcher& getDispatcher() { return dispatcher_; }
+    EventDispatcher& getDispatcher() { return m_dispatcher; }
     bool dispatchEvent(const Event& event);
 
 private:
     EventSystem() = default;
     ~EventSystem() = default;
 
-    static EventSystem* instance_;
-    EventDispatcher dispatcher_;
+    static EventSystem* s_instance;
+    EventDispatcher m_dispatcher;
 };
 
 // 便利宏定义

@@ -20,7 +20,7 @@ namespace Events {
  * @param handler 事件处理器
  */
 void EventDispatcher::subscribe(EventType type, const EventHandler& handler) {
-    handlers_[type].push_back(handler);
+    m_handlers[type].push_back(handler);
 }
 
 /**
@@ -28,7 +28,7 @@ void EventDispatcher::subscribe(EventType type, const EventHandler& handler) {
  * @param type 事件类型
  */
 void EventDispatcher::unsubscribe(EventType type) {
-    handlers_.erase(type);
+    m_handlers.erase(type);
 }
 
 /**
@@ -37,8 +37,8 @@ void EventDispatcher::unsubscribe(EventType type) {
  * @return 是否被处理
  */
 bool EventDispatcher::dispatch(const Event& event) {
-    auto it = handlers_.find(event.getType());
-    if (it == handlers_.end()) {
+    auto it = m_handlers.find(event.getType());
+    if (it == m_handlers.end()) {
         return false;
     }
 
@@ -56,21 +56,21 @@ bool EventDispatcher::dispatch(const Event& event) {
  * @brief 清除所有订阅
  */
 void EventDispatcher::clear() {
-    handlers_.clear();
+    m_handlers.clear();
 }
 
 // EventSystem实现
-EventSystem* EventSystem::instance_ = nullptr;
+EventSystem* EventSystem::s_instance = nullptr;
 
 /**
  * @brief 获取单例实例
  * @return EventSystem实例指针
  */
 EventSystem* EventSystem::getInstance() {
-    if (!instance_) {
-        instance_ = new EventSystem();
+    if (!s_instance) {
+        s_instance = new EventSystem();
     }
-    return instance_;
+    return s_instance;
 }
 
 /**
@@ -84,7 +84,7 @@ void EventSystem::initialize() {
  * @brief 关闭事件系统
  */
 void EventSystem::shutdown() {
-    dispatcher_.clear();
+    m_dispatcher.clear();
     DEARTS_LOG_INFO("事件系统关闭");
 }
 
@@ -94,7 +94,7 @@ void EventSystem::shutdown() {
  * @return 是否被处理
  */
 bool EventSystem::dispatchEvent(const Event& event) {
-    return dispatcher_.dispatch(event);
+    return m_dispatcher.dispatch(event);
 }
 
 } // namespace Events

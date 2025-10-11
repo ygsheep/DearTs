@@ -456,7 +456,7 @@ public:
 class SDLTexture : public ITexture {
 public:
     SDLTexture(SDL_Texture* texture, const TextureInfo& info);
-    virtual ~SDLTexture();
+    ~SDLTexture() override;
     
     // ITexture接口实现
     uint32_t getId() const override;
@@ -487,7 +487,7 @@ private:
 class SDLRenderer : public IRenderer, public ::DearTs::Core::Window::WindowRenderer {
 public:
     SDLRenderer();
-    virtual ~SDLRenderer();
+    ~SDLRenderer() override;
     
     // IRenderer接口实现
     bool initialize(SDL_Window* window, const RendererConfig& config) override;
@@ -597,7 +597,7 @@ private:
 class IRendererToWindowRendererAdapter : public ::DearTs::Core::Window::WindowRenderer {
 public:
     explicit IRendererToWindowRendererAdapter(std::shared_ptr<IRenderer> renderer);
-    virtual ~IRendererToWindowRendererAdapter() = default;
+    ~IRendererToWindowRendererAdapter() override = default;
     
     // WindowRenderer接口实现
     bool initialize(SDL_Window* window) override;

@@ -79,7 +79,7 @@ public:
     /**
      * @brief 析构函数
      */
-    ~TextureResource() {
+    ~TextureResource() override {
         if (texture_) {
             SDL_DestroyTexture(texture_);
         }
@@ -111,7 +111,7 @@ public:
     /**
      * @brief 析构函数
      */
-    ~SurfaceResource() {
+    ~SurfaceResource() override {
         if (surface_) {
             SDL_FreeSurface(surface_);
         }

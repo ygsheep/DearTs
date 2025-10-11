@@ -29,28 +29,31 @@ namespace Utils {
 class ConfigManager {
 public:
     template<typename T>
-    T getValue(const std::string &key, const T &defaultValue = T()) const {
-        if constexpr (std::is_same_v<T, std::string>)
+    T getValue(const std::string& key, const T& defaultValue = T{}) const {
+        if constexpr (std::is_same_v<T, std::string>) {
             return getString(key, defaultValue);
-        else if constexpr (std::is_same_v<T, int>)
+        } else if constexpr (std::is_same_v<T, int>) {
             return getInt(key, defaultValue);
-        else if constexpr (std::is_same_v<T, bool>)
+        } else if constexpr (std::is_same_v<T, bool>) {
             return getBool(key, defaultValue);
-        else if constexpr (std::is_same_v<T, double>)
+        } else if constexpr (std::is_same_v<T, double>) {
             return getDouble(key, defaultValue);
-        return defaultValue;
+        } else {
+            return defaultValue;
+        }
     }
 
     template<typename T>
-    void setValue(const std::string &key, const T &value) {
-        if constexpr (std::is_same_v<T, std::string>)
+    void setValue(const std::string& key, const T& value) {
+        if constexpr (std::is_same_v<T, std::string>) {
             setString(key, value);
-        else if constexpr (std::is_same_v<T, int>)
+        } else if constexpr (std::is_same_v<T, int>) {
             setInt(key, value);
-        else if constexpr (std::is_same_v<T, bool>)
+        } else if constexpr (std::is_same_v<T, bool>) {
             setBool(key, value);
-        else if constexpr (std::is_same_v<T, double>)
+        } else if constexpr (std::is_same_v<T, double>) {
             setDouble(key, value);
+        }
     }
 
     void saveToFile(const std::string &path);
@@ -145,9 +148,9 @@ private:
     ~ConfigManager() = default;
     ConfigManager(const ConfigManager&) = delete;
     ConfigManager& operator=(const ConfigManager&) = delete;
-    
-    std::unordered_map<std::string, std::string> config_data_;  ///< 配置数据存储
-    mutable std::mutex mutex_;                                   ///< 线程安全锁
+
+    std::unordered_map<std::string, std::string> m_configData;   ///< 配置数据存储
+    mutable std::mutex m_mutex;                                  ///< 线程安全锁
 };
 
 } // namespace Utils
