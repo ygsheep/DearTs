@@ -269,7 +269,7 @@ public:
 class DEARTS_API Application : public IApplication {
 public:
     Application();
-    virtual ~Application();
+    ~Application() override;
     
     // IApplication 接口实现
     bool initialize(const ApplicationConfig& config) override;
@@ -279,8 +279,8 @@ public:
     void render() override;
     void handleEvent(const DearTs::Core::Events::Event& event) override;
     
-    ApplicationState getState() const override { return state_; }
-    const ApplicationConfig& getConfig() const override { return config_; }
+    ApplicationState getState() const override { return m_state; }
+    const ApplicationConfig& getConfig() const override { return m_config; }
     
     // 应用程序控制
     void requestExit(int exit_code = 0);
@@ -288,7 +288,7 @@ public:
     void resume();
     
     // 统计信息
-    const ApplicationStats& getStats() const { return stats_; }
+    const ApplicationStats& getStats() const { return m_stats; }
     
     // 配置管理
     void setConfig(const ApplicationConfig& config);
@@ -315,25 +315,25 @@ protected:
     void processEvents();
     void updateStats();
     void limitFrameRate();
-    
-    ApplicationConfig config_;                         ///< 应用程序配置
-    ApplicationState state_;                           ///< 应用程序状态
-    ApplicationStats stats_;                           ///< 统计信息
-    
-    std::atomic<bool> should_exit_;                   ///< 是否应该退出
-    std::atomic<int> exit_code_;                      ///< 退出代码
-    
-    std::chrono::steady_clock::time_point last_frame_time_; ///< 上一帧时间
-    std::chrono::steady_clock::time_point fps_timer_;       ///< FPS计时器
-    uint32_t fps_frame_count_;                              ///< FPS帧计数
-    
+
+    ApplicationConfig m_config;                         ///< 应用程序配置
+    ApplicationState m_state;                           ///< 应用程序状态
+    ApplicationStats m_stats;                           ///< 统计信息
+
+    std::atomic<bool> m_shouldExit;                    ///< 是否应该退出
+    std::atomic<int> m_exitCode;                       ///< 退出代码
+
+    std::chrono::steady_clock::time_point m_lastFrameTime; ///< 上一帧时间
+    std::chrono::steady_clock::time_point m_fpsTimer;       ///< FPS计时器
+    uint32_t m_fpsFrameCount;                                ///< FPS帧计数
+
     // 子系统
-    Utils::ConfigManager* config_manager_; ///< 配置管理器
-    Utils::Profiler* profiler_;            ///< 性能分析器
-    
+    Utils::ConfigManager* m_configManager; ///< 配置管理器
+    Utils::Profiler* m_profiler;           ///< 性能分析器
+
     // 事件处理
-    std::unordered_map<DearTs::Core::Events::EventType, std::function<void(const DearTs::Core::Events::Event&)>> event_handlers_;
-    mutable std::mutex event_handlers_mutex_;
+    std::unordered_map<DearTs::Core::Events::EventType, std::function<void(const DearTs::Core::Events::Event&)>> m_eventHandlers;
+    mutable std::mutex m_eventHandlersMutex;
 };
 
 
@@ -403,10 +403,10 @@ private:
     bool loadPluginFromFile(const std::string& file_path, PluginEntry& entry);
     void unloadPluginEntry(PluginEntry& entry);
     
-    std::unordered_map<std::string, PluginEntry> plugins_; ///< 插件映射
-    std::vector<std::string> plugin_paths_;                ///< 插件搜索路径
-    std::vector<std::string> auto_load_plugins_;           ///< 自动加载插件
-    mutable std::mutex plugins_mutex_;                     ///< 插件互斥锁
+    std::unordered_map<std::string, PluginEntry> m_plugins; ///< 插件映射
+    std::vector<std::string> m_pluginPaths;                ///< 插件搜索路径
+    std::vector<std::string> m_autoLoadPlugins;            ///< 自动加载插件
+    mutable std::mutex m_pluginsMutex;                     ///< 插件互斥锁
 };
 
 #ifdef _MSC_VER
@@ -444,7 +444,7 @@ public:
     
     // 全局配置
     void setGlobalConfig(const ApplicationConfig& config);
-    const ApplicationConfig& getGlobalConfig() const { return global_config_; }
+    const ApplicationConfig& getGlobalConfig() const { return m_globalConfig; }
     
     // 崩溃处理
     void enableCrashHandler(bool enable);
@@ -475,11 +475,11 @@ private:
     void setupSignalHandlers();
     void cleanupSignalHandlers();
     
-    bool initialized_ = false;                         ///< 是否已初始化
-    ApplicationConfig global_config_;                  ///< 全局配置
-    std::function<void(const std::string&)> crash_callback_; ///< 崩溃回调
-    bool crash_handler_enabled_ = false;              ///< 崩溃处理器启用状态
-    bool hot_reload_enabled_ = false;                 ///< 热重载启用状态
+    bool m_initialized = false;                        ///< 是否已初始化
+    ApplicationConfig m_globalConfig;                  ///< 全局配置
+    std::function<void(const std::string&)> m_crashCallback; ///< 崩溃回调
+    bool m_crashHandlerEnabled = false;               ///< 崩溃处理器启用状态
+    bool m_hotReloadEnabled = false;                  ///< 热重载启用状态
 };
 
 #ifdef _MSC_VER

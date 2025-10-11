@@ -97,7 +97,7 @@ LONG WINAPI UnhandledExceptionFilter(EXCEPTION_POINTERS* exception_info) {
         
         // 获取符号信息
         char symbol_buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
-        SYMBOL_INFO* symbol = (SYMBOL_INFO*)symbol_buffer;
+        SYMBOL_INFO* symbol = reinterpret_cast<SYMBOL_INFO*>(symbol_buffer);
         symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
         symbol->MaxNameLen = MAX_SYM_NAME;
         
@@ -149,36 +149,38 @@ void SignalHandler(int signal) {
 // ============================================================================
 
 Application::Application()
-    : state_(ApplicationState::UNINITIALIZED)
-    , should_exit_(false)
-    , exit_code_(0)
-    , fps_frame_count_(0) {
-    
-    stats_.start_time = std::chrono::steady_clock::now();
-    last_frame_time_ = stats_.start_time;
-    fps_timer_ = stats_.start_time;
-    
+    : m_state(ApplicationState::UNINITIALIZED)
+    , m_shouldExit(false)
+    , m_exitCode(0)
+    , m_fpsFrameCount(0)
+    , m_configManager(nullptr)
+    , m_profiler(nullptr) {
+
+    m_stats.start_time = std::chrono::steady_clock::now();
+    m_lastFrameTime = m_stats.start_time;
+    m_fpsTimer = m_stats.start_time;
+
     DEARTS_LOG_DEBUG("Application instance created");
 }
 
 Application::~Application() {
-    if (state_ != ApplicationState::STOPPED && state_ != ApplicationState::UNINITIALIZED) {
+    if (m_state != ApplicationState::STOPPED && m_state != ApplicationState::UNINITIALIZED) {
         shutdown();
     }
-    
+
     DEARTS_LOG_DEBUG("Application instance destroyed");
 }
 
 bool Application::initialize(const ApplicationConfig& config) {
-    if (state_ != ApplicationState::UNINITIALIZED) {
+    if (m_state != ApplicationState::UNINITIALIZED) {
         DEARTS_LOG_ERROR("应用程序已初始化");
         return false;
     }
+
+    m_state = ApplicationState::INITIALIZING;
+    m_config = config;
     
-    state_ = ApplicationState::INITIALIZING;
-    config_ = config;
-    
-    DEARTS_LOG_INFO("正在初始化应用程序: " + config_.name);
+    DEARTS_LOG_INFO("🔧 正在初始化应用程序: " + m_config.name);
     
     try {
         // 初始化子系统
@@ -187,18 +189,18 @@ bool Application::initialize(const ApplicationConfig& config) {
         // 调用子类初始化
         if (!onInitialize()) {
             DEARTS_LOG_ERROR("应用程序特定初始化失败");
-            state_ = ApplicationState::UNINITIALIZED;
+            m_state = ApplicationState::UNINITIALIZED;
             return false;
         }
+
+        m_state = ApplicationState::RUNNING;
         
-        state_ = ApplicationState::RUNNING;
-        
-        DEARTS_LOG_INFO("应用程序初始化成功");
+        DEARTS_LOG_INFO("🎉 应用程序初始化成功！");
         return true;
         
     } catch (const std::exception& e) {
         DEARTS_LOG_ERROR("应用程序初始化期间发生异常: " + std::string(e.what()));
-        state_ = ApplicationState::UNINITIALIZED;
+        m_state = ApplicationState::UNINITIALIZED;
         return false;
     }
 }
@@ -206,131 +208,118 @@ bool Application::initialize(const ApplicationConfig& config) {
 // Application class implementations
 
 void DearTs::Core::App::Application::shutdown() {
-    if (state_ == ApplicationState::STOPPED || state_ == ApplicationState::UNINITIALIZED) {
+    if (m_state == ApplicationState::STOPPED || m_state == ApplicationState::UNINITIALIZED) {
         return;
     }
-    
-    DEARTS_LOG_INFO("Shutting down application");
-    
-    state_ = ApplicationState::STOPPING;
+
+    DEARTS_LOG_INFO("🔄 正在关闭应用程序...");
+
+    m_state = ApplicationState::STOPPING;
     
     // 调用子类关闭
     onShutdown();
     
     // 关闭子系统
     shutdownSubsystems();
+
+    m_state = ApplicationState::STOPPED;
     
-    state_ = ApplicationState::STOPPED;
-    
-    DEARTS_LOG_INFO("Application shutdown completed");
+    DEARTS_LOG_INFO("✅ 应用程序关闭完成");
 }
 
 void DearTs::Core::App::Application::update(double delta_time) {
-    if (profiler_) {
-        // TODO: Replace with modern C++ profiling
+    if (m_profiler) {
     }
-    
-    // 更新插件
+
     auto& plugin_manager = PluginManager::getInstance();
     plugin_manager.updateAllPlugins(delta_time);
-    
-    // 更新窗口
+
     auto& window_manager = Window::WindowManager::getInstance();
     window_manager.updateAllWindows();
 }
 
 void DearTs::Core::App::Application::render() {
-    if (profiler_) {
-        // TODO: Replace with modern C++ profiling
+    if (m_profiler) {
     }
-    
-    // 渲染窗口
+
     auto& window_manager = Window::WindowManager::getInstance();
     window_manager.renderAllWindows();
 }
 
 void DearTs::Core::App::Application::handleEvent(const Events::Event& event) {
-    // 处理应用程序级别的事件
     switch (event.getType()) {
         case Events::EventType::EVT_APPLICATION_QUIT:
             requestExit();
             break;
-            
+
         case Events::EventType::EVT_APPLICATION_PAUSE:
             pause();
             break;
-            
+
         case Events::EventType::EVT_APPLICATION_RESUME:
             resume();
             break;
-            
+
         default:
             break;
     }
-    
-    // 调用注册的事件处理器
+
     {
-        std::lock_guard<std::mutex> lock(event_handlers_mutex_);
-        auto it = event_handlers_.find(event.getType());
-        if (it != event_handlers_.end()) {
+        std::lock_guard<std::mutex> lock(m_eventHandlersMutex);
+        if (auto it = m_eventHandlers.find(event.getType()); it != m_eventHandlers.end()) {
             it->second(event);
         }
     }
-    
-    // 调用子类事件处理
+
     onEvent(event);
 }
 
-
-
 void DearTs::Core::App::Application::requestExit(int exit_code) {
-    exit_code_ = exit_code;
-    should_exit_ = true;
+    m_exitCode = exit_code;
+    m_shouldExit = true;
     
-    DEARTS_LOG_INFO("Application exit requested with code: " + std::to_string(exit_code));
+    DEARTS_LOG_INFO("🚪 请求退出应用程序，退出代码: " + std::to_string(exit_code));
 }
 
 void DearTs::Core::App::Application::pause() {
-    if (state_ == ApplicationState::RUNNING) {
-        state_ = ApplicationState::PAUSED;
+    if (m_state == ApplicationState::RUNNING) {
+        m_state = ApplicationState::PAUSED;
         onPause();
         
-        DEARTS_LOG_INFO("Application paused");
+        DEARTS_LOG_INFO("⏸️ 应用程序已暂停");
     }
 }
 
 void DearTs::Core::App::Application::resume() {
-    if (state_ == ApplicationState::PAUSED) {
-        state_ = ApplicationState::RUNNING;
+    if (m_state == ApplicationState::PAUSED) {
+        m_state = ApplicationState::RUNNING;
         onResume();
         
-        DEARTS_LOG_INFO("Application resumed");
+        DEARTS_LOG_INFO("▶️ 应用程序已恢复");
     }
 }
 
 void DearTs::Core::App::Application::setConfig(const ApplicationConfig& config) {
-    config_ = config;
-    
-    // 应用新配置
-    if (config_manager_) {
-        // 这里可以更新配置管理器的设置
+    m_config = config;
+
+    if (m_configManager) {
     }
-    
+
     DEARTS_LOG_DEBUG("Application config updated");
 }
 
 void DearTs::Core::App::Application::loadConfig(const std::string& file_path) {
-    if (!config_manager_) {
+    if (!m_configManager) {
         DEARTS_LOG_ERROR("Config manager not initialized");
         return;
     }
-    
-    if (config_manager_->loadFromFile(file_path)) {
+
+    if (m_configManager->loadFromFile(file_path)) {
         // 从配置文件更新应用程序配置
-        config_.name = config_manager_->getValue<std::string>("app.name", config_.name);
-        config_.version = config_manager_->getValue<std::string>("app.version", config_.version);
-        config_.target_fps = config_manager_->getValue<uint32_t>("app.target_fps", config_.target_fps);
-        config_.enable_vsync = config_manager_->getValue<bool>("app.enable_vsync", config_.enable_vsync);
+        m_config.name = m_configManager->getValue<std::string>("app.name", m_config.name);
+        m_config.version = m_configManager->getValue<std::string>("app.version", m_config.version);
+        m_config.target_fps = m_configManager->getValue<uint32_t>("app.target_fps", m_config.target_fps);
+        m_config.enable_vsync = m_configManager->getValue<bool>("app.enable_vsync", m_config.enable_vsync);
         
         DEARTS_LOG_INFO("Config loaded from: " + file_path);
     } else {
@@ -339,31 +328,33 @@ void DearTs::Core::App::Application::loadConfig(const std::string& file_path) {
 }
 
 void DearTs::Core::App::Application::saveConfig(const std::string& file_path) {
-    if (!config_manager_) {
+    if (!m_configManager) {
         DEARTS_LOG_ERROR("Config manager not initialized");
         return;
     }
-    
+
     // 保存当前配置到配置管理器
-    config_manager_->setValue("app.name", config_.name);
-    config_manager_->setValue("app.version", config_.version);
-    config_manager_->setValue("app.target_fps", config_.target_fps);
-    config_manager_->setValue("app.enable_vsync", config_.enable_vsync);
+    m_configManager->setValue("app.name", m_config.name);
+    m_configManager->setValue("app.version", m_config.version);
+    m_configManager->setValue("app.target_fps", m_config.target_fps);
+    m_configManager->setValue("app.enable_vsync", m_config.enable_vsync);
     
-    config_manager_->saveToFile(file_path);
+    m_configManager->saveToFile(file_path);
     std::ostringstream oss;
     oss << "Config saved to: " << file_path;
     DEARTS_LOG_INFO(oss.str());
 }
 
 void DearTs::Core::App::Application::addEventListener(DearTs::Core::Events::EventType type, std::function<void(const DearTs::Core::Events::Event&)> handler) {
-    std::lock_guard<std::mutex> lock(event_handlers_mutex_);
-    event_handlers_[type] = handler;
+    {
+        std::lock_guard<std::mutex> lock(m_eventHandlersMutex);
+        m_eventHandlers[type] = std::move(handler);
+    }
 }
 
 void DearTs::Core::App::Application::removeEventListener(DearTs::Core::Events::EventType type) {
-    std::lock_guard<std::mutex> lock(event_handlers_mutex_);
-    event_handlers_.erase(type);
+    std::lock_guard<std::mutex> lock(m_eventHandlersMutex);
+    m_eventHandlers.erase(type);
 }
 
 void DearTs::Core::App::Application::initializeSubsystems() {
@@ -383,22 +374,22 @@ void DearTs::Core::App::Application::initializeSubsystems() {
     }
     
     // 初始化配置管理器
-    config_manager_ = &Utils::ConfigManager::getInstance();
-    
+    m_configManager = &Utils::ConfigManager::getInstance();
+
     // 初始化性能分析器
-    if (config_.enable_profiling) {
-        profiler_ = &Utils::Profiler::getInstance();
-        profiler_->initialize();
+    if (m_config.enable_profiling) {
+        m_profiler = &Utils::Profiler::getInstance();
+        m_profiler->initialize();
     } else {
-        profiler_ = nullptr;
+        m_profiler = nullptr;
     }
     
     // 初始化插件管理器
     auto& plugin_manager = PluginManager::getInstance();
-    for (const auto& path : config_.plugin_paths) {
+    for (const auto& path : m_config.plugin_paths) {
         plugin_manager.addPluginPath(path);
     }
-    plugin_manager.setAutoLoadPlugins(config_.auto_load_plugins);
+    plugin_manager.setAutoLoadPlugins(m_config.auto_load_plugins);
     plugin_manager.scanAndLoadPlugins();
     plugin_manager.initializeAllPlugins(this);
     
@@ -411,13 +402,13 @@ void DearTs::Core::App::Application::shutdownSubsystems() {
     plugin_manager.shutdownAllPlugins();
     
     // 关闭性能分析器
-    if (profiler_) {
-        profiler_->shutdown();
-        profiler_ = nullptr;
+    if (m_profiler) {
+        m_profiler->shutdown();
+        m_profiler = nullptr;
     }
-    
+
     // 关闭配置管理器
-    config_manager_ = nullptr;
+    m_configManager = nullptr;
     
     // 关闭窗口管理器
     auto& window_manager = DearTs::Core::Window::WindowManager::getInstance();
@@ -435,40 +426,40 @@ void DearTs::Core::App::Application::shutdownSubsystems() {
 
 void DearTs::Core::App::Application::updateStats() {
     auto current_time = std::chrono::steady_clock::now();
-    
+
     // 更新运行时间
-    stats_.uptime = current_time - stats_.start_time;
-    
+    m_stats.uptime = current_time - m_stats.start_time;
+
     // 更新帧计数
-    stats_.frame_count++;
-    fps_frame_count_++;
-    
+    m_stats.frame_count++;
+    m_fpsFrameCount++;
+
     // 计算帧时间
-    auto frame_duration = current_time - last_frame_time_;
-    stats_.frame_time = std::chrono::duration<double, std::milli>(frame_duration).count();
-    
+    auto frame_duration = current_time - m_lastFrameTime;
+    m_stats.frame_time = std::chrono::duration<double, std::milli>(frame_duration).count();
+
     // 每秒更新一次FPS
-    auto fps_duration = current_time - fps_timer_;
+    auto fps_duration = current_time - m_fpsTimer;
     if (fps_duration >= std::chrono::seconds(1)) {
-        stats_.current_fps = fps_frame_count_ / std::chrono::duration<double>(fps_duration).count();
-        stats_.average_fps = stats_.frame_count / std::chrono::duration<double>(stats_.uptime).count();
-        
-        fps_frame_count_ = 0;
-        fps_timer_ = current_time;
+        m_stats.current_fps = m_fpsFrameCount / std::chrono::duration<double>(fps_duration).count();
+        m_stats.average_fps = m_stats.frame_count / std::chrono::duration<double>(m_stats.uptime).count();
+
+        m_fpsFrameCount = 0;
+        m_fpsTimer = current_time;
     }
     
     // 更新内存使用量
 #ifdef DEARTS_PLATFORM_WINDOWS
     PROCESS_MEMORY_COUNTERS pmc;
     if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
-        stats_.memory_usage = pmc.WorkingSetSize;
-        stats_.peak_memory_usage = std::max(stats_.peak_memory_usage, stats_.memory_usage);
+        m_stats.memory_usage = pmc.WorkingSetSize;
+        m_stats.peak_memory_usage = std::max(m_stats.peak_memory_usage, m_stats.memory_usage);
     }
 #else
     struct rusage usage;
     if (getrusage(RUSAGE_SELF, &usage) == 0) {
-        stats_.memory_usage = usage.ru_maxrss * 1024; // Linux返回KB，转换为字节
-        stats_.peak_memory_usage = std::max(stats_.peak_memory_usage, stats_.memory_usage);
+        m_stats.memory_usage = usage.ru_maxrss * 1024; // Linux返回KB，转换为字节
+        m_stats.peak_memory_usage = std::max(m_stats.peak_memory_usage, m_stats.memory_usage);
     }
 #endif
 }
@@ -486,15 +477,15 @@ void DearTs::Core::App::Application::processEvents() {
         // 处理SDL事件
         switch (event.type) {
             case SDL_QUIT:
-                DEARTS_LOG_INFO("SDL_QUIT event received, requesting exit and closing all windows");
+                DEARTS_LOG_INFO("🚨 接收到SDL_QUIT事件，请求退出并关闭所有窗口");
                 requestExit();
                 // 手动关闭所有窗口，确保窗口关闭流程被触发
                 {
-                    auto& window_manager = Window::WindowManager::getInstance();
-                    auto windows = window_manager.getAllWindows();
+                    auto& wm = Window::WindowManager::getInstance();
+                    auto windows = wm.getAllWindows();
                     for (auto& window : windows) {
                         if (window) {
-                            DEARTS_LOG_INFO("SDL_QUIT: Closing window ID: " + std::to_string(window->getId()));
+                            DEARTS_LOG_INFO("🔒 SDL_QUIT: 正在关闭窗口 ID: " + std::to_string(window->getId()));
                             window->close();
                         }
                     }
@@ -509,20 +500,20 @@ void DearTs::Core::App::Application::processEvents() {
     // 检查是否有窗口请求关闭
     auto& window_manager = Window::WindowManager::getInstance();
     if (window_manager.hasWindowsToClose()) {
-        DEARTS_LOG_INFO("Found windows to close, closing them");
+        DEARTS_LOG_INFO("🔍 发现有窗口需要关闭，正在处理...");
         window_manager.closeWindowsToClose();
         if (window_manager.getWindowCount() == 0) {
-            DEARTS_LOG_INFO("No windows left, requesting exit");
+            DEARTS_LOG_INFO("👋 所有窗口已关闭，请求退出应用程序");
             requestExit();
         }
     }
 }
 
 void DearTs::Core::App::Application::limitFrameRate() {
-    if (config_.target_fps > 0) {
-        auto target_frame_time = std::chrono::duration<double>(1.0 / config_.target_fps);
+    if (m_config.target_fps > 0) {
+        auto target_frame_time = std::chrono::duration<double>(1.0 / m_config.target_fps);
         auto current_time = std::chrono::steady_clock::now();
-        auto elapsed = current_time - last_frame_time_;
+        auto elapsed = current_time - m_lastFrameTime;
         
         if (elapsed < target_frame_time) {
             auto sleep_time = target_frame_time - elapsed;
@@ -541,150 +532,150 @@ DearTs::Core::App::PluginManager& DearTs::Core::App::PluginManager::getInstance(
 }
 
 bool DearTs::Core::App::PluginManager::loadPlugin(const std::string& file_path) {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
     if (!Utils::FileUtils::exists(file_path)) {
         DEARTS_LOG_ERROR("Plugin file not found: " + file_path);
         return false;
     }
-    
+
     DearTs::Core::App::PluginManager::PluginEntry entry;
     if (!loadPluginFromFile(file_path, entry)) {
         return false;
     }
-    
+
     // 检查是否已经加载了同名插件
     const std::string& name = entry.info.name;
-    if (plugins_.find(name) != plugins_.end()) {
+    if (m_plugins.find(name) != m_plugins.end()) {
         DEARTS_LOG_WARN("Plugin already loaded: " + name);
         unloadPluginEntry(entry);
         return false;
     }
-    
-    plugins_[name] = std::move(entry);
-    
+
+    m_plugins[name] = std::move(entry);
+
     DEARTS_LOG_INFO("Plugin loaded: " + name + " (" + file_path + ")");
     return true;
 }
 
 bool DearTs::Core::App::PluginManager::unloadPlugin(const std::string& name) {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
-    auto it = plugins_.find(name);
-    if (it == plugins_.end()) {
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
+    auto it = m_plugins.find(name);
+    if (it == m_plugins.end()) {
         DEARTS_LOG_WARN("Plugin not found: " + name);
         return false;
     }
-    
+
     unloadPluginEntry(it->second);
-    plugins_.erase(it);
-    
+    m_plugins.erase(it);
+
     DEARTS_LOG_INFO("Plugin unloaded: " + name);
     return true;
 }
 
 bool DearTs::Core::App::PluginManager::reloadPlugin(const std::string& name) {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
-    auto it = plugins_.find(name);
-    if (it == plugins_.end()) {
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
+    auto it = m_plugins.find(name);
+    if (it == m_plugins.end()) {
         DEARTS_LOG_WARN("Plugin not found for reload: " + name);
         return false;
     }
-    
+
     std::string file_path = it->second.info.file_path;
     unloadPluginEntry(it->second);
-    plugins_.erase(it);
-    
+    m_plugins.erase(it);
+
     // 重新加载
     lock.~lock_guard();
     return loadPlugin(file_path);
 }
 
 std::shared_ptr<DearTs::Core::App::IPlugin> DearTs::Core::App::PluginManager::getPlugin(const std::string& name) const {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
-    auto it = plugins_.find(name);
-    return (it != plugins_.end()) ? it->second.plugin : nullptr;
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
+    auto it = m_plugins.find(name);
+    return (it != m_plugins.end()) ? it->second.plugin : nullptr;
 }
 
 std::vector<std::shared_ptr<DearTs::Core::App::IPlugin>> DearTs::Core::App::PluginManager::getPluginsByType(DearTs::Core::App::PluginType type) const {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
     std::vector<std::shared_ptr<DearTs::Core::App::IPlugin>> result;
-    for (const auto& [name, entry] : plugins_) {
+    for (const auto& [name, entry] : m_plugins) {
         if (entry.info.type == type && entry.plugin) {
             result.push_back(entry.plugin);
         }
     }
-    
+
     return result;
 }
 
 std::vector<std::string> DearTs::Core::App::PluginManager::getLoadedPluginNames() const {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
     std::vector<std::string> names;
-    names.reserve(plugins_.size());
-    
-    for (const auto& [name, entry] : plugins_) {
+    names.reserve(m_plugins.size());
+
+    for (const auto& [name, entry] : m_plugins) {
         names.push_back(name);
     }
-    
+
     return names;
 }
 
 bool DearTs::Core::App::PluginManager::isPluginLoaded(const std::string& name) const {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    return plugins_.find(name) != plugins_.end();
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+    return m_plugins.find(name) != m_plugins.end();
 }
 
 DearTs::Core::App::PluginInfo DearTs::Core::App::PluginManager::getPluginInfo(const std::string& name) const {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
-    auto it = plugins_.find(name);
-    return (it != plugins_.end()) ? it->second.info : DearTs::Core::App::PluginInfo{};
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
+    auto it = m_plugins.find(name);
+    return (it != m_plugins.end()) ? it->second.info : DearTs::Core::App::PluginInfo{};
 }
 
 std::vector<DearTs::Core::App::PluginInfo> DearTs::Core::App::PluginManager::getAllPluginInfos() const {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
     std::vector<DearTs::Core::App::PluginInfo> infos;
-    infos.reserve(plugins_.size());
-    
-    for (const auto& [name, entry] : plugins_) {
+    infos.reserve(m_plugins.size());
+
+    for (const auto& [name, entry] : m_plugins) {
         infos.push_back(entry.info);
     }
-    
+
     return infos;
 }
 
 void DearTs::Core::App::PluginManager::addPluginPath(const std::string& path) {
-    auto it = std::find(plugin_paths_.begin(), plugin_paths_.end(), path);
-    if (it == plugin_paths_.end()) {
-        plugin_paths_.push_back(path);
+    auto it = std::find(m_pluginPaths.begin(), m_pluginPaths.end(), path);
+    if (it == m_pluginPaths.end()) {
+        m_pluginPaths.push_back(path);
         DEARTS_LOG_DEBUG("Plugin path added: " + path);
     }
 }
 
 void DearTs::Core::App::PluginManager::removePluginPath(const std::string& path) {
-    auto it = std::find(plugin_paths_.begin(), plugin_paths_.end(), path);
-    if (it != plugin_paths_.end()) {
-        plugin_paths_.erase(it);
+    auto it = std::find(m_pluginPaths.begin(), m_pluginPaths.end(), path);
+    if (it != m_pluginPaths.end()) {
+        m_pluginPaths.erase(it);
         DEARTS_LOG_DEBUG("Plugin path removed: " + path);
     }
 }
 
 std::vector<std::string> DearTs::Core::App::PluginManager::getPluginPaths() const {
-    return plugin_paths_;
+    return m_pluginPaths;
 }
 
 void DearTs::Core::App::PluginManager::scanAndLoadPlugins() {
-    for (const auto& path : plugin_paths_) {
+    for (const auto& path : m_pluginPaths) {
         if (!Utils::FileUtils::exists(path)) {
             continue;
         }
-        
+
         if (Utils::FileUtils::isDirectory(path)) {
             // 扫描目录中的插件文件
             auto files = Utils::FileUtils::listDirectory(path, true);
@@ -705,64 +696,74 @@ void DearTs::Core::App::PluginManager::scanAndLoadPlugins() {
 }
 
 void DearTs::Core::App::PluginManager::setAutoLoadPlugins(const std::vector<std::string>& plugins) {
-    auto_load_plugins_ = plugins;
+    m_autoLoadPlugins = plugins;
 }
 
 bool DearTs::Core::App::PluginManager::checkDependencies(const std::string& plugin_name) const {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
-    auto it = plugins_.find(plugin_name);
-    if (it == plugins_.end()) {
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
+    auto it = m_plugins.find(plugin_name);
+    if (it == m_plugins.end()) {
         return false;
     }
-    
-    for (const auto& dep : it->second.info.dependencies) {
-        if (plugins_.find(dep) == plugins_.end()) {
-            DEARTS_LOG_ERROR("Plugin dependency not found: " + plugin_name + " requires " + dep);
-            return false;
+
+    // Use STL algorithm to check if all dependencies are satisfied
+    const bool all_deps_satisfied = std::all_of(
+        it->second.info.dependencies.begin(),
+        it->second.info.dependencies.end(),
+        [this, &plugin_name](const std::string& dep) {
+            if (m_plugins.find(dep) == m_plugins.end()) {
+                DEARTS_LOG_ERROR("Plugin dependency not found: " + plugin_name + " requires " + dep);
+                return false;
+            }
+            return true;
         }
+    );
+
+    if (!all_deps_satisfied) {
+        return false;
     }
-    
+
     return true;
 }
 
 std::vector<std::string> DearTs::Core::App::PluginManager::resolveDependencies(const std::string& plugin_name) const {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
     std::vector<std::string> resolved;
     std::vector<std::string> to_resolve = {plugin_name};
-    
+
     while (!to_resolve.empty()) {
         std::string current = to_resolve.back();
         to_resolve.pop_back();
-        
+
         if (std::find(resolved.begin(), resolved.end(), current) != resolved.end()) {
             continue; // 已经解析过
         }
-        
-        auto it = plugins_.find(current);
-        if (it == plugins_.end()) {
+
+        auto it = m_plugins.find(current);
+        if (it == m_plugins.end()) {
             continue; // 插件不存在
         }
-        
-        // 添加依赖项到待解析列表
-        for (const auto& dep : it->second.info.dependencies) {
-            to_resolve.push_back(dep);
-        }
-        
+
+        // 添加依赖项到待解析列表 - 使用STL算法
+        std::copy(it->second.info.dependencies.begin(),
+                  it->second.info.dependencies.end(),
+                  std::back_inserter(to_resolve));
+
         resolved.push_back(current);
     }
-    
+
     return resolved;
 }
 
 void DearTs::Core::App::PluginManager::initializeAllPlugins(DearTs::Core::App::IApplication* app) {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
-    for (auto& [name, entry] : plugins_) {
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
+    for (auto& [name, entry] : m_plugins) {
         if (entry.plugin && entry.state == PluginState::LOADED) {
             entry.state = PluginState::INITIALIZING;
-            
+
             if (entry.plugin->initialize(app)) {
                 entry.state = PluginState::ACTIVE;
                 std::ostringstream oss;
@@ -779,9 +780,9 @@ void DearTs::Core::App::PluginManager::initializeAllPlugins(DearTs::Core::App::I
 }
 
 void DearTs::Core::App::PluginManager::shutdownAllPlugins() {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
-    for (auto& [name, entry] : plugins_) {
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
+    for (auto& [name, entry] : m_plugins) {
         if (entry.plugin && entry.state == DearTs::Core::App::PluginState::ACTIVE) {
             entry.plugin->shutdown();
             entry.state = DearTs::Core::App::PluginState::INACTIVE;
@@ -791,9 +792,9 @@ void DearTs::Core::App::PluginManager::shutdownAllPlugins() {
 }
 
 void DearTs::Core::App::PluginManager::updateAllPlugins(double delta_time) {
-    std::lock_guard<std::mutex> lock(plugins_mutex_);
-    
-    for (auto& [name, entry] : plugins_) {
+    std::lock_guard<std::mutex> lock(m_pluginsMutex);
+
+    for (auto& [name, entry] : m_plugins) {
         if (entry.plugin && entry.state == DearTs::Core::App::PluginState::ACTIVE) {
             entry.plugin->update(delta_time);
         }
@@ -879,7 +880,7 @@ void DearTs::Core::App::PluginManager::unloadPluginEntry(DearTs::Core::App::Plug
     
     if (entry.library_handle) {
 #ifdef DEARTS_PLATFORM_WINDOWS
-        FreeLibrary((HMODULE)entry.library_handle);
+        FreeLibrary(reinterpret_cast<HMODULE>(entry.library_handle));
 #else
         dlclose(entry.library_handle);
 #endif
@@ -899,41 +900,41 @@ DearTs::Core::App::ApplicationManager& DearTs::Core::App::ApplicationManager::ge
 }
 
 bool DearTs::Core::App::ApplicationManager::initialize() {
-    if (initialized_) {
+    if (m_initialized) {
         return true;
     }
-    
-    DEARTS_LOG_INFO("Initializing Application Manager");
-    
+
+    DEARTS_LOG_INFO("🚀 启动应用程序管理器...");
+
     // 设置默认全局配置
-    global_config_ = DearTs::Core::App::ApplicationConfig();
-    
+    m_globalConfig = DearTs::Core::App::ApplicationConfig();
+
     // 设置崩溃处理器
-    if (global_config_.enable_crash_handler) {
+    if (m_globalConfig.enable_crash_handler) {
         enableCrashHandler(true);
     }
+
+    m_initialized = true;
     
-    initialized_ = true;
-    
-    DEARTS_LOG_INFO("Application Manager initialized successfully");
+    DEARTS_LOG_INFO("✅ 应用程序管理器初始化成功！");
     return true;
 }
 
 void DearTs::Core::App::ApplicationManager::shutdown() {
-    if (!initialized_) {
+    if (!m_initialized) {
         return;
     }
-    
-    DEARTS_LOG_INFO("Shutting down Application Manager");
-    
+
+    DEARTS_LOG_INFO("🛑 关闭应用程序管理器...");
+
     // 清理崩溃处理器
-    if (crash_handler_enabled_) {
+    if (m_crashHandlerEnabled) {
         enableCrashHandler(false);
     }
+
+    m_initialized = false;
     
-    initialized_ = false;
-    
-    DEARTS_LOG_INFO("Application Manager shutdown completed");
+    DEARTS_LOG_INFO("✅ 应用程序管理器关闭完成");
 }
 
 int DearTs::Core::App::ApplicationManager::runApplication(std::unique_ptr<DearTs::Core::App::IApplication> app) {
@@ -941,55 +942,55 @@ int DearTs::Core::App::ApplicationManager::runApplication(std::unique_ptr<DearTs
         DEARTS_LOG_ERROR("Invalid application instance");
         return -1;
     }
-    
-    if (!initialized_) {
+
+    if (!m_initialized) {
         DEARTS_LOG_ERROR("Application Manager not initialized");
         return -1;
     }
     
     // 初始化应用程序
-    if (!app->initialize(global_config_)) {
+    if (!app->initialize(m_globalConfig)) {
         DEARTS_LOG_ERROR("Failed to initialize application");
         return -1;
     }
     
-    DEARTS_LOG_INFO("Running application: " + app->getConfig().name);
+    DEARTS_LOG_INFO("🎮 启动应用程序: " + app->getConfig().name);
     
     int result = app->run();
     
-    DEARTS_LOG_INFO("Application finished with exit code: " + std::to_string(result));
+    DEARTS_LOG_INFO("🏁 应用程序运行完成，退出代码: " + std::to_string(result));
     return result;
 }
 
 void DearTs::Core::App::ApplicationManager::setGlobalConfig(const DearTs::Core::App::ApplicationConfig& config) {
-    global_config_ = config;
+    m_globalConfig = config;
     DEARTS_LOG_DEBUG("Global application config updated");
 }
 
 void DearTs::Core::App::ApplicationManager::enableCrashHandler(bool enable) {
-    if (enable && !crash_handler_enabled_) {
+    if (enable && !m_crashHandlerEnabled) {
         setupCrashHandler();
-        crash_handler_enabled_ = true;
-        DEARTS_LOG_INFO("Crash handler enabled");
-    } else if (!enable && crash_handler_enabled_) {
+        m_crashHandlerEnabled = true;
+        DEARTS_LOG_INFO("🛡️ 崩溃处理器已启用");
+    } else if (!enable && m_crashHandlerEnabled) {
         cleanupCrashHandler();
-        crash_handler_enabled_ = false;
-        DEARTS_LOG_INFO("Crash handler disabled");
+        m_crashHandlerEnabled = false;
+        DEARTS_LOG_INFO("🔓 崩溃处理器已禁用");
     }
 }
 
 void DearTs::Core::App::ApplicationManager::setCrashCallback(std::function<void(const std::string&)> callback) {
-    crash_callback_ = callback;
+    m_crashCallback = callback;
     g_crash_callback = callback;
 }
 
 void DearTs::Core::App::ApplicationManager::enableHotReload(bool enable) {
-    hot_reload_enabled_ = enable;
+    m_hotReloadEnabled = enable;
     DEARTS_LOG_INFO("Hot reload " + std::string(enable ? "enabled" : "disabled"));
 }
 
 void DearTs::Core::App::ApplicationManager::checkForReload() {
-    if (!hot_reload_enabled_) {
+    if (!m_hotReloadEnabled) {
         return;
     }
     
@@ -1140,36 +1141,36 @@ void DearTs::Core::App::ApplicationManager::cleanupSignalHandlers() {
 // Application class implementations
 
 int DearTs::Core::App::Application::run() {
-    if (state_ != DearTs::Core::App::ApplicationState::INITIALIZING && 
-        state_ != DearTs::Core::App::ApplicationState::STOPPED && 
-        state_ != DearTs::Core::App::ApplicationState::RUNNING) {
+    if (m_state != DearTs::Core::App::ApplicationState::INITIALIZING &&
+        m_state != DearTs::Core::App::ApplicationState::STOPPED &&
+        m_state != DearTs::Core::App::ApplicationState::RUNNING) {
         DEARTS_LOG_ERROR("Application not in valid state to run");
         return -1;
     }
-    
+
     // 如果状态是INITIALIZING或STOPPED，设置为RUNNING
-    if (state_ == DearTs::Core::App::ApplicationState::INITIALIZING || 
-        state_ == DearTs::Core::App::ApplicationState::STOPPED) {
-        state_ = DearTs::Core::App::ApplicationState::RUNNING;
+    if (m_state == DearTs::Core::App::ApplicationState::INITIALIZING ||
+        m_state == DearTs::Core::App::ApplicationState::STOPPED) {
+        m_state = DearTs::Core::App::ApplicationState::RUNNING;
     }
     
-    DEARTS_LOG_INFO("Starting application main loop");
+    DEARTS_LOG_INFO("🎯 启动应用程序主循环...");
     
     // 获取核心系统管理器实例
     auto& window_manager = DearTs::Core::Window::WindowManager::getInstance();
     
     // 主循环
     int frame_count = 0;
-    while (!should_exit_ && state_ == DearTs::Core::App::ApplicationState::RUNNING) {
+    while (!m_shouldExit && m_state == DearTs::Core::App::ApplicationState::RUNNING) {
         frame_count++;
         if (frame_count % 100 == 0) {
             DEARTS_LOG_DEBUG("Application main loop running, frame count: " + std::to_string(frame_count));
-            DEARTS_LOG_DEBUG("should_exit_: " + std::to_string(should_exit_.load()) + ", window count: " + std::to_string(window_manager.getWindowCount()));
+            DEARTS_LOG_DEBUG("should_exit_: " + std::to_string(m_shouldExit.load()) + ", window count: " + std::to_string(window_manager.getWindowCount()));
         }
-        
+
         auto current_time = std::chrono::steady_clock::now();
-        auto delta_time = std::chrono::duration<double>(current_time - last_frame_time_).count();
-        last_frame_time_ = current_time;
+        auto delta_time = std::chrono::duration<double>(current_time - m_lastFrameTime).count();
+        m_lastFrameTime = current_time;
         
         // 处理事件
         DEARTS_LOG_DEBUG("Processing events");
@@ -1181,23 +1182,23 @@ int DearTs::Core::App::Application::run() {
         if (window_manager.hasWindowsToClose()) {
             window_manager.closeWindowsToClose();
             if (window_manager.getWindowCount() == 0) {
-                DEARTS_LOG_INFO("No windows left, requesting exit");
+                DEARTS_LOG_INFO("👋 所有窗口已关闭，请求退出应用程序");
                 requestExit();
             }
         }
         DEARTS_LOG_DEBUG("Windows check completed");
         
         // 更新应用程序
-        if (state_ == DearTs::Core::App::ApplicationState::RUNNING) {
+        if (m_state == DearTs::Core::App::ApplicationState::RUNNING) {
             DEARTS_LOG_DEBUG("Updating application");
             update(delta_time);
             DEARTS_LOG_DEBUG("Application update completed");
             onUpdate(delta_time);
             DEARTS_LOG_DEBUG("Application onUpdate completed");
         }
-        
+
         // 渲染应用程序
-        if (state_ == DearTs::Core::App::ApplicationState::RUNNING) {
+        if (m_state == DearTs::Core::App::ApplicationState::RUNNING) {
             DEARTS_LOG_DEBUG("Rendering application");
             render();
             DEARTS_LOG_DEBUG("Application render completed");
@@ -1219,8 +1220,8 @@ int DearTs::Core::App::Application::run() {
         // event_system->processEvents(); // TODO: Implement proper event processing
     }
     
-    DEARTS_LOG_INFO("Application main loop ended, exit code: " + std::to_string(exit_code_.load()));
-    return exit_code_;
+    DEARTS_LOG_INFO("🏁 应用程序主循环结束，退出代码: " + std::to_string(m_exitCode.load()));
+    return m_exitCode;
 }
 
 } // namespace App
