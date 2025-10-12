@@ -2,7 +2,7 @@
 
 #include "../../../core/app/application_manager.h"
 #include "../../../core/window/window_base.h"
-#include "../../../core/window/main_window.h"
+#include "../../../core/window/main_window_optimized.h"
 #include "../../../core/resource/font_resource.h"
 #include "../../../core/resource/resource_manager.h"
 #include <SDL.h>
@@ -24,11 +24,17 @@ public:
      * 构造函数
      */
     GUIApplication();
-    
+
     /**
      * 析构函数
      */
     ~GUIApplication();
+
+    /**
+     * 获取当前GUIApplication实例
+     * @return GUIApplication实例指针
+     */
+    static GUIApplication* getInstance() { return currentInstance_; }
     
     /**
      * 初始化应用程序
@@ -77,14 +83,20 @@ public:
      */
     SDL_Renderer* getRenderer() const { return m_renderer; }
 
+    
 private:
+    // 静态实例指针
+    static GUIApplication* currentInstance_;  ///< 当前实例指针
+
     // 核心组件
     SDL_Window* m_window;           ///< SDL窗口句柄
     SDL_Renderer* m_renderer;       ///< SDL渲染器句柄
     
     // 主窗口
     std::unique_ptr<DearTs::Core::Window::MainWindow> mainWindow_;  ///< 主窗口
+
     
+        
     /**
      * 初始化SDL
      * @return 初始化是否成功

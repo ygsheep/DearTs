@@ -1,21 +1,30 @@
 #include "gui_application.h"
+#include "../../core/render/renderer.h"
 #include <chrono>
 #include <iostream>
 #include <thread>
 
 namespace DearTs {
 
+// 静态成员变量定义
+GUIApplication* GUIApplication::currentInstance_ = nullptr;
+
   /**
    * GUIApplication构造函数
    * 初始化所有成员变量
    */
-  GUIApplication::GUIApplication() : m_window(nullptr), m_renderer(nullptr) {}
+  GUIApplication::GUIApplication() : m_window(nullptr), m_renderer(nullptr) {
+      currentInstance_ = this;
+  }
 
   /**
    * GUIApplication析构函数
    * 清理所有资源
    */
-  GUIApplication::~GUIApplication() { shutdown(); }
+  GUIApplication::~GUIApplication() {
+      currentInstance_ = nullptr;
+      shutdown();
+  }
 
   /**
    * 初始化应用程序
@@ -58,6 +67,12 @@ namespace DearTs {
     while (getState() != Core::App::ApplicationState::STOPPING && getState() != Core::App::ApplicationState::STOPPED) {
       // 更新应用程序状态
       update(1.0 / m_config.target_fps); // 假设60FPS
+
+      // 检查主窗口是否已被销毁，如果是则立即退出
+      if (!mainWindow_) {
+        DEARTS_LOG_INFO("🚪 主窗口已销毁，退出主循环");
+        break;
+      }
 
       // 检查是否还有窗口存在，如果没有则退出
       auto &windowManager = DearTs::Core::Window::WindowManager::getInstance();
@@ -121,8 +136,25 @@ namespace DearTs {
    * 渲染应用程序界面
    */
   void GUIApplication::render() {
-    // 清屏
-    SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 255);
+    // 检查是否还有有效的窗口和渲染器
+    if (!m_renderer || !m_window) {
+      return;
+    }
+
+    // 检查主窗口是否仍然有效
+    if (mainWindow_) {
+      auto window = mainWindow_->getWindow();
+      if (!window || !window->getSDLWindow()) {
+        // 主窗口已被销毁，清除引用
+        DEARTS_LOG_INFO("🧹 渲染时发现主窗口已销毁，清理引用");
+        mainWindow_.reset();
+        return;
+      }
+    }
+
+    // 清屏 - 使用ImGui Dark样式的背景色
+    // ImGui Dark主题的背景色约为 RGB(21, 21, 21)
+    SDL_SetRenderDrawColor(m_renderer, 21, 21, 21, 255);
     SDL_RenderClear(m_renderer);
 
     // 开始新帧
@@ -139,8 +171,27 @@ namespace DearTs {
     ImGui::Render();
     ImGui_ImplSDLRenderer2_RenderDrawData(ImGui::GetDrawData(), m_renderer);
 
-    // 呈现
+    // 呈现主窗口
     SDL_RenderPresent(m_renderer);
+
+    // 渲染所有其他窗口（包括分词窗口）
+    auto &windowManager = DearTs::Core::Window::WindowManager::getInstance();
+
+    // 检查WindowManager是否有效
+    try {
+        // 在渲染前再次验证所有窗口状态
+        auto allWindows = windowManager.getAllWindows();
+        for (const auto& window : allWindows) {
+            if (!window || !window->getSDLWindow()) {
+                DEARTS_LOG_WARN("发现无效窗口，将在渲染时跳过");
+            }
+        }
+        windowManager.renderAllWindows();
+    } catch (const std::exception& e) {
+        DEARTS_LOG_ERROR("WindowManager渲染异常: " + std::string(e.what()));
+    } catch (...) {
+        DEARTS_LOG_ERROR("WindowManager渲染发生未知异常");
+    }
 
     // 调用父类的渲染方法
     Application::render();
@@ -172,7 +223,7 @@ namespace DearTs {
       return false;
     }
 
-    // 创建主窗口对象
+    // 创建主窗口对象（使用优化版本）
     mainWindow_ = std::make_unique<DearTs::Core::Window::MainWindow>("DearTs GUI Application");
     if (!mainWindow_->initialize()) {
       std::cerr << "Main window initialization failed" << std::endl;
@@ -197,7 +248,7 @@ namespace DearTs {
       return false;
     }
 
-    windowManager.addWindow(mainWindow_->getWindow());
+    windowManager.addWindow("MainWindow", mainWindow_->getWindow());
 
     return true;
   }
@@ -271,11 +322,13 @@ namespace DearTs {
     // DearTs::Core::App::Application::processEvents();
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
-      // 将事件传递给ImGui SDL2绑定
-      ImGui_ImplSDL2_ProcessEvent(&event);
-
-      // 转发所有事件给窗口管理器（用于处理标题栏事件）
+      
+      // 关键修复：先让我们的系统处理事件，再传递给ImGui
+      // 这样可以确保侧边栏等自定义UI组件能接收到鼠标事件
       DearTs::Core::Window::WindowManager::getInstance().handleSDLEvent(event);
+
+      // 然后将事件传递给ImGui SDL2绑定
+      ImGui_ImplSDL2_ProcessEvent(&event);
 
       // 处理SDL事件
       switch (event.type) {
@@ -305,6 +358,10 @@ namespace DearTs {
     if (window_manager.hasWindowsToClose()) {
       DEARTS_LOG_INFO("🔍 发现需要关闭的窗口，正在处理...");
       window_manager.closeWindowsToClose();
+
+      // 注意：主窗口清理由WindowManager统一管理，这里不需要单独检查
+    // 避免重复检查导致的悬空指针访问
+
       if (window_manager.getWindowCount() == 0) {
         DEARTS_LOG_INFO("🏠 所有窗口已关闭，请求退出");
         requestExit();
@@ -341,15 +398,10 @@ namespace DearTs {
    * 关闭SDL
    */
   void GUIApplication::shutdownSDL() {
-    if (m_renderer) {
-      SDL_DestroyRenderer(m_renderer);
-      m_renderer = nullptr;
-    }
-
-    if (m_window) {
-      SDL_DestroyWindow(m_window);
-      m_window = nullptr;
-    }
+    // 注意：SDL窗口和渲染器由WindowManager管理，这里不需要手动销毁
+    // 避免重复释放导致的访问冲突
+    m_renderer = nullptr;
+    m_window = nullptr;
 
     SDL_Quit();
   }
