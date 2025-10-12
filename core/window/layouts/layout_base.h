@@ -46,12 +46,25 @@ public:
      * @param height 可用高度
      */
     virtual void updateLayout(float width, float height) = 0;
-    
+
     /**
      * @brief 处理事件
      * @param event SDL事件
      */
     virtual void handleEvent(const SDL_Event& event) = 0;
+
+    /**
+     * @brief 渲染内容（在固定区域内）
+     * 默认实现调用render()，子类可以重写以适应固定区域渲染
+     * @param contentX 内容区域X坐标
+     * @param contentY 内容区域Y坐标
+     * @param contentWidth 内容区域宽度
+     * @param contentHeight 内容区域高度
+     */
+    virtual void renderInFixedArea(float contentX, float contentY, float contentWidth, float contentHeight) {
+        // 默认行为：调用原始render方法
+        render();
+    }
     
     /**
      * @brief 获取布局名称
