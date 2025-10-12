@@ -23,7 +23,12 @@
       "Read(//d/develop/CPlusPlus/Dear_SDL/**)",
       "Bash(g++:*)",
       "Bash(where:*)",
-      "Bash(\"D:\\Programs\\Microsoft\\Vs2026\\VC\\Tools\\MSVC\\14.50.35615\\bin\\Hostx86\\x86\\cl.exe\":*)"
+      "Bash(\"D:\\Programs\\Microsoft\\Vs2026\\VC\\Tools\\MSVC\\14.50.35615\\bin\\Hostx86\\x86\\cl.exe\":*)",
+      "mcp__filesystem__list_directory",
+      "mcp__filesystem__read_text_file",
+      "mcp__filesystem__create_directory",
+      "Bash(.DearTs_d_test_with_core.exe)",
+      "Bash(\"Release\\DearTs.exe\")"
     ],
     "deny": [],
     "ask": []

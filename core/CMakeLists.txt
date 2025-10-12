@@ -41,6 +41,7 @@ set(CORE_SOURCES
     
     # 事件系统
     events/event_system.cpp
+    events/layout_events.cpp
     
     # 应用程序管理
     app/application_manager.cpp
@@ -48,7 +49,7 @@ set(CORE_SOURCES
     # 窗口管理
     window/window_manager.cpp
     window/window_base.cpp
-    window/main_window.cpp
+    window/main_window_optimized.cpp
     window/win_aero_snap_handler.cpp
     window/layouts/layout_base.cpp
     window/layouts/title_bar_layout.cpp
@@ -56,6 +57,16 @@ set(CORE_SOURCES
     window/layouts/sidebar_layout.cpp
     window/layouts/pomodoro_layout.cpp
     window/layouts/exchange_record_layout.cpp
+
+    # 剪切板助手模块
+    window/widgets/clipboard/clipboard_history_layout.cpp
+    window/widgets/clipboard/text_segmentation_layout.cpp
+    window/widgets/clipboard/clipboard_monitor.cpp
+    window/widgets/clipboard/url_extractor.cpp
+    window/widgets/clipboard/text_segmenter.cpp
+    window/widgets/clipboard/clipboard_manager.cpp
+    window/widgets/clipboard/clipboard_manager_window.cpp
+    window/widgets/clipboard/text_segmentation_window.cpp
     
     # 渲染系统
     render/renderer.cpp
@@ -85,6 +96,7 @@ set(CORE_HEADERS
     
     # 事件系统
     events/event_system.h
+    events/layout_events.h
     
     # 应用程序管理
     app/application_manager.h
@@ -92,7 +104,7 @@ set(CORE_HEADERS
     # 窗口管理
     window/window_manager.h
     window/window_base.h
-    window/main_window.h
+    window/main_window_optimized.h
     window/win_aero_snap_handler.h
     window/layouts/layout_base.h
     window/layouts/title_bar_layout.h
@@ -100,6 +112,16 @@ set(CORE_HEADERS
     window/layouts/sidebar_layout.h
     window/layouts/pomodoro_layout.h
     window/layouts/exchange_record_layout.h
+
+    # 剪切板助手模块
+    window/widgets/clipboard/clipboard_history_layout.h
+    window/widgets/clipboard/text_segmentation_layout.h
+    window/widgets/clipboard/clipboard_monitor.h
+    window/widgets/clipboard/url_extractor.h
+    window/widgets/clipboard/text_segmenter.h
+    window/widgets/clipboard/clipboard_manager.h
+    window/widgets/clipboard/clipboard_manager_window.h
+    window/widgets/clipboard/text_segmentation_window.h
     
     # 渲染系统
     render/renderer.h
@@ -212,6 +234,13 @@ target_include_directories(DearTsCore PRIVATE
     ${IMGUI_DIR}/backends
 )
 
+# cppjieba依赖
+set(CPPJIEBA_DIR "${CMAKE_SOURCE_DIR}/lib/third_party/cppjieba")
+target_include_directories(DearTsCore PRIVATE
+    ${CPPJIEBA_DIR}/include
+    ${CPPJIEBA_DIR}/deps/limonp/include
+)
+
 # 链接库
 target_link_libraries(DearTsCore
     PUBLIC
@@ -255,11 +284,12 @@ target_compile_definitions(DearTsCore
 # 编译选项
 if(MSVC)
     target_compile_options(DearTsCore PRIVATE
-        /W4
+        /W3
         /utf-8
         /permissive-
         /Zc:__cplusplus
-        $<$<CONFIG:Debug>:/Od /Zi>
+        /D_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS
+        $<$<CONFIG:Debug>:/Od /Zi /RTC1>
         $<$<CONFIG:Release>:/O2 /DNDEBUG>
     )
 else()
