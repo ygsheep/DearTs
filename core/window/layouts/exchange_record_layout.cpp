@@ -92,6 +92,60 @@ void ExchangeRecordLayout::render() {
 }
 
 /**
+ * @brief 在固定区域内渲染内容
+ */
+void ExchangeRecordLayout::renderInFixedArea(float contentX, float contentY, float contentWidth, float contentHeight) {
+    // 使用固定的内容区域进行渲染，避免浮动窗口
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.1f, 0.1f, 0.1f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.15f, 0.15f, 0.15f, 1.0f));
+
+    // 计算内容区域，留出边距
+    const float padding = 20.0f;
+    const float startX = padding;
+    const float startY = padding;
+    const float availableWidth = contentWidth - padding * 2;
+    const float availableHeight = contentHeight - padding * 2;
+
+    // 标题 - 使用更大的字体，居中显示
+    auto fontManager = DearTs::Core::Resource::FontManager::getInstance();
+    auto titleFont = fontManager ? fontManager->loadTitleFont(24.0f) : nullptr;
+
+    std::string titleText = "鸣潮 - 抽取记录获取工具";
+    ImVec2 titleSize = ImGui::CalcTextSize(titleText.c_str());
+    ImGui::SetCursorPosX(startX + (availableWidth - titleSize.x) * 0.5f);
+    ImGui::SetCursorPosY(startY);
+
+    if (titleFont) {
+        titleFont->pushFont();
+        ImGui::Text("%s", titleText.c_str());
+        titleFont->popFont();
+    } else {
+        ImGui::Text("%s", titleText.c_str());
+    }
+
+    ImGui::Separator();
+    ImGui::Dummy(ImVec2(0.0f, 10.0f));
+
+    // 状态显示区域
+    renderStatusArea();
+
+    // 搜索结果区域
+    if (!searchResults_.empty()) {
+        renderSearchResults();
+    }
+
+    // 手动输入区域
+    if (showManualInput_) {
+        renderManualInput();
+    }
+
+    // 操作按钮区域
+    renderActionButtons();
+
+    ImGui::PopStyleColor(2);
+}
+
+/**
  * @brief 更新布局
  */
 void ExchangeRecordLayout::updateLayout(float width, float height) {
