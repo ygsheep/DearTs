@@ -695,7 +695,12 @@ public:
      * @brief 添加已创建的窗口
      */
     bool addWindow(std::shared_ptr<Window> window);
-    
+
+    /**
+     * @brief 添加已创建的窗口并指定名称
+     */
+    bool addWindow(const std::string& name, std::shared_ptr<Window> window);
+
     /**
      * @brief 销毁窗口
      */
@@ -715,7 +720,12 @@ public:
      * @brief 根据SDL窗口ID获取窗口
      */
     std::shared_ptr<Window> getWindowBySDLId(uint32_t sdl_window_id) const;
-    
+
+    /**
+     * @brief 根据名称获取窗口
+     */
+    std::shared_ptr<Window> getWindowByName(const std::string& name) const;
+
     /**
      * @brief 获取所有窗口
      */
@@ -750,7 +760,36 @@ public:
      * @brief 关闭所有应该关闭的窗口
      */
     void closeWindowsToClose();
-    
+
+    // ========================================================================
+    // 按名称管理窗口
+    // ========================================================================
+
+    /**
+     * @brief 根据名称显示窗口
+     */
+    bool showWindow(const std::string& name);
+
+    /**
+     * @brief 根据名称隐藏窗口
+     */
+    bool hideWindow(const std::string& name);
+
+    /**
+     * @brief 根据名称切换窗口显示状态
+     */
+    bool toggleWindow(const std::string& name);
+
+    /**
+     * @brief 检查指定名称的窗口是否可见
+     */
+    bool isWindowVisible(const std::string& name) const;
+
+    /**
+     * @brief 根据名称设置窗口焦点
+     */
+    bool focusWindow(const std::string& name);
+
     // ========================================================================
     // 显示器管理
     // ========================================================================
@@ -813,7 +852,8 @@ private:
     WindowManager(const WindowManager&) = delete;
     WindowManager& operator=(const WindowManager&) = delete;
     
-    std::unordered_map<uint32_t, std::shared_ptr<Window>> m_windows;     ///< 窗口映射
+    std::unordered_map<uint32_t, std::shared_ptr<Window>> m_windows;     ///< 窗口映射（按ID）
+    std::unordered_map<std::string, std::shared_ptr<Window>> m_namedWindows; ///< 窗口映射（按名称）
     mutable std::mutex m_windowsMutex;                                  ///< 窗口互斥锁
 
     WindowConfig m_defaultConfig;                                       ///< 默认窗口配置

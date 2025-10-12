@@ -128,9 +128,24 @@ namespace DearTs {
       }
 
       void Window::show() {
+        DEARTS_LOG_DEBUG("Window::show 被调用，窗口ID: " + std::to_string(m_id));
         if (m_sdlWindow) {
+          DEARTS_LOG_DEBUG("SDL_ShowWindow 被调用");
           SDL_ShowWindow(m_sdlWindow);
           updateState();
+
+          // 通知WindowBase窗口已显示（如果存在）
+          if (m_userData) {
+            DEARTS_LOG_DEBUG("通知WindowBase窗口已显示");
+            auto* windowBase = static_cast<WindowBase*>(m_userData);
+            if (windowBase) {
+              windowBase->onWindowShown();
+            }
+          } else {
+            DEARTS_LOG_WARN("Window::show: userData 为空");
+          }
+        } else {
+          DEARTS_LOG_ERROR("Window::show: SDL窗口为空");
         }
       }
 
@@ -138,6 +153,14 @@ namespace DearTs {
         if (m_sdlWindow) {
           SDL_HideWindow(m_sdlWindow);
           m_state = WindowState::HIDDEN;
+
+          // 通知WindowBase窗口已隐藏（如果存在）
+          if (m_userData) {
+            auto* windowBase = static_cast<WindowBase*>(m_userData);
+            if (windowBase) {
+              windowBase->onWindowHidden();
+            }
+          }
         }
       }
 
@@ -196,12 +219,16 @@ namespace DearTs {
           return;
         }
 
+        // 先更新状态
+        updateState();
+
+        // 然后调用WindowBase的update方法
         if (m_userData) {
           auto* windowBase = static_cast<WindowBase*>(m_userData);
-          windowBase->update();
+          if (windowBase) {
+            windowBase->update();
+          }
         }
-
-        updateState();
       }
 
       void Window::render() {
@@ -656,6 +683,16 @@ namespace DearTs {
           if (it->second) {
             DEARTS_LOG_INFO("🔥 正在销毁窗口 ID: " + std::to_string(window_id));
             it->second->destroy();
+
+            // 从命名映射中移除
+            for (auto named_it = m_namedWindows.begin(); named_it != m_namedWindows.end(); ) {
+              if (named_it->second && named_it->second->getId() == window_id) {
+                DEARTS_LOG_INFO("🗑️ 从命名映射中移除窗口: " + named_it->first);
+                named_it = m_namedWindows.erase(named_it);
+              } else {
+                ++named_it;
+              }
+            }
           }
           m_windows.erase(it);
 
@@ -752,6 +789,12 @@ namespace DearTs {
 
         for (auto &window: windows) {
           if (window && window->isCreated() && window->isVisible()) {
+            // 检查SDL窗口是否仍然有效
+            if (!window->getSDLWindow()) {
+              DEARTS_LOG_WARN("窗口的SDL窗口无效，跳过渲染");
+              continue;
+            }
+
             // 检查是否是SDLRenderer并开始ImGui帧
             auto renderer = window->getRenderer();
 
@@ -786,10 +829,15 @@ namespace DearTs {
                 // 标题栏渲染由具体窗口类处理（如MainWindow）
                 // 这里不再调用window->renderTitleBar()
 
-                // 在拖拽过程中跳过复杂的内容渲染
+                // 渲染窗口内容（调用WindowBase的render方法）
                 if (!any_window_dragging) {
                   // 只在非拖拽时渲染复杂内容
-                  ImGui::ShowDemoWindow();
+                  if (window->getUserData()) {
+                    auto* windowBase = static_cast<WindowBase*>(window->getUserData());
+                    if (windowBase) {
+                      windowBase->render();
+                    }
+                  }
                 }
 
                 // 渲染ImGui
@@ -822,6 +870,7 @@ namespace DearTs {
       }
 
       void WindowManager::handleSDLEvent(const SDL_Event &event) {
+        
         // 只对重要事件记录日志，避免频繁输出
         if (event.type == SDL_WINDOWEVENT || event.type == SDL_QUIT) {
           DEARTS_LOG_DEBUG("WindowManager处理事件，类型: " + std::to_string(event.type));
@@ -954,6 +1003,98 @@ namespace DearTs {
       void WindowManager::setDefaultWindowConfig(const WindowConfig &config) {
         m_defaultConfig = config;
         DEARTS_LOG_DEBUG("Default window config updated");
+      }
+
+      bool WindowManager::addWindow(const std::string& name, std::shared_ptr<Window> window) {
+        if (!m_initialized) {
+          DEARTS_LOG_ERROR("Window manager not initialized");
+          return false;
+        }
+
+        if (!window) {
+          DEARTS_LOG_ERROR("Window is null");
+          return false;
+        }
+
+        {
+          std::lock_guard<std::mutex> lock(m_windowsMutex);
+
+          // 添加到按ID的映射
+          m_windows[window->getId()] = window;
+
+          // 添加到按名称的映射
+          m_namedWindows[name] = window;
+        }
+
+        DEARTS_LOG_INFO("➕ 窗口已添加: " + window->getTitle() + " (名称: " + name + ", ID: " + std::to_string(window->getId()) + ")");
+        return true;
+      }
+
+      std::shared_ptr<Window> WindowManager::getWindowByName(const std::string& name) const {
+        std::lock_guard<std::mutex> lock(m_windowsMutex);
+
+        auto it = m_namedWindows.find(name);
+        return (it != m_namedWindows.end()) ? it->second : nullptr;
+      }
+
+      bool WindowManager::showWindow(const std::string& name) {
+        DEARTS_LOG_DEBUG("WindowManager::showWindow 被调用: " + name);
+        auto window = getWindowByName(name);
+        if (window) {
+          DEARTS_LOG_DEBUG("找到窗口对象，准备显示: " + name);
+          window->show();
+          DEARTS_LOG_INFO("👁️ 窗口已显示: " + name);
+          return true;
+        } else {
+          DEARTS_LOG_ERROR("找不到窗口: " + name);
+          return false;
+        }
+      }
+
+      bool WindowManager::hideWindow(const std::string& name) {
+        auto window = getWindowByName(name);
+        if (window) {
+          window->hide();
+          DEARTS_LOG_INFO("🙈 窗口已隐藏: " + name);
+          return true;
+        } else {
+          DEARTS_LOG_ERROR("找不到窗口: " + name);
+          return false;
+        }
+      }
+
+      bool WindowManager::toggleWindow(const std::string& name) {
+        auto window = getWindowByName(name);
+        if (window) {
+          if (window->isVisible()) {
+            window->hide();
+            DEARTS_LOG_INFO("🙈 窗口已隐藏: " + name);
+          } else {
+            window->show();
+            DEARTS_LOG_INFO("👁️ 窗口已显示: " + name);
+          }
+          return true;
+        } else {
+          DEARTS_LOG_ERROR("找不到窗口: " + name);
+          return false;
+        }
+      }
+
+      bool WindowManager::isWindowVisible(const std::string& name) const {
+        auto window = getWindowByName(name);
+        return window ? window->isVisible() : false;
+      }
+
+      bool WindowManager::focusWindow(const std::string& name) {
+        auto window = getWindowByName(name);
+        if (window && window->getSDLWindow()) {
+          SDL_RaiseWindow(window->getSDLWindow());
+          DEARTS_LOG_INFO("🎯 窗口已获得焦点: " + name);
+          return true;
+        } else {
+          DEARTS_LOG_ERROR("找不到窗口或窗口无效: " + name);
+          return false;
+        }
       }
 
     } // namespace Window
