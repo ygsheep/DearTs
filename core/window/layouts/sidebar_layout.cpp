@@ -18,9 +18,10 @@ namespace DearTs {
       SidebarLayout::SidebarLayout() :
           LayoutBase("Sidebar"), isExpanded_(true), isAnimating_(false), currentWidth_(180.0f), targetWidth_(180.0f),
           sidebarWidth_(180.0f), collapsedWidth_(48.0f), animationDuration_(300.0f), animationStartTime_(0.0f),
-          activeItemId_(""), backgroundColor_(0.15f, 0.15f, 0.15f, 1.0f), itemNormalColor_(0.2f, 0.2f, 0.2f, 1.0f),
+          activeItemId_(""), backgroundColor_(0.20f, 0.20f, 0.20f, 1.0f), itemNormalColor_(0.2f, 0.2f, 0.2f, 1.0f),
           itemHoverColor_(0.3f, 0.3f, 0.3f, 1.0f), itemActiveColor_(0.0f, 0.5f, 1.0f, 1.0f),
-          itemTextColor_(0.8f, 0.8f, 0.8f, 1.0f), itemTextHoverColor_(1.0f, 1.0f, 1.0f, 1.0f) {
+          itemTextColor_(0.8f, 0.8f, 0.8f, 1.0f), itemTextHoverColor_(1.0f, 1.0f, 1.0f, 1.0f),
+          currentState_(SidebarState::EXPANDED) {
         currentWidth_ = isExpanded_ ? sidebarWidth_ : collapsedWidth_;
         targetWidth_ = isExpanded_ ? sidebarWidth_ : collapsedWidth_;
       }
@@ -113,18 +114,34 @@ namespace DearTs {
        */
       void SidebarLayout::setExpanded(bool expanded) {
         if (isExpanded_ != expanded) {
+          // 更新状态
+          SidebarState oldState = currentState_;
+          currentState_ = expanded ? SidebarState::EXPANDING : SidebarState::COLLAPSING;
+
           isExpanded_ = expanded;
           targetWidth_ = isExpanded_ ? sidebarWidth_ : collapsedWidth_;
           isAnimating_ = true;
+
           // 在没有ImGui上下文的情况下使用当前时间
           animationStartTime_ = static_cast<float>(std::chrono::duration_cast<std::chrono::milliseconds>(
                                                        std::chrono::high_resolution_clock::now().time_since_epoch())
                                                        .count());
 
+          // 发送状态变化事件
+          SidebarEventData stateEvent(SidebarEventType::STATE_CHANGED, "", expanded);
+          dispatchSidebarEvent(stateEvent);
+
+          // 发送动画开始事件
+          SidebarEventData animEvent(SidebarEventType::ANIMATION_STARTED, "", targetWidth_);
+          dispatchSidebarEvent(animEvent);
+
           // 立即触发状态变化回调，报告目标宽度
           if (stateCallback_) {
             stateCallback_(isExpanded_, targetWidth_);
           }
+
+          DEARTS_LOG_DEBUG("侧边栏状态变化: " + std::to_string(static_cast<int>(oldState)) +
+                           " -> " + std::to_string(static_cast<int>(currentState_)));
         }
       }
 
@@ -211,8 +228,22 @@ namespace DearTs {
             isAnimating_ = false;
             currentWidth_ = targetWidth_;
 
+            // 更新最终状态
+            currentState_ = isExpanded_ ? SidebarState::EXPANDED : SidebarState::COLLAPSED;
+
+            // 发送动画完成事件
+            SidebarEventData animCompletedEvent(SidebarEventType::ANIMATION_COMPLETED, "", currentWidth_);
+            dispatchSidebarEvent(animCompletedEvent);
+
+            // 发送最终状态事件
+            SidebarEventType finalEventType = isExpanded_ ? SidebarEventType::EXPANDED : SidebarEventType::COLLAPSED;
+            SidebarEventData finalEvent(finalEventType, "", currentWidth_);
+            dispatchSidebarEvent(finalEvent);
+
             // 动画完成时触发回调
             triggerStateCallback();
+
+            DEARTS_LOG_DEBUG("侧边栏动画完成，最终状态: " + std::to_string(static_cast<int>(currentState_)));
           }
 
           // 如果正在动画，也触发回调以通知宽度变化
@@ -313,15 +344,19 @@ namespace DearTs {
       void SidebarLayout::handleItemClick(const std::string &itemId) {
         setActiveItem(itemId);
 
-        // 触发项目点击回调
+        // 发送项目点击事件
+        SidebarEventData clickEvent(SidebarEventType::ITEM_CLICKED, itemId, itemId);
+        dispatchSidebarEvent(clickEvent);
+
+        // 使用事件驱动机制请求布局切换
+        requestLayoutSwitch(itemId);
+
+        // 保持向后兼容性 - 触发传统回调
         if (itemClickCallback_) {
           itemClickCallback_(itemId);
         }
 
-        // 可以在这里添加更多的点击处理逻辑
-        // 例如触发事件或回调函数
-        // DEARTS_LOG_INFO("Sidebar item clicked: " + itemId);
-        // 在测试环境中可能没有初始化日志系统，所以暂时注释掉
+        DEARTS_LOG_INFO("侧边栏项目点击: " + itemId);
       }
 
       /**
@@ -331,6 +366,94 @@ namespace DearTs {
         if (stateCallback_) {
           stateCallback_(isExpanded_, currentWidth_);
         }
+      }
+
+      // === 事件驱动方法实现 ===
+
+      void SidebarLayout::dispatchSidebarEvent(const SidebarEventData& eventData) {
+        // 添加到事件历史记录
+        eventHistory_.push_back(eventData);
+
+        // 限制历史记录数量
+        if (eventHistory_.size() > 100) {
+          eventHistory_.erase(eventHistory_.begin());
+        }
+
+        // 调用事件回调
+        if (eventCallback_) {
+          eventCallback_(eventData);
+        }
+
+        // 记录日志（使用C++17结构化绑定）
+        const auto& [type, itemId, timestamp, data] = eventData;
+        DEARTS_LOG_DEBUG("侧边栏事件: 类型=" + std::to_string(static_cast<int>(type)) +
+                         ", 项目ID=" + itemId);
+      }
+
+      void SidebarLayout::initializeEventSystem() {
+        DEARTS_LOG_INFO("侧边栏事件系统初始化");
+
+        // 初始化事件历史记录
+        eventHistory_.clear();
+
+        // 发送初始化事件
+        dispatchSidebarEvent(SidebarEventData(SidebarEventType::STATE_CHANGED, "",
+                                               static_cast<bool>(currentState_ == SidebarState::EXPANDED)));
+
+        DEARTS_LOG_INFO("侧边栏事件系统初始化完成");
+      }
+
+      void SidebarLayout::cleanupEventSystem() {
+        DEARTS_LOG_INFO("侧边栏事件系统清理");
+
+        // 清空事件历史记录
+        eventHistory_.clear();
+
+        // 清空事件回调
+        eventCallback_ = nullptr;
+
+        DEARTS_LOG_INFO("侧边栏事件系统清理完成");
+      }
+
+      void SidebarLayout::subscribeSidebarEvent(Events::EventType eventType,
+                                              std::function<bool(const Events::Event&)> handler) {
+        // 通过父窗口订阅事件
+        if (parentWindow_) {
+          parentWindow_->subscribeEvent(eventType, handler);
+          DEARTS_LOG_DEBUG("侧边栏订阅事件: " + std::to_string(static_cast<uint32_t>(eventType)));
+        }
+      }
+
+      void SidebarLayout::requestLayoutSwitch(const std::string& itemId) {
+        DEARTS_LOG_INFO("侧边栏请求布局切换: " + itemId);
+
+        // 创建布局切换事件类
+        class LayoutSwitchEvent : public Events::Event {
+        public:
+          LayoutSwitchEvent(const std::string& from, const std::string& to, bool animated)
+              : Event(Events::EventType::EVT_LAYOUT_SWITCH_REQUEST),
+                fromLayout_(from), toLayout_(to), animated_(animated) {}
+
+          std::string getName() const override { return "LayoutSwitchEvent"; }
+
+          std::string getFromLayout() const { return fromLayout_; }
+          std::string getToLayout() const { return toLayout_; }
+          bool isAnimated() const { return animated_; }
+
+        private:
+          std::string fromLayout_;
+          std::string toLayout_;
+          bool animated_;
+        };
+
+        // 发送布局切换事件
+        LayoutSwitchEvent switchEvent(getActiveItemId(), itemId, true);
+        if (parentWindow_) {
+          parentWindow_->dispatchWindowEvent(switchEvent);
+        }
+
+        // 发送侧边栏内部事件
+        dispatchSidebarEvent(SidebarEventData(SidebarEventType::ITEM_CLICKED, itemId, itemId));
       }
 
     } // namespace Window

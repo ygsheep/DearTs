@@ -173,6 +173,134 @@ namespace DearTs {
       }
 
       /**
+       * 在固定区域内渲染番茄时钟内容
+       */
+      void PomodoroLayout::renderInFixedArea(float contentX, float contentY, float contentWidth, float contentHeight) {
+        DEARTS_LOG_DEBUG("PomodoroLayout::renderInFixedArea 开始 - isVisible_: " + std::string(isVisible_ ? "true" : "false"));
+
+        // 临时修复：强制渲染内容以测试显示问题
+        // TODO: 恢复正常的可见性检查机制
+        if (!isVisible_) {
+            DEARTS_LOG_WARN("PomodoroLayout::renderInFixedArea - 布局不可见但强制渲染进行测试");
+        }
+
+        DEARTS_LOG_DEBUG("PomodoroLayout::renderInFixedArea 开始渲染内容");
+
+        // 计算内容区域，留出边距
+        const float padding = 20.0f;
+        const float centerX = contentX + (contentWidth - padding * 2) * 0.5f;
+        const float startY = contentY + padding;
+
+        // 使用当前窗口坐标系（ImGui已经设置了正确的窗口位置和大小）
+        // 所以我们只需要使用相对坐标
+
+        // 显示当前模式（居中）
+        ImVec2 modeTextSize = ImGui::CalcTextSize(currentModeText_.c_str());
+        ImGui::SetCursorPosX((contentWidth - modeTextSize.x) * 0.5f);
+        ImGui::SetCursorPosY(startY);
+        ImGui::Text("当前模式: %s", currentModeText_.c_str());
+        ImGui::Separator();
+
+        // 显示倒计时（使用大字体，居中显示）
+        std::string timeText = formatTime(remainingTime_);
+
+        // 使用FontManager获取大字体显示时间
+        auto fontManager = DearTs::Core::Resource::FontManager::getInstance();
+        auto largeFont = fontManager ? fontManager->loadLargeFont(48.0f) : nullptr;
+
+        std::shared_ptr<DearTs::Core::Resource::FontResource> usedFont = nullptr;
+        if (largeFont) {
+          largeFont->pushFont();
+          usedFont = largeFont;
+        }
+
+        // 计算时间文本位置并居中显示
+        ImVec2 textSize = ImGui::CalcTextSize(timeText.c_str());
+        ImGui::SetCursorPosX((contentWidth - textSize.x) * 0.5f);
+        ImGui::SetCursorPosY(startY + 60); // 在模式下方的固定位置
+        ImGui::Text("%s", timeText.c_str());
+
+        // 恢复字体
+        if (usedFont) {
+          usedFont->popFont();
+        }
+
+        ImGui::Dummy(ImVec2(0.0f, 40.0f));
+
+        // 控制按钮（居中显示）
+        ImVec2 buttonSize(120, 40);
+        float buttonsWidth = buttonSize.x * 3 + ImGui::GetStyle().ItemSpacing.x * 2;
+        ImGui::SetCursorPosX((contentWidth - buttonsWidth) * 0.5f);
+
+        if (ImGui::Button(isRunning_ ? "暂停" : "开始", buttonSize)) {
+          if (isRunning_) {
+            pauseTimer();
+          } else {
+            startTimer();
+          }
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("重置", buttonSize)) {
+          resetTimer();
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("切换", buttonSize)) {
+          switchMode();
+        }
+
+        ImGui::Dummy(ImVec2(0.0f, 30.0f));
+
+        // 设置工作和休息时间（居中显示）
+        ImGui::Separator();
+
+        ImVec2 settingsTextSize = ImGui::CalcTextSize("设置时间:");
+        ImGui::SetCursorPosX((contentWidth - settingsTextSize.x) * 0.5f);
+        ImGui::Text("设置时间:");
+
+        ImGui::Dummy(ImVec2(0.0f, 10.0f));
+
+        // 时间输入框（居中显示）
+        float inputWidth = 200.0f;
+        ImGui::SetCursorPosX((contentWidth - inputWidth) * 0.5f);
+        ImGui::PushItemWidth(inputWidth);
+
+        static int workMinutes = 25;
+        static int breakMinutes = 5;
+
+        if (ImGui::InputInt("工作时间(分钟)", &workMinutes, 1, 5)) {
+          workMinutes = std::max(1, std::min(60, workMinutes));
+          workDuration_ = workMinutes * 60;
+          if (!isRunning_ && isWorkMode_) {
+            remainingTime_ = workDuration_;
+          }
+        }
+
+        ImGui::SetCursorPosX((contentWidth - inputWidth) * 0.5f);
+        if (ImGui::InputInt("休息时间(分钟)", &breakMinutes, 1, 5)) {
+          breakMinutes = std::max(1, std::min(60, breakMinutes));
+          breakDuration_ = breakMinutes * 60;
+          if (!isRunning_ && !isWorkMode_) {
+            remainingTime_ = breakDuration_;
+          }
+        }
+
+        ImGui::PopItemWidth();
+
+        // 显示进度条（占满宽度，留边距）
+        ImGui::Dummy(ImVec2(0.0f, 20.0f));
+        float progress = 0.0f;
+        int totalTime = isWorkMode_ ? workDuration_ : breakDuration_;
+        if (totalTime > 0) {
+          progress = 1.0f - (float) remainingTime_ / totalTime;
+        }
+        ImVec2 progressBarSize(contentWidth - padding * 2, 15);
+        ImGui::SetCursorPosX(padding);
+        ImGui::ProgressBar(progress, progressBarSize);
+      }
+
+      /**
        * 开始计时器
        */
       void PomodoroLayout::startTimer() {

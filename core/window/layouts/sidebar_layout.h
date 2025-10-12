@@ -6,10 +6,51 @@
 #include <imgui.h>
 #include <imgui_impl_sdl2.h>
 #include <functional>
+#include <variant>
+#include <chrono>
+#include "../../events/event_system.h"
+#include "../../events/layout_events.h"
 
 namespace DearTs {
   namespace Core {
     namespace Window {
+
+      /**
+       * @brief 侧边栏状态枚举
+       */
+      enum class SidebarState {
+        COLLAPSED,      ///< 收起状态
+        EXPANDING,      ///< 展开中
+        EXPANDED,       ///< 展开状态
+        COLLAPSING      ///< 收起中
+      };
+
+      /**
+       * @brief 侧边栏事件类型
+       */
+      enum class SidebarEventType {
+        STATE_CHANGED,      ///< 状态变化
+        ITEM_CLICKED,        ///< 项目点击
+        ITEM_HOVER,          ///< 项目悬停
+        EXPANDED,            ///< 展开
+        COLLAPSED,           ///< 收起
+        ANIMATION_STARTED,   ///< 动画开始
+        ANIMATION_COMPLETED  ///< 动画完成
+      };
+
+      /**
+       * @brief 侧边栏事件数据
+       */
+      struct SidebarEventData {
+        SidebarEventType type;           ///< 事件类型
+        std::string itemId;             ///< 相关项目ID
+        std::chrono::steady_clock::time_point timestamp; ///< 事件时间戳
+        std::variant<bool, float, std::string> data; ///< 事件数据
+
+        SidebarEventData(SidebarEventType t, const std::string& id = "",
+                        std::variant<bool, float, std::string> d = {})
+            : type(t), itemId(id), timestamp(std::chrono::steady_clock::now()), data(d) {}
+      };
 
       /**
        * @brief 侧边栏项目结构
@@ -149,6 +190,43 @@ namespace DearTs {
          */
         void setItemClickCallback(const SidebarItemClickCallback &callback) { itemClickCallback_ = callback; }
 
+        // === 事件驱动方法 ===
+
+        /**
+         * @brief 获取当前侧边栏状态
+         */
+        SidebarState getCurrentState() const { return currentState_; }
+
+        /**
+         * @brief 发送侧边栏事件
+         * @param eventData 事件数据
+         */
+        void dispatchSidebarEvent(const SidebarEventData& eventData);
+
+        /**
+         * @brief 初始化事件系统
+         */
+        void initializeEventSystem();
+
+        /**
+         * @brief 清理事件系统
+         */
+        void cleanupEventSystem();
+
+        /**
+         * @brief 订阅侧边栏事件
+         * @param eventType 事件类型
+         * @param handler 事件处理器
+         */
+        void subscribeSidebarEvent(Events::EventType eventType,
+                                  std::function<bool(const Events::Event&)> handler);
+
+        /**
+         * @brief 发送布局切换请求
+         * @param itemId 项目ID
+         */
+        void requestLayoutSwitch(const std::string& itemId);
+
       private:
         // 侧边栏状态
         bool isExpanded_; ///< 是否展开
@@ -175,6 +253,11 @@ namespace DearTs {
         // 回调函数
     SidebarStateCallback stateCallback_; ///< 状态变化回调函数
     SidebarItemClickCallback itemClickCallback_; ///< 项目点击回调函数
+
+    // 事件驱动相关
+    SidebarState currentState_; ///< 当前侧边栏状态
+    std::vector<SidebarEventData> eventHistory_; ///< 事件历史记录
+    std::function<void(const SidebarEventData&)> eventCallback_; ///< 事件回调函数
 
         /**
          * @brief 更新动画状态

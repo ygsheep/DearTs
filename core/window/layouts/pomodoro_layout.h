@@ -37,7 +37,16 @@ public:
      * @param event SDL事件
      */
     void handleEvent(const SDL_Event& event) override;
-    
+
+    /**
+     * @brief 在固定区域内渲染内容
+     * @param contentX 内容区域X坐标
+     * @param contentY 内容区域Y坐标
+     * @param contentWidth 内容区域宽度
+     * @param contentHeight 内容区域高度
+     */
+    void renderInFixedArea(float contentX, float contentY, float contentWidth, float contentHeight) override;
+
     /**
      * @brief 设置是否显示布局
      */

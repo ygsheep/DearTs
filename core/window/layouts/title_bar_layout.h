@@ -174,10 +174,15 @@ private:
     void renderSearchDialog();
     
     /**
+     * @brief 检查标题栏拖拽（使用ImGui鼠标检测）
+     */
+    void checkTitleBarDrag();
+
+    /**
      * @brief 处理键盘快捷键
      */
     void handleKeyboardShortcuts();
-    
+
     /**
      * @brief 检查是否在标题栏区域
      * @param x 鼠标X坐标

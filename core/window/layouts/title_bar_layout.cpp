@@ -68,12 +68,16 @@ void TitleBarLayout::render() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 6.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
-    // 将背景色和边框色设置为相同的深灰色
-    ImVec4 titleBarColor = ImVec4(0.12f, 0.12f, 0.12f, 1.0f); // 深灰色
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, titleBarColor);
-    ImGui::PushStyleColor(ImGuiCol_Border, titleBarColor); // 边框色与背景色相同
+    // 设置标题栏背景色为稍微亮一点的灰色，使其与背景区分开
+    ImVec4 titleBarBgColor = ImVec4(0.18f, 0.18f, 0.18f, 1.0f); // 稍亮的灰色
+    ImVec4 titleBarBorderColor = ImVec4(0.3f, 0.3f, 0.3f, 1.0f); // 更明显的边框色
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, titleBarBgColor);
+    ImGui::PushStyleColor(ImGuiCol_Border, titleBarBorderColor);
 
     if (ImGui::Begin("##MainWindowTitleBar", nullptr, window_flags)) {
+        // 检查标题栏拖拽（使用ImGui的鼠标检测）
+        checkTitleBarDrag();
+
         // 渲染标题栏内容
         renderTitle();
         renderSearchBox();
@@ -115,11 +119,23 @@ void TitleBarLayout::handleEvent(const SDL_Event& event) {
     switch (event.type) {
         case SDL_MOUSEBUTTONDOWN:
             if (event.button.button == SDL_BUTTON_LEFT) {
+                DEARTS_LOG_INFO("TitleBarLayout::handleEvent - SDL_MOUSEBUTTONDOWN - 坐标: (" +
+                               std::to_string(event.button.x) + "," + std::to_string(event.button.y) + ")");
+
                 // 重置按钮点击状态
                 buttonClicked_ = false;
 
+                // 如果按钮已被点击，不处理拖拽
+                if (buttonClicked_) {
+                    DEARTS_LOG_INFO("按钮已被点击，忽略SDL事件");
+                    break;
+                }
+
                 // 检查是否在标题栏区域（排除按钮区域）
-                if (isInTitleBarArea(event.button.x, event.button.y)) {
+                bool inTitleArea = isInTitleBarArea(event.button.x, event.button.y);
+                DEARTS_LOG_INFO("TitleBarLayout::handleEvent - isInTitleBarArea返回: " + std::string(inTitleArea ? "是" : "否"));
+
+                if (inTitleArea) {
                     DEARTS_LOG_INFO("SDL事件触发拖拽" + std::string(usingAeroSnap ? "（Aero Snap 模式）" : "（标准模式）"));
                     startDragging(event.button.x, event.button.y);
                 } else {
@@ -186,42 +202,31 @@ bool TitleBarLayout::isInTitleBarArea(int x, int y) const {
     const float buttonWidth = buttonHeight * 1.5f;
     const float buttonsStartX = windowWidth - buttonWidth * 3; // 3个按钮的起始位置
 
-    DEARTS_LOG_INFO("标题栏区域检测" + std::string(usingAeroSnap ? "（Aero Snap 模式）" : "（标准模式）") +
-                   " - 鼠标坐标: (" + std::to_string(x) + "," + std::to_string(y) +
-                   ") 窗口宽度: " + std::to_string(windowWidth) +
-                   " 按钮区域: " + std::to_string(buttonsStartX) + "-" + std::to_string(windowWidth) +
-                   " 标题栏高度: " + std::to_string(static_cast<int>(titleBarHeight_)));
+    // 详细日志，用于调试
+    DEARTS_LOG_INFO("标题栏区域检测 - 鼠标坐标: (" + std::to_string(x) + "," + std::to_string(y) +
+                     ") 窗口宽度: " + std::to_string(windowWidth) +
+                     " 按钮区域起始: " + std::to_string(buttonsStartX) +
+                     " 标题栏高度: " + std::to_string(static_cast<int>(titleBarHeight_)));
 
     // 检查是否在标题栏高度范围内
     if (y < 0 || y > static_cast<int>(titleBarHeight_)) {
-        DEARTS_LOG_INFO("鼠标超出标题栏高度范围");
+        DEARTS_LOG_INFO("鼠标在标题栏高度范围外: y=" + std::to_string(y) + " (标题栏高度=" + std::to_string(static_cast<int>(titleBarHeight_)) + ")");
         return false;
     }
 
-    // 在 Aero Snap 模式下，可能需要更严格的按钮区域检测
-    // 因为 Aero Snap 可能会处理屏幕边缘的拖拽操作
-    float adjustedButtonsStartX = buttonsStartX;
-    if (usingAeroSnap) {
-        // 在 Aero Snap 模式下，稍微扩大按钮区域以避免冲突
-        adjustedButtonsStartX -= 5.0f; // 扩大5像素的检测区域
-    }
-
     // 排除按钮区域（右侧3个按钮区域）
-    if (x >= adjustedButtonsStartX && x <= windowWidth) {
-        DEARTS_LOG_INFO("鼠标在按钮区域，不触发拖拽 - x: " + std::to_string(x) +
-                       " 按钮区域起始: " + std::to_string(adjustedButtonsStartX) +
-                       std::string(usingAeroSnap ? "（Aero Snap 模式）" : ""));
+    if (x >= buttonsStartX && x <= windowWidth) {
+        DEARTS_LOG_INFO("鼠标在按钮区域，不触发拖拽: x=" + std::to_string(x) + " 在按钮区域 [" + std::to_string(buttonsStartX) + "," + std::to_string(windowWidth) + "]");
         return false;
     }
 
     // 检查是否在窗口有效范围内
-    bool inTitleArea = x >= 0 && x < adjustedButtonsStartX && y >= 0 && y <= static_cast<int>(titleBarHeight_);
+    bool inTitleArea = x >= 0 && x < buttonsStartX && y >= 0 && y <= static_cast<int>(titleBarHeight_);
 
     if (inTitleArea) {
-        DEARTS_LOG_INFO("鼠标在标题栏区域，触发拖拽 - x: " + std::to_string(x) +
-                       " y: " + std::to_string(y) + std::string(usingAeroSnap ? "（Aero Snap 模式）" : ""));
+        DEARTS_LOG_INFO("鼠标在标题栏拖拽区域 - (" + std::to_string(x) + "," + std::to_string(y) + ")");
     } else {
-        DEARTS_LOG_INFO("鼠标不在标题栏区域 - x: " + std::to_string(x) + " y: " + std::to_string(y));
+        DEARTS_LOG_INFO("鼠标不在标题栏拖拽区域 - (" + std::to_string(x) + "," + std::to_string(y) + ") 有效区域: x>=0 && x<" + std::to_string(buttonsStartX) + " && y>=0 && y<=" + std::to_string(static_cast<int>(titleBarHeight_)));
     }
 
     return inTitleArea;
@@ -674,6 +679,11 @@ void TitleBarLayout::renderControlButtons() {
         DEARTS_LOG_INFO("最小化按钮被点击");
         buttonClicked_ = true;
         minimizeWindow();
+    } else if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        // 确保按钮点击被正确检测
+        DEARTS_LOG_INFO("最小化按钮区域检测到点击");
+        buttonClicked_ = true;
+        minimizeWindow();
     }
     
     // 最大化/还原按钮 - 使用实际窗口状态
@@ -693,6 +703,11 @@ void TitleBarLayout::renderControlButtons() {
 
     if (ImGui::Button(buttonLabel.c_str(), ImVec2(buttonWidth, buttonHeight))) {
         DEARTS_LOG_INFO("最大化/还原按钮被按下！当前状态: " + std::string(actuallyMaximized ? "已最大化" : "正常"));
+        buttonClicked_ = true;
+        toggleMaximize();
+    } else if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        // 确保按钮点击被正确检测
+        DEARTS_LOG_INFO("最大化/还原按钮区域检测到点击");
         buttonClicked_ = true;
         toggleMaximize();
     } else {
@@ -724,6 +739,11 @@ void TitleBarLayout::renderControlButtons() {
     ImGui::SetCursorPos(ImVec2(windowWidth - buttonWidth, 0));
     if (ImGui::Button(DearTs::Core::Resource::ICON_MS_CLOSE.c_str(), ImVec2(buttonWidth, buttonHeight))) {
         DEARTS_LOG_INFO("关闭按钮被按下！");
+        buttonClicked_ = true;
+        closeWindow();
+    } else if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        // 确保按钮点击被正确检测
+        DEARTS_LOG_INFO("关闭按钮区域检测到点击");
         buttonClicked_ = true;
         closeWindow();
     } else {
@@ -882,6 +902,105 @@ void TitleBarLayout::renderSearchDialog() {
 }
 
 /**
+ * 检查标题栏拖拽（使用ImGui鼠标检测）
+ */
+void TitleBarLayout::checkTitleBarDrag() {
+    // 获取鼠标位置
+    ImVec2 mousePos = ImGui::GetMousePos();
+    ImVec2 windowPos = ImGui::GetWindowPos();
+    ImVec2 windowSize = ImGui::GetWindowSize();
+
+    // 检查鼠标是否在标题栏区域内
+    bool isInTitleArea = mousePos.x >= windowPos.x &&
+                        mousePos.x < windowPos.x + windowSize.x &&
+                        mousePos.y >= windowPos.y &&
+                        mousePos.y < windowPos.y + titleBarHeight_;
+
+    // 检查是否在按钮区域（排除右侧按钮区域）
+    const float buttonWidth = (titleBarHeight_ - 2.0f) * 1.5f;
+    const float buttonsStartX = windowPos.x + windowSize.x - buttonWidth * 3;
+
+    bool isInButtonArea = mousePos.x >= buttonsStartX && mousePos.x < windowPos.x + windowSize.x;
+
+    // 检查是否在有效的拖拽区域
+    bool validDragArea = isInTitleArea && !isInButtonArea;
+
+    if (validDragArea) {
+        // 设置鼠标为手型光标
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+
+        // 检查鼠标左键是否按下
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            // 获取全局鼠标位置
+            int globalMouseX, globalMouseY;
+            SDL_GetGlobalMouseState(&globalMouseX, &globalMouseY);
+
+            // 获取当前SDL窗口位置
+            int sdlWindowX, sdlWindowY;
+            SDL_GetWindowPosition(parentWindow_->getSDLWindow(), &sdlWindowX, &sdlWindowY);
+
+            DEARTS_LOG_INFO("ImGui检测到标题栏拖拽开始，全局鼠标位置: (" +
+                           std::to_string(globalMouseX) + "," + std::to_string(globalMouseY) +
+                           ") SDL窗口位置: (" + std::to_string(sdlWindowX) + "," + std::to_string(sdlWindowY) + ")");
+
+            // 开始拖拽
+            isDragging_ = true;
+            dragOffsetX_ = globalMouseX - sdlWindowX;
+            dragOffsetY_ = globalMouseY - sdlWindowY;
+
+            // 如果窗口最大化，先还原
+            if (isActuallyMaximized()) {
+                auto pos = parentWindow_->getPosition();
+                auto size = parentWindow_->getSize();
+                saveNormalState(pos.x, pos.y, size.width, size.height);
+                parentWindow_->restore();
+                isMaximized_ = false;
+
+                // 调整拖拽偏移量，使鼠标在合理位置
+                int newWindowX = globalMouseX - std::min(dragOffsetX_, 200);
+                int newWindowY = globalMouseY - static_cast<int>(titleBarHeight_ / 2);
+                parentWindow_->setPosition(WindowPosition(newWindowX, newWindowY));
+                dragOffsetX_ = globalMouseX - newWindowX;
+                dragOffsetY_ = globalMouseY - newWindowY;
+            }
+        }
+
+        // 检查鼠标拖拽 - 在每一帧更新位置
+        if (isDragging_) {
+            // 获取全局鼠标位置
+            int globalMouseX, globalMouseY;
+            SDL_GetGlobalMouseState(&globalMouseX, &globalMouseY);
+
+            // 计算目标窗口位置
+            int targetX = globalMouseX - dragOffsetX_;
+            int targetY = globalMouseY - dragOffsetY_;
+
+            // 获取当前窗口位置
+            int currentX, currentY;
+            SDL_GetWindowPosition(parentWindow_->getSDLWindow(), &currentX, &currentY);
+
+
+            // 只有当位置确实发生变化时才移动窗口
+            if (currentX != targetX || currentY != targetY) {
+                SDL_SetWindowPosition(parentWindow_->getSDLWindow(), targetX, targetY);
+                DEARTS_LOG_DEBUG("拖拽窗口到位置: (" + std::to_string(targetX) + "," + std::to_string(targetY) + ")");
+            }
+        }
+
+        // 检查鼠标释放
+        if (isDragging_ && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+            DEARTS_LOG_INFO("ImGui检测到标题栏拖拽结束");
+            isDragging_ = false;
+        }
+    }
+
+    // 如果正在拖拽，确保鼠标始终为手型
+    if (isDragging_) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    }
+}
+
+/**
  * 处理键盘快捷键
  */
 void TitleBarLayout::handleKeyboardShortcuts() {
@@ -892,7 +1011,7 @@ void TitleBarLayout::handleKeyboardShortcuts() {
             searchInputFocused_ = true;
         }
     }
-    
+
     // 检查ESC键关闭搜索对话框
     if (showSearchDialog_ && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         showSearchDialog_ = false;
