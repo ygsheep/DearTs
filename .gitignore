@@ -1,10 +1,13 @@
+# other
+.demo/
+dearts-dev/
+.claude-skills/
+__pycache__/
+
 # CMake build directories
 build/
 cmake-build-*/
 out/
-.demo/
-dearts-dev/
-.claude-skills/
 
 # Visual Studio
 .vs/

@@ -78,6 +78,7 @@ if(EXISTS ${IMGUI_DIR})
         ${IMGUI_DIR}/misc/freetype
         ${CMAKE_SOURCE_DIR}/third_party/freetype/include
         ${CMAKE_SOURCE_DIR}/third_party/lunasvg/include
+        ${CMAKE_SOURCE_DIR}/core/config  # ImGui user config
     )
     # ImGui 编译定义
     target_compile_definitions(imgui PUBLIC
