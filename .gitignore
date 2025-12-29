@@ -1,0 +1,167 @@
+# CMake build directories
+build/
+cmake-build-*/
+out/
+.demo/
+dearts-dev/
+.claude-skills/
+
+# Visual Studio
+.vs/
+.vscode/
+*.sln
+*.vcxproj*
+*.filters
+*.user
+*.suo
+*.cache
+*.ipch
+*.opensdf
+*.sdf
+*.ilk
+*.meta
+*.pch
+*.pdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp_proj
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# Compiled binaries and libraries
+*.exe
+*.exe.*
+*.dll
+*.dll.*
+*.so
+*.so.*
+*.dylib
+*.a
+*.lib
+*.obj
+*.o
+*.lo
+*.exp
+*.pdb
+*.ilk
+*.map
+
+# Debug and release directories
+Debug/
+Release/
+RelWithDebInfo/
+MinSizeRel/
+x64/
+Win32/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# IDE files
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+
+# Package files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Test results
+test_results/
+coverage/
+*.gcda
+*.gcno
+*.lcov
+
+# Documentation build
+docs/build/
+docs/_build/
+
+# Dependencies (if built locally)
+external/
+vendor/
+deps/
+
+# Third party binaries (keep source code)
+third_party/*/bin/
+third_party/*/lib/
+third_party/*/obj/
+
+# Generated source files
+generated/
+gen/
+
+# Configuration files with secrets
+*.env
+.env.local
+.env.*.local
+config.local.*
+secrets.json
+
+# Performance profiling
+*.prof
+*.trace
+*.perf
+
+# Memory dumps
+*.dmp
+*.core
+*.hdmp
+*.mdmp
+
+# Application specific
+*.settings
+*.prefs
+*.cache
+run/
+temp/
+assets/cache/
+
+# SDL specific
+*.xcframework
+*.framework
+
+# ImGui specific
+imgui_ini.ini
+
+# Windows specific
+*.manifest
+*.res
+*.rc
+*.bin
+
+# Linux specific
+*.so.debug
+*.appImage
