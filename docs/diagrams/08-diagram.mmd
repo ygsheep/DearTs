@@ -1,0 +1,30 @@
+flowchart LR
+    subgraph "输入"
+        A1[键盘]
+        A2[鼠标]
+        A3[手柄]
+    end
+
+    subgraph "SDL3"
+        B1[事件队列]
+    end
+
+    subgraph "Application"
+        C1[事件处理]
+        C2[状态更新]
+        C3[渲染]
+    end
+
+    subgraph "输出"
+        D1[窗口]
+        D2[音频]
+    end
+
+    A1 --> B1
+    A2 --> B1
+    A3 --> B1
+    B1 --> C1
+    C1 --> C2
+    C2 --> C3
+    C3 --> D1
+    C3 --> D2

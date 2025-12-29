@@ -1,0 +1,25 @@
+graph TD
+    A[DearTs] --> B[core/]
+    A --> C[main/]
+    A --> D[lib/]
+    A --> E[third_party/]
+    A --> F[resources/]
+    A --> G[docs/]
+    A --> H[build/]
+
+    B --> B1[app/]
+    B1 --> B1A[application.h]
+    B1 --> B1B[application.cpp]
+
+    C --> C1[gui/]
+    C1 --> C1A[main.cpp]
+    C1 --> C1B[CMakeLists.txt]
+
+    D --> D1[liblogger/]
+
+    E --> E1[SDL/]
+    E --> E2[imgui/]
+    E --> E3[freetype/]
+
+    F --> F1[fonts/]
+    F --> F2[icon/]

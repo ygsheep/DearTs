@@ -1,0 +1,17 @@
+flowchart TD
+    Start([帧开始]) --> Clear[清空渲染目标]
+    Clear --> ImGuiNewFrame[ImGui NewFrame]
+    ImGuiNewFrame --> ImGuiSDLEvent[处理 SDL 事件]
+    ImGuiSDLEvent --> OnRender[调用 onRender]
+    OnRender --> BuildUI[构建 ImGui UI]
+    BuildUI --> ImGuiRender[ImGui Render]
+    ImGuiRender --> DrawData[获取 DrawData]
+    DrawData --> RenderDrawData[渲染 DrawData]
+    RenderDrawData --> Present[呈现到屏幕]
+    Present --> VSync{VSync?}
+    VSync -->|是| WaitForVBlank[等待垂直同步]
+    VSync -->|否| CapFPS{限制帧率?}
+    CapFPS -->|是| Delay[延迟]
+    CapFPS -->|否| End([帧结束])
+    WaitForVBlank --> End
+    Delay --> End

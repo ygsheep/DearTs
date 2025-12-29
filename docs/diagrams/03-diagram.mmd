@@ -1,0 +1,52 @@
+classDiagram
+    class Application {
+        +run(title, width, height) int
+        +getState() State
+        +getFPS() float
+        +requestShutdown() void
+        +pause() void
+        +resume() void
+        #pollEvents() void
+        #handleEvent(event) void
+        +onInitialize() bool
+        +onEvent(event) void
+        +onUpdate(deltaTime) void
+        +onRender() void
+        +onShutdown() void
+        -m_window SDL_Window*
+        -m_renderer SDL_Renderer*
+        -m_state State
+    }
+
+    class SDL_Window {
+        +SDL_CreateWindow()
+        +SDL_DestroyWindow()
+        +SDL_SetWindowTitle()
+        +SDL_SetWindowSize()
+    }
+
+    class SDL_Renderer {
+        +SDL_CreateRenderer()
+        +SDL_DestroyRenderer()
+        +SDL_RenderClear()
+        +SDL_RenderPresent()
+    }
+
+    class ImGuiContext {
+        +CreateContext()
+        +DestroyContext()
+        +NewFrame()
+        +Render()
+    }
+
+    class Logger {
+        +init(path, level)
+        +log(level, message)
+        +flush()
+        +shutdown()
+    }
+
+    Application --> SDL_Window : manages
+    Application --> SDL_Renderer : manages
+    Application --> ImGuiContext : uses
+    Application --> Logger : uses

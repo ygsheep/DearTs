@@ -1,0 +1,23 @@
+flowchart TD
+    Start([开始]) --> Init[SDL_Init]
+    Init --> CreateWindow[创建窗口]
+    CreateWindow --> CreateRenderer[创建渲染器]
+    CreateRenderer --> InitImGui[初始化 ImGui]
+    InitImGui --> OnInit[调用 onInitialize]
+    OnInit --> InitCheck{初始化成功?}
+    InitCheck -->|否| Cleanup[清理资源]
+    InitCheck -->|是| MainLoop[主循环]
+
+    MainLoop --> CalcDelta[计算 Delta Time]
+    CalcDelta --> PollEvents[轮询 SDL 事件]
+    PollEvents --> OnEventCall[调用 onEvent]
+    OnEventCall --> UpdateCall[调用 onUpdate]
+    UpdateCall --> BeginFrame[ImGui NewFrame]
+    BeginFrame --> OnRenderCall[调用 onRender]
+    OnRenderCall --> RenderImGui[渲染 ImGui]
+    RenderImGui --> Present[呈现渲染结果]
+    Present --> CheckQuit{请求退出?}
+    CheckQuit -->|否| CalcDelta
+    CheckQuit -->|是| OnShutdown[调用 onShutdown]
+    OnShutdown --> Cleanup
+    Cleanup --> End([结束])

@@ -1,0 +1,10 @@
+stateDiagram-v2
+    [*] --> UNINITIALIZED
+    UNINITIALIZED --> INITIALIZING: run()
+    INITIALIZING --> RUNNING: onInitialize() success
+    INITIALIZING --> STOPPED: onInitialize() failure
+    RUNNING --> PAUSED: pause()
+    PAUSED --> RUNNING: resume()
+    RUNNING --> STOPPING: requestShutdown()
+    STOPPING --> STOPPED: onShutdown()
+    STOPPED --> [*]

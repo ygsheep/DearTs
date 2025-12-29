@@ -1,0 +1,21 @@
+sequenceDiagram
+    participant SDL as SDL3
+    participant App as Application
+    participant ImGui as ImGui
+    participant User as 用户代码
+
+    SDL->>App: SDL_Event (QUIT)
+    App->>App: pollEvents()
+    App->>App: handleEvent()
+    App->>User: onEvent(event)
+    User->>App: requestShutdown()
+
+    SDL->>App: SDL_Event (KEY_DOWN)
+    App->>App: handleEvent()
+    App->>ImGui: ImGui_ImplSDL3_ProcessEvent()
+    App->>User: onEvent(event)
+    Note over User: 处理输入逻辑
+
+    SDL->>App: SDL_Event (MOUSE_MOTION)
+    App->>ImGui: ImGui_ImplSDL3_ProcessEvent()
+    ImGui->>ImGui: 更新鼠标状态

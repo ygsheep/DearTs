@@ -1,0 +1,23 @@
+graph TD
+    A[CMake] --> B[配置阶段]
+    B --> C[依赖检测]
+    C --> D[SDL3]
+    C --> E[FreeType]
+    C --> F[OpenGL/Vulkan]
+
+    D --> G[编译阶段]
+    E --> G
+    F --> G
+
+    G --> H[core/app/application.cpp]
+    G --> I[main/gui/main.cpp]
+
+    H --> J[deartsdl_gui 可执行文件]
+    I --> J
+
+    J --> K[链接阶段]
+    K --> L[静态库]
+    K --> M[系统库]
+
+    L --> N[最终可执行文件]
+    M --> N

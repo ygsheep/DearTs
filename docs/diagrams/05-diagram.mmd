@@ -1,0 +1,25 @@
+graph LR
+    subgraph "应用层"
+        A[main.cpp]
+    end
+
+    subgraph "核心层"
+        B[Application]
+    end
+
+    subgraph "第三方库"
+        C[SDL3]
+        D[ImGui]
+        E[FreeType]
+    end
+
+    subgraph "工具库"
+        F[liblogger]
+    end
+
+    A --> B
+    B --> C
+    B --> D
+    B --> E
+    B --> F
+    D --> C

@@ -1,0 +1,29 @@
+classDiagram
+    class ResourceManager {
+        +loadTexture(path) Texture*
+        +loadSound(path) Sound*
+        +loadFont(path) Font*
+        -m_textures map
+        -m_sounds map
+        -m_fonts map
+    }
+
+    class Texture {
+        +Texture(SDL_Texture*)
+        -m_texture SDL_Texture*
+        -m_size Size
+    }
+
+    class Sound {
+        +Sound(Mix_Chunk*)
+        -m_chunk Mix_Chunk*
+    }
+
+    class Font {
+        +Font(TTF_Font*)
+        -m_font TTF_Font*
+    }
+
+    ResourceManager --> Texture : manages
+    ResourceManager --> Sound : manages
+    ResourceManager --> Font : manages

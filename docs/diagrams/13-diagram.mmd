@@ -1,0 +1,29 @@
+graph TD
+    A[DearTs Core] --> B[Input 模块]
+    A --> C[Render 模块]
+    A --> D[Resource 模块]
+    A --> E[Audio 模块]
+    A --> F[Physics 模块]
+    A --> G[Network 模块]
+
+    B --> B1[键盘管理]
+    B --> B2[鼠标管理]
+    B --> B3[手柄管理]
+
+    C --> C1[批处理渲染]
+    C --> C2[着色器管理]
+    C --> C3[材质系统]
+
+    D --> D1[资源加载]
+    D --> D2[资源缓存]
+    D --> D3[异步加载]
+
+    E --> E1[音效播放]
+    E --> E2[音乐播放]
+    E --> E3[3D 音效]
+
+    F --> F1[碰撞检测]
+    F --> F2[物理模拟]
+
+    G --> G1[TCP 网络]
+    G --> G2[HTTP 客户端]
