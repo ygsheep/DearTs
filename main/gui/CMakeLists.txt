@@ -111,6 +111,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         freetype
         lunasvg::lunasvg
 )
+        # ImGui Test Engine (needed when IMGUI_ENABLE_TEST_ENGINE is defined)
+        if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+            target_link_libraries(${PROJECT_NAME} PRIVATE imgui_test_engine)
+        endif()
 
 # Windows 特定设置
 if(WIN32)
