@@ -133,7 +133,7 @@ void DearTsApplication::on_render() {
     render_views();
 
     // 7. 渲染其他组件
-    render_menu_bar();
+    // render_menu_bar(); // 菜单已在 render_title_bar() 中绘制
     render_main_window();
     render_tool_windows();
 
