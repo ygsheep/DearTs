@@ -147,6 +147,13 @@ add_subdirectory(plugins/builtin)
 add_subdirectory(plugins/toast_notification)
 add_subdirectory(plugins/command_palette)
 
+# Add tests (optional, can be disabled with -DBUILD_TESTING=OFF)
+option(BUILD_TESTING "Build the testing tree" ON)
+if(BUILD_TESTING)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
+
 message(STATUS "Final Working Configuration:")
 message(STATUS "  SDL3: Static library")
 message(STATUS "  FreeType: Version 2.13.3 (Static)")
