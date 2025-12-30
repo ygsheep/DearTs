@@ -791,8 +791,12 @@ float DearTsApplication::render_title_bar() {
                         m_title_bar_config.button_right_margin);
         ImGui::SameLine(start_x);
 
-        // 垂直对齐按钮
-        ImGui::AlignTextToFramePadding();
+        // 计算按钮垂直偏移，让 24px 高度的按钮在 36px 标题栏中垂直居中
+        float title_bar_height = m_title_bar_config.get_title_bar_height();
+        float button_offset_y = (title_bar_height - m_title_bar_config.button_height) / 2.0f;
+
+        // 设置按钮的 FramePadding，让按钮垂直居中
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, button_offset_y));
 
         // 使用图标字体（如果已加载）
         if (Core::UI::IconFont::isLoaded()) {
@@ -842,6 +846,7 @@ float DearTsApplication::render_title_bar() {
             ImGui::PopFont();
         }
 
+        ImGui::PopStyleVar(); // FramePadding（按钮垂直偏移）
         ImGui::PopStyleVar(); // ItemSpacing
 
         ImGui::EndMainMenuBar();
