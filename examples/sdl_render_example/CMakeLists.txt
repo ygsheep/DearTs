@@ -59,6 +59,3 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 )
 
 message(STATUS "SDL3 + ImGui 混合渲染示例配置完成")
-message(STATUS "  可执行文件: ${PROJECT_NAME}")
-message(STATUS "  输出目录: ${CMAKE_BINARY_DIR}/bin")
-message(STATUS "  字体目录: ${RESOURCE_DEST_DIR}/fonts")
