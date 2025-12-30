@@ -27,19 +27,24 @@ void TestViewOpenAndClose(ImGuiTestContext* ctx) {
 
     // 通过命令面板打开某个 View
     ctx->SetRef("DearTsWindow");
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
-    ctx->ItemInputValue("##command_palette_input", "Data Inspector");
-    ctx->KeyDown(ImGuiKey_Enter);
-    ctx->KeyUp(ImGuiKey_Enter);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("Data Inspector");
+    ctx->KeyPress(ImGuiKey_Enter);
 
     // 验证 View 打开
-    ctx->ItemIsVisible("Data Inspector");
+    ctx->ItemCheck("Data Inspector");
 
     // 关闭 View
-    ctx->ItemClick("Data Inspector/CloseButton");
+    ctx->MouseMove("Data Inspector/CloseButton");
+    ctx->MouseClick(ImGuiMouseButton_Left);
 
     // 验证 View 关闭
-    ctx->ItemIsAbsent("Data Inspector");
+    IM_CHECK(!ctx->ItemExists("Data Inspector"));
 }
 
 /**
@@ -52,27 +57,35 @@ void TestViewDocking(ImGuiTestContext* ctx) {
 
     // 打开两个 View
     // View 1
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
-    ctx->ItemInputValue("##command_palette_input", "Data Inspector");
-    ctx->KeyDown(ImGuiKey_Enter);
-    ctx->KeyUp(ImGuiKey_Enter);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("Data Inspector");
+    ctx->KeyPress(ImGuiKey_Enter);
 
     // View 2
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
-    ctx->ItemInputValue("##command_palette_input", "Hex Editor");
-    ctx->KeyDown(ImGuiKey_Enter);
-    ctx->KeyUp(ImGuiKey_Enter);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("Hex Editor");
+    ctx->KeyPress(ImGuiKey_Enter);
 
     // 验证两个 View 都打开
-    ctx->ItemIsVisible("Data Inspector");
-    ctx->ItemIsVisible("Hex Editor");
+    ctx->ItemCheck("Data Inspector");
+    ctx->ItemCheck("Hex Editor");
 
     // 拖动一个 View 到另一个 View 的停靠标签
     // ctx->DragAndDrop("Data Inspector", "Hex Editor");
 
     // 验证两个 View 停靠在一起
-    // ctx->ItemIsVisible("Data Inspector##Dock");
-    // ctx->ItemIsVisible("Hex Editor##Dock");
+    // ctx->ItemCheck("Data Inspector##Dock");
+    // ctx->ItemCheck("Hex Editor##Dock");
 }
 
 /**
@@ -84,24 +97,34 @@ void TestViewFocusSwitching(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开两个 View
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
-    ctx->ItemInputValue("##command_palette_input", "Data Inspector");
-    ctx->KeyDown(ImGuiKey_Enter);
-    ctx->KeyUp(ImGuiKey_Enter);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("Data Inspector");
+    ctx->KeyPress(ImGuiKey_Enter);
 
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
-    ctx->ItemInputValue("##command_palette_input", "Pattern Finder");
-    ctx->KeyDown(ImGuiKey_Enter);
-    ctx->KeyUp(ImGuiKey_Enter);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("Pattern Finder");
+    ctx->KeyPress(ImGuiKey_Enter);
 
     // 点击第一个 View
-    ctx->ItemClick("Data Inspector");
+    ctx->MouseMove("Data Inspector");
+    ctx->MouseClick(ImGuiMouseButton_Left);
 
     // 验证焦点
     // ctx->ItemIsFocused("Data Inspector");
 
     // 点击第二个 View
-    ctx->ItemClick("Pattern Finder");
+    ctx->MouseMove("Pattern Finder");
+    ctx->MouseClick(ImGuiMouseButton_Left);
 
     // 验证焦点切换
     // ctx->ItemIsFocused("Pattern Finder");
@@ -116,10 +139,14 @@ void TestViewResizing(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开一个 View
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
-    ctx->ItemInputValue("##command_palette_input", "Data Inspector");
-    ctx->KeyDown(ImGuiKey_Enter);
-    ctx->KeyUp(ImGuiKey_Enter);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("Data Inspector");
+    ctx->KeyPress(ImGuiKey_Enter);
 
     // 获取初始大小
     // ImVec2 initial_size = ctx->GetItemSize("Data Inspector");

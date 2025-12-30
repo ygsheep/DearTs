@@ -28,19 +28,23 @@ void TestCommandPaletteOpenWithShortcut(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 按下 Ctrl+Shift+P 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 验证命令面板窗口可见
-    ctx->ItemIsVisible("Command Palette");
+    ctx->ItemCheck("Command Palette");
 
     // 验证输入框存在且聚焦
-    ctx->ItemIsVisible("##command_palette_input");
+    ctx->ItemCheck("##command_palette_input");
 
     // 验证命令列表存在
-    ctx->ItemIsVisible("##commands");
+    ctx->ItemCheck("##commands");
 
     // 关闭命令面板
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 /**
@@ -52,14 +56,18 @@ void TestCommandPaletteCloseWithEscape(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
-    ctx->ItemIsVisible("Command Palette");
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
+    ctx->ItemCheck("Command Palette");
 
     // 按 ESC 关闭
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 
     // 验证窗口关闭
-    ctx->ItemIsAbsent("Command Palette");
+    IM_CHECK(!ctx->ItemExists("Command Palette"));
 }
 
 /**
@@ -71,14 +79,19 @@ void TestCommandPaletteCloseByClickingOutside(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
-    ctx->ItemIsVisible("Command Palette");
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
+    ctx->ItemCheck("Command Palette");
 
     // 点击窗口外部区域
-    ctx->MouseClickAt("DearTsWindow/WorkArea");
+    ctx->MouseMove("DearTsWindow/WorkArea");
+    ctx->MouseClick(ImGuiMouseButton_Left);
 
     // 验证窗口关闭
-    ctx->ItemIsAbsent("Command Palette");
+    IM_CHECK(!ctx->ItemExists("Command Palette"));
 }
 
 // ============================================================================
@@ -94,21 +107,27 @@ void TestCommandPaletteFiltering(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 输入搜索文本
-    ctx->ItemInputValue("##command_palette_input", "theme");
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("theme");
 
     // 验证过滤后的命令列表只包含相关命令
     // 注意：具体命令需要根据实际注册的命令调整
-    // ctx->ItemIsVisible("Switch to Dark Theme");
-    // ctx->ItemIsVisible("Switch to Light Theme");
+    // ctx->ItemCheck("Switch to Dark Theme");
+    // ctx->ItemCheck("Switch to Light Theme");
 
     // 清空搜索
-    ctx->ItemInputValue("##command_palette_input", "");
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsReplace("");
 
     // 关闭
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 /**
@@ -120,21 +139,28 @@ void TestCommandPaletteCaseInsensitiveSearch(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 测试小写搜索
-    ctx->ItemInputValue("##command_palette_input", "settings");
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("settings");
     // 验证找到 "Settings" 命令
 
     // 测试大写搜索
-    ctx->ItemInputValue("##command_palette_input", "SETTINGS");
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsReplace("SETTINGS");
     // 应该返回相同结果
 
     // 测试混合大小写
-    ctx->ItemInputValue("##command_palette_input", "SeTtInGs");
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsReplace("SeTtInGs");
     // 应该返回相同结果
 
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 /**
@@ -146,18 +172,22 @@ void TestCommandPaletteEmptySearch(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 不输入任何搜索文本
     // 验证显示所有已注册的命令
-    ctx->ItemIsVisible("##commands");
+    ctx->ItemCheck("##commands");
 
     // 应该看到所有命令类别
-    // ctx->ItemIsVisible("File Commands");
-    // ctx->ItemIsVisible("View Commands");
-    // ctx->ItemIsVisible("Theme Commands");
+    // ctx->ItemCheck("File Commands");
+    // ctx->ItemCheck("View Commands");
+    // ctx->ItemCheck("Theme Commands");
 
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 // ============================================================================
@@ -173,23 +203,25 @@ void TestCommandPaletteKeyboardNavigation(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 按下箭头键选择下一个命令
-    ctx->KeyDown(ImGuiKey_DownArrow);
-    ctx->KeyUp(ImGuiKey_DownArrow);
+    ctx->KeyPress(ImGuiKey_DownArrow);
 
     // 验证第二个命令被选中
     // ctx->ItemIsSelected("Commands/Item2");
 
     // 按上箭头键返回
-    ctx->KeyDown(ImGuiKey_UpArrow);
-    ctx->KeyUp(ImGuiKey_UpArrow);
+    ctx->KeyPress(ImGuiKey_UpArrow);
 
     // 验证第一个命令被选中
     // ctx->ItemIsSelected("Commands/Item1");
 
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 /**
@@ -201,17 +233,19 @@ void TestCommandPaletteFastNavigation(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 按 PageDown 向下翻页
-    ctx->KeyDown(ImGuiKey_PageDown);
-    ctx->KeyUp(ImGuiKey_PageDown);
+    ctx->KeyPress(ImGuiKey_PageDown);
 
     // 按 PageUp 向上翻页
-    ctx->KeyDown(ImGuiKey_PageUp);
-    ctx->KeyUp(ImGuiKey_PageUp);
+    ctx->KeyPress(ImGuiKey_PageUp);
 
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 // ============================================================================
@@ -227,15 +261,18 @@ void TestCommandPaletteExecuteWithEnter(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 选择第一个命令（默认选中）
     // 按 Enter 执行
-    ctx->KeyDown(ImGuiKey_Enter);
-    ctx->KeyUp(ImGuiKey_Enter);
+    ctx->KeyPress(ImGuiKey_Enter);
 
     // 验证命令面板关闭
-    ctx->ItemIsAbsent("Command Palette");
+    IM_CHECK(!ctx->ItemExists("Command Palette"));
 
     // 验证命令执行结果（根据具体命令验证）
     // 例如：如果执行了 "Switch to Dark Theme"，验证主题已切换
@@ -250,14 +287,19 @@ void TestCommandPaletteExecuteWithClick(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 点击某个命令项
     // 注意：命令项 ID 需要根据实际实现调整
-    // ctx->ItemClick("##commands/0");
+    // ctx->MouseMove("##commands/0");
+    // ctx->MouseClick(ImGuiMouseButton_Left);
 
     // 验证命令面板关闭
-    ctx->ItemIsAbsent("Command Palette");
+    IM_CHECK(!ctx->ItemExists("Command Palette"));
 }
 
 /**
@@ -269,20 +311,25 @@ void TestCommandPaletteOpensWindow(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 搜索 "settings"
-    ctx->ItemInputValue("##command_palette_input", "settings");
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("settings");
 
     // 执行 "Open Settings" 命令
-    ctx->KeyDown(ImGuiKey_Enter);
-    ctx->KeyUp(ImGuiKey_Enter);
+    ctx->KeyPress(ImGuiKey_Enter);
 
     // 验证设置窗口打开
-    ctx->ItemIsVisible("样式编辑器");
+    ctx->ItemCheck("样式编辑器");
 
     // 关闭设置窗口
-    ctx->ItemClick("样式编辑器/CloseButton");
+    ctx->MouseMove("样式编辑器/CloseButton");
+    ctx->MouseClick(ImGuiMouseButton_Left);
 }
 
 // ============================================================================
@@ -298,20 +345,26 @@ void TestCommandPalettePerformanceWithManyCommands(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 快速输入搜索文本
-    ctx->ItemInputValue("##command_palette_input", "a");
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("a");
 
     // 验证搜索响应时间（应该很快，无卡顿）
     // ImGui Test Engine 会自动检测超时
 
     // 快速删除输入
-    ctx->ItemInputValue("##command_palette_input", "");
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsReplace("");
 
     // 验证所有命令重新显示
 
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 // ============================================================================

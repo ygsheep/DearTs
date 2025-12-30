@@ -8,7 +8,7 @@ include_directories(mocks/)
 # == Options ==
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(BUILD_INTEGRATION_TESTS "Build integration tests" ON)
-option(BUILD_UI_TESTS "Build UI automation tests" OFF)  # Disabled: ImGui Test Engine needs additional setup
+option(BUILD_UI_TESTS "Build UI automation tests" OFF)  # DISABLED: ImGui Test Engine incompatible with current ImGui version
 option(ENABLE_COVERAGE "Enable code coverage reporting" OFF)
 
 # == Google Test Integration ==
@@ -140,9 +140,6 @@ if(BUILD_UI_TESTS)
 
     # Add ImGui Test Engine
     if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
-        # Assuming ImGui Test Engine is already set up as a library
-        # You may need to add_subdirectory or link against it
-
         # Collect UI test sources
         file(GLOB_RECURSE UI_TEST_SOURCES
             "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.cpp"
@@ -161,15 +158,11 @@ if(BUILD_UI_TESTS)
             ${CMAKE_SOURCE_DIR}
             ${CMAKE_SOURCE_DIR}/core
             ${CMAKE_SOURCE_DIR}/lib
+            ${CMAKE_SOURCE_DIR}/main/gui/include
             ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine
             ${CMAKE_SOURCE_DIR}/third_party/imgui
             ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
             ${CMAKE_SOURCE_DIR}/third_party/SDL/include
-        )
-
-        # 源文件（UI 测试需要的核心实现）
-        target_sources(dearts_ui_tests PRIVATE
-            ${CMAKE_SOURCE_DIR}/main/gui/source/dearts_application.cpp
         )
 
         target_link_libraries(dearts_ui_tests

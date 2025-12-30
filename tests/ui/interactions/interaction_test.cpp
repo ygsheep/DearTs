@@ -28,13 +28,13 @@ void TestMouseHoverTooltip(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 悬停在某个按钮上
-    ctx->MouseMoveTo("##settings");
+    ctx->MouseMove("##settings");
 
     // 等待工具提示出现
     ctx->Yield(500);
 
     // 验证工具提示显示
-    // ctx->ItemIsVisible("##settings/Tooltip");
+    // ctx->ItemCheck("##settings/Tooltip");
 }
 
 /**
@@ -46,13 +46,14 @@ void TestMouseContextMenu(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 在工作区右键点击
-    ctx->MouseClickAt("DearTsWindow/WorkArea", ImGuiMouseButton_Right);
+    ctx->MouseMove("DearTsWindow/WorkArea");
+    ctx->MouseClick(ImGuiMouseButton_Right);
 
     // 验证上下文菜单显示
-    // ctx->ItemIsVisible("##ContextMenu");
+    // ctx->ItemCheck("##ContextMenu");
 
     // 按 ESC 关闭菜单
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 // ============================================================================
@@ -68,17 +69,17 @@ void TestKeyboardTabNavigation(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开设置窗口
-    ctx->ItemClick("##settings");
+    ctx->MouseMove("##settings");
+    ctx->MouseClick(ImGuiMouseButton_Left);
 
     // 按 Tab 键在控件间导航
-    ctx->KeyDown(ImGuiKey_Tab);
-    ctx->KeyUp(ImGuiKey_Tab);
+    ctx->KeyPress(ImGuiKey_Tab);
 
     // 验证焦点移动到下一个控件
     // ctx->ItemIsFocused("Settings/NextControl");
 
     // 关闭窗口
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 /**
@@ -90,15 +91,21 @@ void TestKeyboardShortcuts(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 测试 Ctrl+N (新建)
-    // ctx->KeyChord(ImGuiMod_Ctrl | ImGuiKey_N);
+    // ctx->KeyDown(ImGuiMod_Ctrl);
+    // ctx->KeyPress(ImGuiKey_N);
+    // ctx->KeyUp(ImGuiMod_Ctrl);
     // 验证新建窗口/对话框打开
 
     // 测试 Ctrl+S (保存)
-    // ctx->KeyChord(ImGuiMod_Ctrl | ImGuiKey_S);
+    // ctx->KeyDown(ImGuiMod_Ctrl);
+    // ctx->KeyPress(ImGuiKey_S);
+    // ctx->KeyUp(ImGuiMod_Ctrl);
     // 验证保存操作执行
 
     // 测试 Ctrl+Z (撤销)
-    // ctx->KeyChord(ImGuiMod_Ctrl | ImGuiKey_Z);
+    // ctx->KeyDown(ImGuiMod_Ctrl);
+    // ctx->KeyPress(ImGuiKey_Z);
+    // ctx->KeyUp(ImGuiMod_Ctrl);
     // 验证撤销操作执行
 }
 
@@ -152,23 +159,30 @@ void TestTextInput(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 输入文本
-    ctx->ItemInputValue("##command_palette_input", "test input");
+    ctx->ItemInput("##command_palette_input");
+    ctx->KeyCharsAppend("test input");
 
     // 验证文本输入成功
     // ctx->ItemHasValue("##command_palette_input", "test input");
 
     // 清空输入
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiKey_A);  // Ctrl+A 全选
-    ctx->KeyChord(ImGuiKey_Backspace);            // 删除
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyPress(ImGuiKey_A);  // Ctrl+A 全选
+    ctx->KeyUp(ImGuiMod_Ctrl);
+    ctx->KeyPress(ImGuiKey_Backspace);            // 删除
 
     // 验证清空
     // ctx->ItemHasValue("##command_palette_input", "");
 
     // 关闭
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 // ============================================================================
@@ -184,19 +198,22 @@ void TestScrolling(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 打开命令面板
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 使用鼠标滚轮滚动
     // ctx->MouseWheel("##commands", -1.0f);
 
     // 验证内容滚动
     // 使用键盘滚动
-    ctx->KeyDown(ImGuiKey_DownArrow);
-    ctx->KeyUp(ImGuiKey_DownArrow);
+    ctx->KeyPress(ImGuiKey_DownArrow);
 
     // 验证选择改变
 
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 // ============================================================================

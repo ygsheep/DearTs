@@ -32,16 +32,16 @@ void TestToastInfoDisplay(ImGuiTestContext* ctx) {
     // 例如：ToastManager::instance().show("Info message", ToastType::Info);
 
     // 验证 Toast 窗口可见
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 验证 Toast 内容
-    // ctx->ItemIsVisible("##toast/Info message");
+    // ctx->ItemCheck("##toast/Info message");
 
     // 等待一小段时间
     ctx->Yield(100);
 
     // Toast 应该还在显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 }
 
 /**
@@ -56,10 +56,10 @@ void TestToastSuccessDisplay(ImGuiTestContext* ctx) {
     // ToastManager::instance().show("Operation successful!", ToastType::Success);
 
     // 验证 Toast 显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 验证成功图标/样式
-    // ctx->ItemIsVisible("##toast/SuccessIcon");
+    // ctx->ItemCheck("##toast/SuccessIcon");
 
     ctx->Yield(100);
 }
@@ -76,10 +76,10 @@ void TestToastWarningDisplay(ImGuiTestContext* ctx) {
     // ToastManager::instance().show("Warning: Low disk space", ToastType::Warning);
 
     // 验证 Toast 显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 验证警告图标/样式
-    // ctx->ItemIsVisible("##toast/WarningIcon");
+    // ctx->ItemCheck("##toast/WarningIcon");
 
     ctx->Yield(100);
 }
@@ -96,10 +96,10 @@ void TestToastErrorDisplay(ImGuiTestContext* ctx) {
     // ToastManager::instance().show("Error: Operation failed", ToastType::Error);
 
     // 验证 Toast 显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 验证错误图标/样式
-    // ctx->ItemIsVisible("##toast/ErrorIcon");
+    // ctx->ItemCheck("##toast/ErrorIcon");
 
     ctx->Yield(100);
 }
@@ -120,19 +120,19 @@ void TestToastAutoDisappear(ImGuiTestContext* ctx) {
     // ToastManager::instance().show("Auto dismiss message", ToastType::Info, 3000);
 
     // 验证 Toast 显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 等待 2.5 秒
     ctx->Yield(2500);
 
     // Toast 应该还在显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 再等待 1 秒
     ctx->Yield(1000);
 
     // Toast 应该已经消失
-    ctx->ItemIsAbsent("##toast");
+    IM_CHECK(!ctx->ItemExists("##toast"));
 }
 
 /**
@@ -147,19 +147,19 @@ void TestToastLongDuration(ImGuiTestContext* ctx) {
     // ToastManager::instance().show("Long duration message", ToastType::Info, 10000);
 
     // 验证显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 等待 9 秒
     ctx->Yield(9000);
 
     // Toast 应该还在显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 再等待 2 秒
     ctx->Yield(2000);
 
     // Toast 应该消失
-    ctx->ItemIsAbsent("##toast");
+    IM_CHECK(!ctx->ItemExists("##toast"));
 }
 
 // ============================================================================
@@ -178,13 +178,14 @@ void TestToastCloseOnClick(ImGuiTestContext* ctx) {
     // ToastManager::instance().show("Click to close", ToastType::Info);
 
     // 验证显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 点击 Toast
-    ctx->ItemClick("##toast");
+    ctx->MouseMove("##toast");
+    ctx->MouseClick(ImGuiMouseButton_Left);
 
     // 验证立即关闭
-    ctx->ItemIsAbsent("##toast");
+    IM_CHECK(!ctx->ItemExists("##toast"));
 }
 
 /**
@@ -199,19 +200,20 @@ void TestToastButtonClick(ImGuiTestContext* ctx) {
     // ToastManager::instance().show("Update available", ToastType::Info, 5000, "Update");
 
     // 验证 Toast 显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 验证按钮存在
-    // ctx->ItemIsVisible("##toast/Update");
+    // ctx->ItemCheck("##toast/Update");
 
     // 点击按钮
-    // ctx->ItemClick("##toast/Update");
+    // ctx->MouseMove("##toast/Update");
+    // ctx->MouseClick(ImGuiMouseButton_Left);
 
     // Toast 应该关闭
-    ctx->ItemIsAbsent("##toast");
+    IM_CHECK(!ctx->ItemExists("##toast"));
 
     // 验证按钮操作执行（例如打开更新窗口）
-    // ctx->ItemIsVisible("UpdateWindow");
+    // ctx->ItemCheck("UpdateWindow");
 }
 
 /**
@@ -226,28 +228,28 @@ void TestToastHoverPausesDismiss(ImGuiTestContext* ctx) {
     // ToastManager::instance().show("Hover to pause", ToastType::Info, 3000);
 
     // 验证显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 等待 1 秒
     ctx->Yield(1000);
 
     // 悬停在 Toast 上
-    ctx->MouseMoveTo("##toast");
+    ctx->MouseMove("##toast");
 
     // 等待 3 秒（应该已经超过正常显示时间）
     ctx->Yield(3000);
 
     // Toast 应该还在显示（因为悬停暂停）
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     // 移开鼠标
-    ctx->MouseMoveTo("DearTsWindow/WorkArea");
+    ctx->MouseMove("DearTsWindow/WorkArea");
 
     // 等待一小段时间，Toast 应该开始消失
     ctx->Yield(500);
 
     // Toast 应该消失
-    ctx->ItemIsAbsent("##toast");
+    IM_CHECK(!ctx->ItemExists("##toast"));
 }
 
 // ============================================================================
@@ -273,9 +275,9 @@ void TestToastMultipleNotifications(ImGuiTestContext* ctx) {
     ctx->Yield(100);
 
     // 验证所有 Toast 都可见
-    // ctx->ItemIsVisible("##toast[0]");
-    // ctx->ItemIsVisible("##toast[1]");
-    // ctx->ItemIsVisible("##toast[2]");
+    // ctx->ItemCheck("##toast[0]");
+    // ctx->ItemCheck("##toast[1]");
+    // ctx->ItemCheck("##toast[2]");
 
     // 验证 Toast 堆叠正确（最新在最上面）
 
@@ -283,7 +285,7 @@ void TestToastMultipleNotifications(ImGuiTestContext* ctx) {
     ctx->Yield(4000);
 
     // 所有 Toast 应该消失
-    ctx->ItemIsAbsent("##toast");
+    IM_CHECK(!ctx->ItemExists("##toast"));
 }
 
 /**
@@ -330,7 +332,7 @@ void TestToastTopRightPosition(ImGuiTestContext* ctx) {
 
     // 验证 Toast 在右上角显示
     // 可以通过检查位置验证
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     ctx->Yield(100);
 }
@@ -350,7 +352,7 @@ void TestToastBottomLeftPosition(ImGuiTestContext* ctx) {
     // ToastManager::instance().show("Bottom left message", ToastType::Info);
 
     // 验证 Toast 在左下角显示
-    ctx->ItemIsVisible("##toast");
+    ctx->ItemCheck("##toast");
 
     ctx->Yield(100);
 }

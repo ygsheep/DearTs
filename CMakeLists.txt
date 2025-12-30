@@ -94,6 +94,13 @@ if(EXISTS ${IMGUI_DIR})
         #      - LunaSVG 头文件不会添加任何导入/导出修饰符
         #      - 符号直接链接到静态库，链接成功
         LUNASVG_BUILD_STATIC
+        # 重要：定义 IMGUI_ENABLE_TEST_ENGINE 启用 ImGui Test Engine 支持
+        # 原理：
+        #   1. ImGui Test Engine 需要访问 ImGuiItemStatusFlags_* 等内部标志
+        #   2. 这些标志只在 IMGUI_ENABLE_TEST_ENGINE 定义时才会编译到 imgui 中
+        #   3. 不定义此宏会导致：ImGuiItemStatusFlags_Openable/Opened/Checkable/Checked/Inputable 等未声明
+        #   4. 定义后：ImGui Test Engine 可以正确访问这些内部状态标志进行 UI 自动化测试
+        IMGUI_ENABLE_TEST_ENGINE
     )
     if(WIN32)
         target_compile_definitions(imgui PUBLIC _USE_MATH_DEFINES)
@@ -133,6 +140,32 @@ if(EXISTS ${IMGUI_DIR})
 
 else()
     message(FATAL_ERROR "ImGui not found in third_party/imgui directory!")
+endif()
+
+# Setup ImGui Test Engine (compatible with ImGui v1.92.5)
+set(IMGUI_TEST_ENGINE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+if(EXISTS ${IMGUI_TEST_ENGINE_DIR})
+    message(STATUS "Using ImGui Test Engine from third_party directory")
+
+    # ImGui Test Engine sources
+    file(GLOB IMGUI_TEST_ENGINE_SOURCES
+        ${IMGUI_TEST_ENGINE_DIR}/*.cpp
+    )
+
+    # Create ImGui Test Engine library
+    add_library(imgui_test_engine STATIC ${IMGUI_TEST_ENGINE_SOURCES})
+    target_include_directories(imgui_test_engine PUBLIC
+        ${IMGUI_TEST_ENGINE_DIR}
+        ${IMGUI_DIR}
+        ${CMAKE_SOURCE_DIR}/third_party/imgui
+    )
+    target_link_libraries(imgui_test_engine PUBLIC imgui)
+    target_compile_definitions(imgui_test_engine PUBLIC
+        IMGUI_TEST_ENGINE_ENABLE
+    )
+    message(STATUS "ImGui Test Engine: Static library (v1.92.5 compatible)")
+else()
+    message(WARNING "ImGui Test Engine not found!")
 endif()
 
 # Add GUI test application

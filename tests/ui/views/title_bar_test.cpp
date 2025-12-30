@@ -36,14 +36,16 @@ void TestTitleBarSettingsButton(ImGuiTestContext* ctx) {
 
     // 点击设置按钮（需要根据实际 ID 调整）
     // 注意：按钮 ID 可能需要根据实际实现调整
-    ctx->ItemClick("##settings");
-    // 或者使用路径：ctx->ItemClick("TitleBar/SettingsButton");
+    ctx->MouseMove("##settings");
+    ctx->MouseClick(ImGuiMouseButton_Left);
+    // 或者使用路径：ctx->MouseMove("TitleBar/SettingsButton"); ctx->MouseClick(ImGuiMouseButton_Left);
 
     // 验证设置窗口可见
-    ctx->ItemIsVisible("样式编辑器");
+    ctx->ItemCheck("样式编辑器");
 
     // 关闭设置窗口
-    ctx->ItemClick("样式编辑器/CloseButton");
+    ctx->MouseMove("样式编辑器/CloseButton");
+    ctx->MouseClick(ImGuiMouseButton_Left);
 }
 
 /**
@@ -53,11 +55,13 @@ void TestTitleBarTasksButton(ImGuiTestContext* ctx) {
     printf("Running: TestTitleBarTasksButton\n");
 
     ctx->SetRef("DearTsWindow");
-    ctx->ItemClick("##tasks");
-    ctx->ItemIsVisible("任务和插件");
+    ctx->MouseMove("##tasks");
+    ctx->MouseClick(ImGuiMouseButton_Left);
+    ctx->ItemCheck("任务和插件");
 
     // 关闭窗口
-    ctx->ItemClick("任务和插件/CloseButton");
+    ctx->MouseMove("任务和插件/CloseButton");
+    ctx->MouseClick(ImGuiMouseButton_Left);
 }
 
 // ============================================================================
@@ -83,12 +87,12 @@ void TestTitleBarFileMenu(ImGuiTestContext* ctx) {
 
     // 验证菜单项存在（可以点击）
     // 注意：这些是示例，实际菜单项需要根据实现调整
-    ctx->ItemIsVisible("///File/New");
-    ctx->ItemIsVisible("///File/Open");
-    ctx->ItemIsVisible("///File/Save");
+    ctx->ItemCheck("///File/New");
+    ctx->ItemCheck("///File/Open");
+    ctx->ItemCheck("///File/Save");
 
     // 关闭菜单（按 ESC）
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 /**
@@ -101,10 +105,10 @@ void TestTitleBarViewMenu(ImGuiTestContext* ctx) {
     ctx->MenuCheck("///View");
 
     // 验证视图菜单项
-    ctx->ItemIsVisible("///View/Command Palette");
-    ctx->ItemIsVisible("///View/Task Manager");
+    ctx->ItemCheck("///View/Command Palette");
+    ctx->ItemCheck("///View/Task Manager");
 
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 /**
@@ -117,13 +121,14 @@ void TestTitleBarThemeMenu(ImGuiTestContext* ctx) {
     ctx->MenuCheck("///Theme");
 
     // 验证主题选项
-    ctx->ItemIsVisible("///Theme/Dark");
-    ctx->ItemIsVisible("///Theme/Light");
+    ctx->ItemCheck("///Theme/Dark");
+    ctx->ItemCheck("///Theme/Light");
 
     // 可以选择某个主题
-    // ctx->ItemClick("///Theme/Dark");
+    // ctx->MouseMove("///Theme/Dark");
+    // ctx->MouseClick(ImGuiMouseButton_Left);
 
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 // ============================================================================
@@ -139,13 +144,17 @@ void TestTitleBarCommandPaletteShortcut(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 按下 Ctrl+Shift+P
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_P);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyDown(ImGuiMod_Shift);
+    ctx->KeyPress(ImGuiKey_P);
+    ctx->KeyUp(ImGuiMod_Shift);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 验证命令面板窗口打开
-    ctx->ItemIsVisible("Command Palette");
+    ctx->ItemCheck("Command Palette");
 
     // 关闭命令面板
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 /**
@@ -157,13 +166,15 @@ void TestTitleBarSettingsShortcut(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 按下 Ctrl+,
-    ctx->KeyChord(ImGuiMod_Ctrl | ImGuiKey_Comma);
+    ctx->KeyDown(ImGuiMod_Ctrl);
+    ctx->KeyPress(ImGuiKey_Comma);
+    ctx->KeyUp(ImGuiMod_Ctrl);
 
     // 验证设置窗口打开
-    ctx->ItemIsVisible("样式编辑器");
+    ctx->ItemCheck("样式编辑器");
 
     // 关闭
-    ctx->KeyChord(ImGuiKey_Escape);
+    ctx->KeyPress(ImGuiKey_Escape);
 }
 
 // ============================================================================
@@ -179,10 +190,10 @@ void TestTitleBarButtonHover(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 悬停在设置按钮上
-    ctx->MouseMoveTo("##settings");
+    ctx->MouseMove("##settings");
 
     // 验证工具提示（如果有）
-    // ctx->ItemIsVisible("SettingsTooltip");
+    // ctx->ItemCheck("SettingsTooltip");
 }
 
 /**
@@ -194,13 +205,15 @@ void TestTitleBarButtonDoubleClick(ImGuiTestContext* ctx) {
     ctx->SetRef("DearTsWindow");
 
     // 双击设置按钮
-    ctx->ItemDoubleClick("##settings");
+    ctx->MouseMove("##settings");
+    ctx->MouseDoubleClick(ImGuiMouseButton_Left);
 
     // 验证窗口仍然只打开一次
-    ctx->ItemIsVisible("样式编辑器");
+    ctx->ItemCheck("样式编辑器");
 
     // 关闭
-    ctx->ItemClick("样式编辑器/CloseButton");
+    ctx->MouseMove("样式编辑器/CloseButton");
+    ctx->MouseClick(ImGuiMouseButton_Left);
 }
 
 // ============================================================================
