@@ -16,7 +16,12 @@ if(BUILD_UNIT_TESTS)
     if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/googletest/CMakeLists.txt)
         set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
         set(INSTALL_GTEST OFF CACHE BOOL "Disable installation of Google Test" FORCE)
-        add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/googletest EXCLUDE_FROM_ALL)
+        # Specify binary directory since source is outside tests/
+        add_subdirectory(
+            ${CMAKE_SOURCE_DIR}/third_party/googletest
+            ${CMAKE_BINARY_DIR}/third_party/googletest
+            EXCLUDE_FROM_ALL
+        )
         message(STATUS "Google Test found and configured")
     else()
         message(FATAL_ERROR "Google Test not found in third_party/googletest!")
