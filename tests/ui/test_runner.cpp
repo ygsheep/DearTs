@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     printf("Starting DearTs UI Test Runner...\n");
 
     // 1. 初始化 SDL3
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return 1;
     }

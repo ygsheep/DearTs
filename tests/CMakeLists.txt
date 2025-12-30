@@ -147,6 +147,8 @@ if(BUILD_UI_TESTS)
 
         # Filter out main files if any
         list(FILTER UI_TEST_SOURCES EXCLUDE REGEX ".*_main\\.cpp$")
+        list(FILTER UI_TEST_SOURCES EXCLUDE REGEX ".*sdl3_diagnostic.cpp$")
+        list(FILTER UI_TEST_SOURCES EXCLUDE REGEX ".*test_runner_simple.cpp$")
 
         # UI Tests Executable
         add_executable(dearts_ui_tests
@@ -170,7 +172,7 @@ if(BUILD_UI_TESTS)
             imgui_test_engine
             imgui
             imgui_sdl3
-            SDL3::SDL3-static
+            SDL3-static
             deartsdl_logger
             freetype
             lunasvg
@@ -187,6 +189,18 @@ if(BUILD_UI_TESTS)
         message(WARNING "ImGui Test Engine not found, UI tests disabled")
     endif()
 endif()
+# SDL3 诊断工具（用于调试 SDL3 初始化问题）
+if(BUILD_UI_TESTS AND EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+    add_executable(sdl3_diagnostic ${CMAKE_CURRENT_SOURCE_DIR}/ui/sdl3_diagnostic.cpp)
+    target_link_libraries(sdl3_diagnostic PRIVATE SDL3-static)
+    if(WIN32)
+        target_link_libraries(sdl3_diagnostic PRIVATE 
+            kernel32 user32 gdi32 winmm imm32 ole32 oleaut32 
+            version uuid advapi32 setupapi shell32 dinput8)
+    endif()
+    message(STATUS "SDL3 diagnostic tool configured")
+endif()
+
 
 # == Testing Summary ==
 message(STATUS "")
