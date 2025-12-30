@@ -24,11 +24,6 @@ SidebarView::SidebarView()
 }
 
 void SidebarView::draw_content() {
-    // 绘制工具栏
-    draw_toolbar();
-
-    ImGui::Separator();
-
     // 绘制搜索框
     draw_search_box();
 
@@ -53,66 +48,18 @@ void SidebarView::draw_content() {
         "显示: %d / 总计: %d", m_visible_count, m_total_count);
 }
 
-void SidebarView::draw_toolbar() {
-    // 获取所有视图
-    const auto& all_views = ContentRegistry::Views::get_all();
-
-    // 工具栏样式
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.1f, 0.1f, 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.2f, 0.2f, 0.4f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.3f, 0.3f, 0.3f, 0.6f));
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8, 6));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
-
-    // 全部显示按钮
-    if (ImGui::Button("全部显示")) {
-        for (const auto& [name, view] : all_views) {
-            view->get_window_open_state() = true;
-        }
-    }
-
-    ImGui::SameLine();
-
-    // 全部隐藏按钮
-    if (ImGui::Button("全部隐藏")) {
-        for (const auto& [name, view] : all_views) {
-            view->get_window_open_state() = false;
-        }
-    }
-
-    ImGui::SameLine();
-
-    // 重置为默认按钮
-    if (ImGui::Button("重置默认")) {
-        // 这里可以添加重置逻辑
-        // 由于没有存储默认状态，暂时不实现
-        LOG_INFO("Reset to defaults (not implemented)");
-    }
-
-    // 恢复样式
-    ImGui::PopStyleVar(2);
-    ImGui::PopStyleColor(3);
-}
-
 void SidebarView::draw_search_box() {
     // 搜索框样式
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.1f, 0.1f, 0.1f, 0.5f));
     ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.15f, 0.15f, 0.15f, 0.7f));
     ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.2f, 0.2f, 0.2f, 0.9f));
 
-    // 使用图标字体显示搜索图标
-    if (UI::IconFont::isLoaded()) {
-        ImGui::PushFont(UI::IconFont::getFont());
-    }
-
-    if (ImGui::InputText(ICON_SEARCH " 搜索", m_search_buffer, sizeof(m_search_buffer),
+    // 输入框
+    float button_size = ImGui::GetFrameHeight(); // 正方形按钮大小
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - button_size - ImGui::GetStyle().ItemSpacing.x);
+    if (ImGui::InputText("##search_input", m_search_buffer, sizeof(m_search_buffer),
         ImGuiInputTextFlags_EnterReturnsTrue)) {
         apply_filter();
-    }
-
-    // 恢复原来的字体
-    if (UI::IconFont::isLoaded()) {
-        ImGui::PopFont();
     }
 
     // 实时搜索
@@ -120,6 +67,32 @@ void SidebarView::draw_search_box() {
         apply_filter();
     }
 
+    ImGui::PopStyleColor(3);
+
+    // 搜索按钮
+    ImGui::SameLine();
+
+    // 按钮样式
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.1f, 0.1f, 0.5f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.2f, 0.2f, 0.2f, 0.7f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.3f, 0.3f, 0.3f, 0.9f));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0)); // 移除内边距，让图标填满按钮
+
+    // 使用图标字体显示搜索按钮
+    if (UI::IconFont::isLoaded()) {
+        ImGui::PushFont(UI::IconFont::getFont());
+    }
+
+    if (ImGui::Button(ICON_SEARCH "##search_button", ImVec2(button_size, button_size))) {
+        apply_filter();
+    }
+
+    // 恢复原来的字体和样式
+    if (UI::IconFont::isLoaded()) {
+        ImGui::PopFont();
+    }
+
+    ImGui::PopStyleVar();
     ImGui::PopStyleColor(3);
 }
 

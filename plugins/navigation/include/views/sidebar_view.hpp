@@ -39,11 +39,6 @@ public:
 
 private:
     /**
-     * @brief 绘制工具栏
-     */
-    void draw_toolbar();
-
-    /**
      * @brief 绘制搜索框
      */
     void draw_search_box();
