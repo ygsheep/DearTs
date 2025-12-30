@@ -81,7 +81,7 @@ private:
 #define ICON_MENU           ""
 #define ICON_MORE_VERT      ""
 #define ICON_CLOSE          ""
-#define ICON_MINIMIZE       "\xee\xa4\xb1"
+#define ICON_MINIMIZE       "\xee\xa4\xb1 "
 #define ICON_MAXIMIZE       "\xee\x8f\x86"
 #define ICON_RESTORE        "\xef\x93\x88"
 #define ICON_ADD            ""

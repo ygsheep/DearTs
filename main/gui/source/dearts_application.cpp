@@ -785,17 +785,8 @@ float DearTsApplication::render_title_bar() {
         }
 
         // 右侧：控制按钮
-        float start_x = ImGui::GetMainViewport()->Size.x -
-                       (m_title_bar_config.button_count * m_title_bar_config.button_width +
-                        (m_title_bar_config.button_count - 1) * m_title_bar_config.button_spacing +
-                        m_title_bar_config.button_right_margin);
-        ImGui::SameLine(start_x);
-
-        // 手动设置按钮的垂直位置，让其在标题栏中居中
         float title_bar_height = m_title_bar_config.get_title_bar_height();
         float button_y = (title_bar_height - m_title_bar_config.button_height) / 2.0f;
-        ImVec2 cursor_pos = ImGui::GetCursorPos();
-        ImGui::SetCursorPos(ImVec2(cursor_pos.x, button_y));
 
         // 设置按钮的 FramePadding 为 0，确保按钮大小准确
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
@@ -806,6 +797,11 @@ float DearTsApplication::render_title_bar() {
         }
 
         // 最小化按钮
+        float start_x = ImGui::GetMainViewport()->Size.x -
+                       (m_title_bar_config.button_count * m_title_bar_config.button_width +
+                        (m_title_bar_config.button_count - 1) * m_title_bar_config.button_spacing +
+                        m_title_bar_config.button_right_margin);
+        ImGui::SetCursorPos(ImVec2(start_x, button_y));
         if (ImGui::Button(ICON_MINIMIZE, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
             if (m_window) {
                 SDL_MinimizeWindow(m_window);
@@ -814,9 +810,9 @@ float DearTsApplication::render_title_bar() {
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("最小化");
         }
-        ImGui::SameLine(0, m_title_bar_config.button_spacing);
 
         // 最大化/还原按钮
+        ImGui::SetCursorPos(ImVec2(start_x + m_title_bar_config.button_width + m_title_bar_config.button_spacing, button_y));
         if (ImGui::Button(m_is_maximized ? ICON_RESTORE : ICON_MAXIMIZE,
                          ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
             if (m_window) {
@@ -834,9 +830,9 @@ float DearTsApplication::render_title_bar() {
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip(m_is_maximized ? "向下还原" : "最大化");
         }
-        ImGui::SameLine(0, m_title_bar_config.button_spacing);
 
         // 关闭按钮
+        ImGui::SetCursorPos(ImVec2(start_x + (m_title_bar_config.button_width + m_title_bar_config.button_spacing) * 2, button_y));
         if (ImGui::Button(ICON_CLOSE, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
             this->request_exit(0);
         }
