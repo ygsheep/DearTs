@@ -16,6 +16,40 @@ jobs:
           find core plugins main -name '*.cpp' -o -name '*.hpp' 2>/dev/null | \
           xargs clang-format --dry-run --Werror || echo "No C++ files found or formatting check passed"
 
+  clang-tidy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-tidy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy clang-format
+
+      - name: Create .clang-tidy config
+        run: |
+          cat > .clang-tidy << 'EOF'
+          ---
+          Checks: >
+            -*,
+            cppcoreguidelines*,
+            modernize*,
+            performance*,
+            bugprone*,
+            -cppcoreguidelines-avoid-magic-numbers,
+            -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+            -cppcoreguidelines-pro-type-vararg,
+            -modernize-use-trailing-return-type,
+            -modernize-avoid-c-arrays
+          HeaderFilterRegex: '.*'
+          FormatStyle: google
+          EOF
+
+      - name: Run clang-tidy modernization check
+        run: |
+          find core plugins main -name '*.cpp' -o -name '*.hpp' 2>/dev/null | \
+            xargs clang-tidy --config-file=.clang-tidy || true
+
   cppcheck:
     runs-on: ubuntu-latest
     steps:
@@ -35,4 +69,49 @@ jobs:
         with:
           name: cppcheck-results
           path: cppcheck-results.xml
+          retention-days: 30
+
+  complexity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Python and lizard
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3 python3-pip
+          pip3 install lizard
+
+      - name: Run complexity analysis
+        run: |
+          lizard core plugins/main \
+            --lizard_limit=15 \
+            --CCN \
+            --length 50 \
+            --warnings_only \
+            > complexity-report.txt || true
+
+      - name: Display complexity summary
+        run: |
+          echo "=== 复杂度分析报告 ==="
+          cat complexity-report.txt || echo "没有发现高复杂度函数"
+          echo ""
+          echo "=== 统计信息 ==="
+          lizard core plugins/main --CCN || true
+
+      - name: Check for high complexity functions
+        run: |
+          if [ -s complexity-report.txt ]; then
+            echo "⚠️  警告: 发现高复杂度函数！"
+            echo "复杂度 > 15 的函数需要重构"
+            exit 1
+          else
+            echo "✅ 所有问题函数的复杂度都在合理范围内"
+          fi
+
+      - name: Upload complexity report
+        uses: actions/upload-artifact@v4
+        with:
+          name: complexity-report
+          path: complexity-report.txt
           retention-days: 30
