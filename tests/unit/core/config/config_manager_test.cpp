@@ -23,7 +23,7 @@ protected:
         // Clean up after each test
         ConfigManager::instance().clear();
     }
-};
+
 
 // ============================================================================
 // Basic Operations Tests
@@ -170,11 +170,11 @@ TEST_F(ConfigManagerTest, Remove_NonExistentKey_DoesNothing) {
 
 TEST_F(ConfigManagerTest, RegisterMeta_GetReturnsCorrectMeta) {
     const std::string key = "test.value";
-    ConfigMeta meta{
-        .description = "Test value",
-        .default_value = 42,
-        .is_required = false
-    };
+    ConfigMeta meta;
+        meta.description = "Test value",
+        meta.default_value = 42,
+        meta.is_required = false
+    
 
     ConfigManager::instance().register_meta(key, meta);
 
@@ -194,11 +194,11 @@ TEST_F(ConfigManagerTest, GetMeta_NonExistentKey_ReturnsError) {
 
 TEST_F(ConfigManagerTest, Get_UsesMetaDefaultValue) {
     const std::string key = "test.value";
-    ConfigMeta meta{
-        .description = "Test value",
-        .default_value = 100,
-        .is_required = false
-    };
+    ConfigMeta meta;
+        meta.description = "Test value",
+        meta.default_value = 100,
+        meta.is_required = false
+    
 
     ConfigManager::instance().register_meta(key, meta);
 
@@ -214,21 +214,20 @@ TEST_F(ConfigManagerTest, Get_UsesMetaDefaultValue) {
 
 TEST_F(ConfigManagerTest, ValidateCallback_ValidValue_Succeeds) {
     const std::string key = "test.value";
-    ConfigMeta meta{
-        .description = "Test value",
-        .default_value = 50,
-        .is_required = false,
-        .validate_callback = [](const ConfigValue& value) -> Result<void, std::string> {
-            if (std::holds_alternative<int>(value)) {
-                int int_value = std::get<int>(value);
-                if (int_value >= 0 && int_value <= 100) {
-                    return Result<void, std::string>::ok();
-                }
-                return Result<void, std::string>::err("Value must be between 0 and 100");
+    ConfigMeta meta;
+    metameta.description = "Test value";
+    metameta.default_value = 50;
+    metameta.is_required = false;
+    metameta.validate_callback = [(const ConfigValue& value) {
+        if (std::holds_alternative<int>(value)) {
+            int int_value = std::get<int>(value);
+            if (int_value >= 0 && int_value <= 100) {
+                return Result<void, std::string>::ok();
             }
-            return Result<void, std::string>::err("Value must be an integer");
+            return Result<void, std::string>::err("Value must be between 0 and 100");
         }
-    };
+        return Result<void, std::string>::err("Value must be an integer");
+    
 
     ConfigManager::instance().register_meta(key, meta);
 
@@ -239,21 +238,20 @@ TEST_F(ConfigManagerTest, ValidateCallback_ValidValue_Succeeds) {
 
 TEST_F(ConfigManagerTest, ValidateCallback_InvalidValue_Fails) {
     const std::string key = "test.value";
-    ConfigMeta meta{
-        .description = "Test value",
-        .default_value = 50,
-        .is_required = false,
-        .validate_callback = [](const ConfigValue& value) -> Result<void, std::string> {
-            if (std::holds_alternative<int>(value)) {
-                int int_value = std::get<int>(value);
-                if (int_value >= 0 && int_value <= 100) {
-                    return Result<void, std::string>::ok();
-                }
-                return Result<void, std::string>::err("Value must be between 0 and 100");
+    ConfigMeta meta;
+    metameta.description = "Test value";
+    metameta.default_value = 50;
+    metameta.is_required = false;
+    metameta.validate_callback = [(const ConfigValue& value) {
+        if (std::holds_alternative<int>(value)) {
+            int int_value = std::get<int>(value);
+            if (int_value >= 0 && int_value <= 100) {
+                return Result<void, std::string>::ok();
             }
-            return Result<void, std::string>::err("Value must be an integer");
+            return Result<void, std::string>::err("Value must be between 0 and 100");
         }
-    };
+        return Result<void, std::string>::err("Value must be an integer");
+    
 
     ConfigManager::instance().register_meta(key, meta);
 
@@ -272,15 +270,15 @@ TEST_F(ConfigManagerTest, ChangeCallback_CalledOnValueChange) {
     bool callback_called = false;
     ConfigValue new_value;
 
-    ConfigMeta meta{
-        .description = "Test value",
-        .default_value = 0,
-        .is_required = false,
-        .change_callback = [&](const ConfigValue& value) {
+    ConfigMeta meta;
+        meta.description = "Test value",
+        meta.default_value = 0,
+        meta.is_required = false,
+        meta.change_callback = [&](const ConfigValue& value) {
             callback_called = true;
             new_value = value;
         }
-    };
+    
 
     ConfigManager::instance().register_meta(key, meta);
     ConfigManager::instance().set(key, 42);

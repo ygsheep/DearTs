@@ -239,7 +239,7 @@ TEST_F(ResultTest, Equality_SameErrValues) {
 
 TEST_F(ResultTest, ComplexChain_RealWorldScenario) {
     // Simulate a real-world operation chain
-    auto parse_int = [](const std::string& str) -> Result<int, std::string> {
+    auto parse_int = [](const std::string& str) {
         try {
             return Result<int, std::string>::ok(std::stoi(str));
         } catch (...) {
@@ -247,7 +247,7 @@ TEST_F(ResultTest, ComplexChain_RealWorldScenario) {
         }
     };
 
-    auto validate_positive = [](int value) -> Result<int, std::string> {
+    auto validate_positive = [](int value) {
         if (value > 0) {
             return Result<int, std::string>::ok(value);
         } else {
@@ -255,12 +255,12 @@ TEST_F(ResultTest, ComplexChain_RealWorldScenario) {
         }
     };
 
-    auto double_value = [](int value) -> Result<int, std::string> {
+    auto double_value = [](int value) {
         return Result<int, std::string>::ok(value * 2);
     };
 
     // Test success path
-    auto result = parse_int("42")
+    auto result = parse_int(std::string("42"))
         .and_then(validate_positive)
         .and_then(double_value);
 
@@ -268,10 +268,10 @@ TEST_F(ResultTest, ComplexChain_RealWorldScenario) {
     EXPECT_EQ(result.unwrap(), 84);
 
     // Test failure path
-    auto result2 = parse_int("invalid")
+    auto result2 = parse_int(std::string("invalid"))
         .and_then(validate_positive)
         .and_then(double_value);
 
     EXPECT_TRUE(result2.isErr());
-    EXPECT_EQ(result2.error(), "Failed to parse int");
+    EXPECT_STREQ(result2.error().c_str(), "Failed to parse int");
 }
