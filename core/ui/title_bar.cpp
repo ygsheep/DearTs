@@ -46,8 +46,10 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
     const float button_size = 30.0f;
 
     // 1. 渲染自定义按钮（从左到右）
-    // 使用 AlignTextToFramePadding 确保按钮垂直居中
-    ImGui::AlignTextToFramePadding();
+    // 手动计算 Y 坐标确保按钮背景垂直居中
+    float button_y = (title_bar_height - button_size) / 2.0f;
+    ImGui::SetCursorPos(ImVec2(padding, button_y));
+
     for (const auto& btn : m_custom_buttons) {
         ImVec2 button_size_vec(button_size, button_size);
 
@@ -64,6 +66,8 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
             btn.color.z * 0.8f,
             btn.color.w
         ));
+        // 设置 FramePadding 为 0，确保按钮实际大小等于指定大小
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
         if (ImGui::Button(btn.icon, button_size_vec)) {
             if (btn.callback) {
@@ -75,6 +79,7 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
             ImGui::SetTooltip("%s", btn.tooltip);
         }
 
+        ImGui::PopStyleVar();
         ImGui::PopStyleColor(3);
 
         ImGui::SameLine(0.0f, padding);
@@ -118,9 +123,12 @@ bool TitleBar::render_button(const char* label, const ImVec2& size, const ImVec4
         color.z * 0.8f,
         color.w
     ));
+    // 设置 FramePadding 为 0，确保按钮实际大小等于指定大小
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
     bool clicked = ImGui::Button(label, size);
 
+    ImGui::PopStyleVar();
     ImGui::PopStyleColor(3);
 
     return clicked;
@@ -132,29 +140,28 @@ bool TitleBar::render_system_buttons(float window_width, float title_bar_height)
     const float button_size = 30.0f;
     const float padding = 8.0f;
 
-    // 使用 AlignTextToFramePadding 确保按钮垂直居中
-    ImGui::SetCursorPosY(0);
-    ImGui::AlignTextToFramePadding();
+    // 手动计算 Y 坐标确保按钮背景垂直居中
+    float button_y = (title_bar_height - button_size) / 2.0f;
 
     // 从右向左排列按钮
     float cursor_x = window_width - button_size - padding;
 
     // 关闭按钮（红色）
-    ImGui::SetCursorPosX(cursor_x);
+    ImGui::SetCursorPos(ImVec2(cursor_x, button_y));
     if (this->render_button("✕", ImVec2(button_size, button_size), ImVec4(0.8f, 0.2f, 0.2f, 1.0f))) {
         request_close = true;
     }
     cursor_x -= button_size + padding;
 
     // 最大化/还原按钮
-    ImGui::SetCursorPosX(cursor_x);
+    ImGui::SetCursorPos(ImVec2(cursor_x, button_y));
     if (this->render_button("□", ImVec2(button_size, button_size), ImVec4(0.5f, 0.5f, 0.5f, 1.0f))) {
         WindowControls::maximize_window();
     }
     cursor_x -= button_size + padding;
 
     // 最小化按钮
-    ImGui::SetCursorPosX(cursor_x);
+    ImGui::SetCursorPos(ImVec2(cursor_x, button_y));
     if (this->render_button("-", ImVec2(button_size, button_size), ImVec4(0.5f, 0.5f, 0.5f, 1.0f))) {
         WindowControls::minimize_window();
     }
