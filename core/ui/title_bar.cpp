@@ -46,7 +46,8 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
     const float button_size = 30.0f;
 
     // 1. 渲染自定义按钮（从左到右）
-    ImGui::SetCursorPos(ImVec2(padding, (title_bar_height - button_size) / 2));
+    // 使用 AlignTextToFramePadding 确保按钮垂直居中
+    ImGui::AlignTextToFramePadding();
     for (const auto& btn : m_custom_buttons) {
         ImVec2 button_size_vec(button_size, button_size);
 
@@ -131,25 +132,29 @@ bool TitleBar::render_system_buttons(float window_width, float title_bar_height)
     const float button_size = 30.0f;
     const float padding = 8.0f;
 
+    // 使用 AlignTextToFramePadding 确保按钮垂直居中
+    ImGui::SetCursorPosY(0);
+    ImGui::AlignTextToFramePadding();
+
     // 从右向左排列按钮
     float cursor_x = window_width - button_size - padding;
 
     // 关闭按钮（红色）
-    ImGui::SetCursorPos(ImVec2(cursor_x, (title_bar_height - button_size) / 2));
+    ImGui::SetCursorPosX(cursor_x);
     if (this->render_button("✕", ImVec2(button_size, button_size), ImVec4(0.8f, 0.2f, 0.2f, 1.0f))) {
         request_close = true;
     }
     cursor_x -= button_size + padding;
 
     // 最大化/还原按钮
-    ImGui::SetCursorPos(ImVec2(cursor_x, (title_bar_height - button_size) / 2));
+    ImGui::SetCursorPosX(cursor_x);
     if (this->render_button("□", ImVec2(button_size, button_size), ImVec4(0.5f, 0.5f, 0.5f, 1.0f))) {
         WindowControls::maximize_window();
     }
     cursor_x -= button_size + padding;
 
     // 最小化按钮
-    ImGui::SetCursorPos(ImVec2(cursor_x, (title_bar_height - button_size) / 2));
+    ImGui::SetCursorPosX(cursor_x);
     if (this->render_button("-", ImVec2(button_size, button_size), ImVec4(0.5f, 0.5f, 0.5f, 1.0f))) {
         WindowControls::minimize_window();
     }
