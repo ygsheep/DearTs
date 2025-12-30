@@ -3,6 +3,7 @@
 dearts-dev/
 .claude-skills/
 __pycache__/
+tmp/
 
 # CMake build directories
 build/

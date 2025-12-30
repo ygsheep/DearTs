@@ -125,7 +125,7 @@ void example_6_form_validation() {
     std::string username = "";
     std::string email = "invalid-email";
 
-    // 验证用户名
+    // 验证用户名 (intentionally empty for demo)
     if (username.empty()) {
         ToastManager::instance().warning(
             "验证失败",

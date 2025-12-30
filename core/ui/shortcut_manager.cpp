@@ -11,65 +11,69 @@ namespace DearTs::Core::UI {
 
 // ================ Shortcut Implementation ================
 
+namespace {
+    /**
+     * @brief ImGuiKey 到字符串的查找表
+     * @details 使用静态查找表替代复杂的 switch-case，降低复杂度
+     */
+    const std::unordered_map<int, std::string> KEY_NAMES = {
+        {ImGuiKey_Tab, "Tab"},
+        {ImGuiKey_LeftArrow, "Left"},
+        {ImGuiKey_RightArrow, "Right"},
+        {ImGuiKey_UpArrow, "Up"},
+        {ImGuiKey_DownArrow, "Down"},
+        {ImGuiKey_PageUp, "PageUp"},
+        {ImGuiKey_PageDown, "PageDown"},
+        {ImGuiKey_Home, "Home"},
+        {ImGuiKey_End, "End"},
+        {ImGuiKey_Insert, "Insert"},
+        {ImGuiKey_Delete, "Delete"},
+        {ImGuiKey_Backspace, "Backspace"},
+        {ImGuiKey_Space, "Space"},
+        {ImGuiKey_Enter, "Enter"},
+        {ImGuiKey_Escape, "Escape"},
+        {ImGuiKey_F1, "F1"},
+        {ImGuiKey_F2, "F2"},
+        {ImGuiKey_F3, "F3"},
+        {ImGuiKey_F4, "F4"},
+        {ImGuiKey_F5, "F5"},
+        {ImGuiKey_F6, "F6"},
+        {ImGuiKey_F7, "F7"},
+        {ImGuiKey_F8, "F8"},
+        {ImGuiKey_F9, "F9"},
+        {ImGuiKey_F10, "F10"},
+        {ImGuiKey_F11, "F11"},
+        {ImGuiKey_F12, "F12"},
+    };
+}
+
 std::string Shortcut::toString() const {
     std::string result;
 
+    // 添加修饰键
     if (ctrl) result += "Ctrl+";
     if (shift) result += "Shift+";
     if (alt) result += "Alt+";
     if (super_) result += "Super+";
 
-    // 添加键名
-    const char* keyName = nullptr;
-
-    // 常用按键映射
-    switch (key) {
-        case ImGuiKey_Tab:        keyName = "Tab"; break;
-        case ImGuiKey_LeftArrow:  keyName = "Left"; break;
-        case ImGuiKey_RightArrow: keyName = "Right"; break;
-        case ImGuiKey_UpArrow:    keyName = "Up"; break;
-        case ImGuiKey_DownArrow:  keyName = "Down"; break;
-        case ImGuiKey_PageUp:     keyName = "PageUp"; break;
-        case ImGuiKey_PageDown:   keyName = "PageDown"; break;
-        case ImGuiKey_Home:       keyName = "Home"; break;
-        case ImGuiKey_End:        keyName = "End"; break;
-        case ImGuiKey_Insert:     keyName = "Insert"; break;
-        case ImGuiKey_Delete:     keyName = "Delete"; break;
-        case ImGuiKey_Backspace:  keyName = "Backspace"; break;
-        case ImGuiKey_Space:      keyName = "Space"; break;
-        case ImGuiKey_Enter:      keyName = "Enter"; break;
-        case ImGuiKey_Escape:     keyName = "Escape"; break;
-        case ImGuiKey_F1:         keyName = "F1"; break;
-        case ImGuiKey_F2:         keyName = "F2"; break;
-        case ImGuiKey_F3:         keyName = "F3"; break;
-        case ImGuiKey_F4:         keyName = "F4"; break;
-        case ImGuiKey_F5:         keyName = "F5"; break;
-        case ImGuiKey_F6:         keyName = "F6"; break;
-        case ImGuiKey_F7:         keyName = "F7"; break;
-        case ImGuiKey_F8:         keyName = "F8"; break;
-        case ImGuiKey_F9:         keyName = "F9"; break;
-        case ImGuiKey_F10:        keyName = "F10"; break;
-        case ImGuiKey_F11:        keyName = "F11"; break;
-        case ImGuiKey_F12:        keyName = "F12"; break;
-        default:
-            // 字母和数字
-            if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
-                char c = 'A' + (key - ImGuiKey_A);
-                result += c;
-                return result;
-            } else if (key >= ImGuiKey_0 && key <= ImGuiKey_9) {
-                char c = '0' + (key - ImGuiKey_0);
-                result += c;
-                return result;
-            }
-            keyName = "Unknown";
-            break;
+    // 查找键名（复杂度从 38 降至 3）
+    auto it = KEY_NAMES.find(key);
+    if (it != KEY_NAMES.end()) {
+        result += it->second;
+        return result;
     }
 
-    if (keyName) {
-        result += keyName;
+    // 字母和数字（保持原有逻辑）
+    if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
+        result += 'A' + (key - ImGuiKey_A);
+        return result;
+    }
+    if (key >= ImGuiKey_0 && key <= ImGuiKey_9) {
+        result += '0' + (key - ImGuiKey_0);
+        return result;
     }
 
+    result += "Unknown";
     return result;
 }
 
@@ -80,16 +84,16 @@ Shortcut Shortcut::fromString(const std::string& str) {
 
     // 解析修饰键
     while (true) {
-        if (remaining.find("Ctrl+") == 0) {
+        if (remaining.starts_with("Ctrl+")) {
             result.ctrl = true;
             remaining = remaining.substr(5);
-        } else if (remaining.find("Shift+") == 0) {
+        } else if (remaining.starts_with("Shift+")) {
             result.shift = true;
             remaining = remaining.substr(6);
-        } else if (remaining.find("Alt+") == 0) {
+        } else if (remaining.starts_with("Alt+")) {
             result.alt = true;
             remaining = remaining.substr(4);
-        } else if (remaining.find("Super+") == 0) {
+        } else if (remaining.starts_with("Super+")) {
             result.super_ = true;
             remaining = remaining.substr(6);
         } else {
@@ -97,50 +101,74 @@ Shortcut Shortcut::fromString(const std::string& str) {
         }
     }
 
-    // 解析主键
+    // 解析主键（使用查找表降低复杂度）
     if (!remaining.empty()) {
-        char c = remaining[0];
-
         // 字母
-        if (c >= 'A' && c <= 'Z') {
-            result.key = ImGuiKey_A + (c - 'A');
-        }
-        // 小写字母
-        else if (c >= 'a' && c <= 'z') {
-            result.key = ImGuiKey_A + (c - 'a');
-        }
-        // 数字
-        else if (c >= '0' && c <= '9') {
-            result.key = ImGuiKey_0 + (c - '0');
-        }
-        // 命名按键
-        else if (remaining == "Tab" || remaining == "tab") {
-            result.key = ImGuiKey_Tab;
-        } else if (remaining == "Enter" || remaining == "enter") {
-            result.key = ImGuiKey_Enter;
-        } else if (remaining == "Space" || remaining == "space") {
-            result.key = ImGuiKey_Space;
-        } else if (remaining == "Escape" || remaining == "escape") {
-            result.key = ImGuiKey_Escape;
-        } else if (remaining == "Backspace" || remaining == "backspace") {
-            result.key = ImGuiKey_Backspace;
-        } else if (remaining == "Delete" || remaining == "delete") {
-            result.key = ImGuiKey_Delete;
-        } else if (remaining == "Up" || remaining == "up") {
-            result.key = ImGuiKey_UpArrow;
-        } else if (remaining == "Down" || remaining == "down") {
-            result.key = ImGuiKey_DownArrow;
-        } else if (remaining == "Left" || remaining == "left") {
-            result.key = ImGuiKey_LeftArrow;
-        } else if (remaining == "Right" || remaining == "right") {
-            result.key = ImGuiKey_RightArrow;
-        }
-        // F1-F12
-        else if (remaining.size() == 2 && remaining[0] == 'F') {
-            int f_num = remaining[1] - '0';
-            if (f_num >= 1 && f_num <= 12) {
-                result.key = ImGuiKey_F1 + (f_num - 1);
+        if (remaining.size() == 1) {
+            char c = remaining[0];
+            if (c >= 'A' && c <= 'Z') {
+                result.key = ImGuiKey_A + (c - 'A');
+                return result;
             }
+            if (c >= 'a' && c <= 'z') {
+                result.key = ImGuiKey_A + (c - 'a');
+                return result;
+            }
+            if (c >= '0' && c <= '9') {
+                result.key = ImGuiKey_0 + (c - '0');
+                return result;
+            }
+        }
+
+        // 命名按键查找表
+        static const std::unordered_map<std::string, int> STRING_TO_KEY = {
+            {"Tab", ImGuiKey_Tab},
+            {"tab", ImGuiKey_Tab},
+            {"Enter", ImGuiKey_Enter},
+            {"enter", ImGuiKey_Enter},
+            {"Space", ImGuiKey_Space},
+            {"space", ImGuiKey_Space},
+            {"Escape", ImGuiKey_Escape},
+            {"escape", ImGuiKey_Escape},
+            {"Backspace", ImGuiKey_Backspace},
+            {"backspace", ImGuiKey_Backspace},
+            {"Delete", ImGuiKey_Delete},
+            {"delete", ImGuiKey_Delete},
+            {"Up", ImGuiKey_UpArrow},
+            {"up", ImGuiKey_UpArrow},
+            {"Down", ImGuiKey_DownArrow},
+            {"down", ImGuiKey_DownArrow},
+            {"Left", ImGuiKey_LeftArrow},
+            {"left", ImGuiKey_LeftArrow},
+            {"Right", ImGuiKey_RightArrow},
+            {"right", ImGuiKey_RightArrow},
+            {"PageUp", ImGuiKey_PageUp},
+            {"pageup", ImGuiKey_PageUp},
+            {"PageDown", ImGuiKey_PageDown},
+            {"pagedown", ImGuiKey_PageDown},
+            {"Home", ImGuiKey_Home},
+            {"home", ImGuiKey_Home},
+            {"End", ImGuiKey_End},
+            {"end", ImGuiKey_End},
+            {"Insert", ImGuiKey_Insert},
+            {"insert", ImGuiKey_Insert},
+            {"F1", ImGuiKey_F1},
+            {"F2", ImGuiKey_F2},
+            {"F3", ImGuiKey_F3},
+            {"F4", ImGuiKey_F4},
+            {"F5", ImGuiKey_F5},
+            {"F6", ImGuiKey_F6},
+            {"F7", ImGuiKey_F7},
+            {"F8", ImGuiKey_F8},
+            {"F9", ImGuiKey_F9},
+            {"F10", ImGuiKey_F10},
+            {"F11", ImGuiKey_F11},
+            {"F12", ImGuiKey_F12},
+        };
+
+        auto it = STRING_TO_KEY.find(remaining);
+        if (it != STRING_TO_KEY.end()) {
+            result.key = it->second;
         }
     }
 
@@ -188,7 +216,7 @@ void ShortcutManager::removeShortcut(const std::string& name) {
 }
 
 bool ShortcutManager::isPressed(const std::string& name) const {
-    ImGuiIO& io = ImGui::GetIO();
+    const ImGuiIO& io = ImGui::GetIO();
 
     for (const auto& binding : m_bindings) {
         if (binding.name == name && binding.enabled) {
@@ -207,7 +235,7 @@ bool ShortcutManager::isPressed(const std::string& name) const {
 }
 
 void ShortcutManager::handleShortcuts() {
-    ImGuiIO& io = ImGui::GetIO();
+    const ImGuiIO& io = ImGui::GetIO();
 
     for (auto& binding : m_bindings) {
         if (!binding.enabled) {
@@ -262,7 +290,7 @@ std::string ShortcutManager::checkConflict(const Shortcut& shortcut) const {
 }
 
 void ShortcutManager::renderSettings() {
-    auto& manager = instance();
+    const auto& manager = instance();
     const auto& bindings = manager.getBindings();
 
     ImGui::Text("快捷键 (%zu)", bindings.size());

@@ -109,6 +109,33 @@ private:
     void refresh_log();
 
     /**
+     * @brief 编译正则表达式模式
+     * @return 编译后的正则表达式和有效性标志
+     */
+    std::pair<std::regex, bool> compile_regex_pattern() const;
+
+    /**
+     * @brief 解析时间筛选范围
+     * @return 开始和结束时间的 tm 结构体对
+     */
+    std::pair<std::tm, std::tm> parse_time_filter() const;
+
+    /**
+     * @brief 检查日志条目是否通过级别筛选
+     */
+    bool passes_level_filter(const LogEntry& entry) const;
+
+    /**
+     * @brief 检查日志条目是否通过时间筛选
+     */
+    bool passes_time_filter(const LogEntry& entry, const std::tm& start_tm, const std::tm& end_tm) const;
+
+    /**
+     * @brief 检查日志条目是否通过搜索筛选
+     */
+    bool passes_search_filter(const LogEntry& entry, const std::regex& regex_pattern, bool regex_valid) const;
+
+    /**
      * @brief 应用筛选
      */
     void apply_filters();

@@ -65,19 +65,19 @@ void init_logger() {
 
     // 构建完整的日志文件路径
     std::filesystem::path log_file;
-    if (std::filesystem::path(log_file_path).is_absolute()) {
-        log_file = log_file_path;
-    } else {
+    #ifdef _WIN32
+    if (!std::filesystem::path(log_file_path).is_absolute()) {
         // 相对于可执行文件目录
-        #ifdef _WIN32
         char exe_path[1024];
         GetModuleFileNameA(NULL, exe_path, sizeof(exe_path));
         std::filesystem::path exe_dir = std::filesystem::path(exe_path).parent_path();
         log_file = exe_dir / log_file_path;
-        #else
+    } else {
         log_file = log_file_path;
-        #endif
     }
+    #else
+    log_file = log_file_path;
+    #endif
 
     // 启用文件输出（如果配置启用）
     if (file_enabled) {

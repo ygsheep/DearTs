@@ -180,12 +180,10 @@ void LoggerViewerView::refresh_log() {
     }
 }
 
-void LoggerViewerView::apply_filters() {
-    m_filtered_indices.clear();
-
-    // 预编译正则表达式
+std::pair<std::regex, bool> LoggerViewerView::compile_regex_pattern() const {
     std::regex regex_pattern;
     bool regex_valid = false;
+
     if (m_use_regex && m_regex_buffer[0] != '\0') {
         try {
             regex_pattern = std::regex(m_regex_buffer,
@@ -196,7 +194,10 @@ void LoggerViewerView::apply_filters() {
         }
     }
 
-    // 解析时间范围
+    return {regex_pattern, regex_valid};
+}
+
+std::pair<std::tm, std::tm> LoggerViewerView::parse_time_filter() const {
     auto parse_time = [](const std::string& time_str) -> std::tm {
         std::tm tm = {};
         if (!time_str.empty()) {
@@ -212,64 +213,117 @@ void LoggerViewerView::apply_filters() {
     std::tm start_tm = parse_time(m_time_filter.start_time);
     std::tm end_tm = parse_time(m_time_filter.end_time);
 
+    return {start_tm, end_tm};
+}
+
+bool LoggerViewerView::passes_level_filter(const LogEntry& entry) const {
+    return m_level_filters[static_cast<int>(entry.level)];
+}
+
+bool LoggerViewerView::passes_time_filter(const LogEntry& entry, const std::tm& start_tm, const std::tm& end_tm) const {
+    if (!m_time_filter.enabled) {
+        return true;
+    }
+
+    // 解析条目时间
+    std::tm entry_tm = {};
+    sscanf(entry.timestamp.c_str(), "%d-%d-%d %d:%d:%d",
+        &entry_tm.tm_year, &entry_tm.tm_mon, &entry_tm.tm_mday,
+        &entry_tm.tm_hour, &entry_tm.tm_min, &entry_tm.tm_sec);
+    entry_tm.tm_year -= 1900;
+    entry_tm.tm_mon -= 1;
+
+    // 检查开始时间（需要创建非 const 副本以供 mktime 使用）
+    if (!m_time_filter.start_time.empty()) {
+        std::tm start_copy = start_tm;
+        std::tm entry_copy = entry_tm;
+        if (std::mktime(&entry_copy) < std::mktime(&start_copy)) {
+            return false;
+        }
+    }
+
+    // 检查结束时间（需要创建非 const 副本以供 mktime 使用）
+    if (!m_time_filter.end_time.empty()) {
+        std::tm end_copy = end_tm;
+        std::tm entry_copy = entry_tm;
+        if (std::mktime(&entry_copy) > std::mktime(&end_copy)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool LoggerViewerView::passes_search_filter(const LogEntry& entry, const std::regex& regex_pattern, bool regex_valid) const {
+    // 如果没有搜索条件，则通过筛选
+    if (m_search_buffer[0] == '\0' && m_regex_buffer[0] == '\0') {
+        return true;
+    }
+
+    if (m_use_regex) {
+        // 正则表达式搜索
+        if (!regex_valid || !std::regex_search(entry.message, regex_pattern)) {
+            return false;
+        }
+    } else {
+        // 普通关键词搜索
+        std::string search_str = m_search_buffer;
+        std::string message = entry.message;
+
+        if (!m_case_sensitive) {
+            // 转换为小写比较
+            std::string lower_search = search_str;
+            std::string lower_msg = message;
+
+            std::transform(lower_search.begin(), lower_search.end(), lower_search.begin(), ::tolower);
+            std::transform(lower_msg.begin(), lower_msg.end(), lower_msg.begin(), ::tolower);
+
+            if (lower_msg.find(lower_search) == std::string::npos) {
+                return false;
+            }
+        } else {
+            if (message.find(search_str) == std::string::npos) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+void LoggerViewerView::apply_filters() {
+    m_filtered_indices.clear();
+
+    // 预编译正则表达式
+    auto [regex_pattern, regex_valid] = compile_regex_pattern();
+
+    // 解析时间范围
+    auto [start_tm, end_tm] = parse_time_filter();
+
+    // 应用所有筛选条件
     for (size_t i = 0; i < m_log_entries.size(); ++i) {
         auto& entry = m_log_entries[i];
         entry.visible = true;
 
         // 级别筛选
-        if (!m_level_filters[static_cast<int>(entry.level)]) {
+        if (!passes_level_filter(entry)) {
             entry.visible = false;
+            continue;
         }
 
         // 时间筛选
-        if (entry.visible && m_time_filter.enabled) {
-            std::tm entry_tm = {};
-            sscanf(entry.timestamp.c_str(), "%d-%d-%d %d:%d:%d",
-                &entry_tm.tm_year, &entry_tm.tm_mon, &entry_tm.tm_mday,
-                &entry_tm.tm_hour, &entry_tm.tm_min, &entry_tm.tm_sec);
-            entry_tm.tm_year -= 1900;
-            entry_tm.tm_mon -= 1;
-
-            if (!m_time_filter.start_time.empty()) {
-                if (std::mktime(&entry_tm) < std::mktime(&start_tm)) {
-                    entry.visible = false;
-                }
-            }
-
-            if (!m_time_filter.end_time.empty()) {
-                if (std::mktime(&entry_tm) > std::mktime(&end_tm)) {
-                    entry.visible = false;
-                }
-            }
+        if (!passes_time_filter(entry, start_tm, end_tm)) {
+            entry.visible = false;
+            continue;
         }
 
-        // 关键词搜索
-        if (entry.visible && (m_search_buffer[0] != '\0' || m_regex_buffer[0] != '\0')) {
-            if (m_use_regex) {
-                if (regex_valid && !std::regex_search(entry.message, regex_pattern)) {
-                    entry.visible = false;
-                }
-            } else {
-                std::string search_str = m_search_buffer;
-                std::string message = entry.message;
-
-                if (!m_case_sensitive) {
-                    // 转换为小写比较
-                    std::transform(search_str.begin(), search_str.end(), search_str.begin(), ::tolower);
-                    std::string lower_msg = message;
-                    std::transform(lower_msg.begin(), lower_msg.end(), lower_msg.begin(), ::tolower);
-
-                    if (lower_msg.find(search_str) == std::string::npos) {
-                        entry.visible = false;
-                    }
-                } else {
-                    if (message.find(search_str) == std::string::npos) {
-                        entry.visible = false;
-                    }
-                }
-            }
+        // 搜索筛选
+        if (!passes_search_filter(entry, regex_pattern, regex_valid)) {
+            entry.visible = false;
+            continue;
         }
 
+        // 通过所有筛选条件
         if (entry.visible) {
             m_filtered_indices.push_back(i);
         }
@@ -308,12 +362,8 @@ void LoggerViewerView::remove_duplicates() {
         }
     }
 
-    if (m_consecutive_only) {
-        // 连续模式：保留所有，但标记重复
-        m_filtered_indices = unique_indices;
-    } else {
-        m_filtered_indices = unique_indices;
-    }
+    // Both branches do the same thing
+    m_filtered_indices = unique_indices;
 
     // 重新计数可见项
     m_filtered_indices.clear();
@@ -542,12 +592,6 @@ void LoggerViewerView::draw_log_list() {
     float level_width = 70.0f;
     float location_width = 150.0f;
     float line_number_width = 60.0f;
-    float remaining_width = ImGui::GetContentRegionAvail().x - timestamp_width - level_width
-                            - location_width - line_number_width;
-
-    if (m_show_line_numbers) {
-        remaining_width -= 50.0f;
-    }
 
     // 表头
     if (ImGui::BeginTable("LogTable", 5, ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable
@@ -949,10 +993,6 @@ void LoggerViewerView::draw_timeline_chart() {
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "暂无日志数据");
         return;
     }
-
-    // 按时间聚合数据（每分钟统计一次）
-    std::vector<double> timestamps;
-    std::vector<int> trace_data, debug_data, info_data, warn_data, error_data, fatal_data;
 
     // 使用筛选后的数据
     std::vector<std::pair<double, LogLevel>> time_level_pairs;

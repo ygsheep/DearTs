@@ -1,0 +1,819 @@
+cppcheck: unusedFunction check requires --cppcheck-build-dir to be active with -j.
+Checking core\app\application.cpp ...
+Checking core\config\config_manager.cpp ...
+Checking core\content\callbacks.cpp ...
+Checking core\content\commands.cpp ...
+core\content\commands.cpp:6:0: information: Include file: "core/content/commands.h" not found. [missingInclude]
+#include "core/content/commands.h"
+^
+core\content\callbacks.cpp:6:0: information: Include file: "core/content/callbacks.h" not found. [missingInclude]
+#include "core/content/callbacks.h"
+^
+core\config\config_manager.cpp:6:0: information: Include file: "core/config/config_manager.h" not found. [missingInclude]
+#include "core/config/config_manager.h"
+^
+Checking core\content\callbacks.cpp: _WIN32...
+Checking core\content\commands.cpp: _WIN32...
+1/34 files checked 0% done
+Checking core\content\project_manager.cpp ...
+core\content\project_manager.cpp:7:0: information: Include file: "logger.h" not found. [missingInclude]
+#include "logger.h"
+^
+Checking core\config\config_manager.cpp: _WIN32...
+2/34 files checked 1% done
+Checking core\content\settings.cpp ...
+core\content\settings.cpp:6:0: information: Include file: "core/content/settings.h" not found. [missingInclude]
+#include "core/content/settings.h"
+^
+3/34 files checked 3% done
+Checking core\content\tools.cpp ...
+core\content\tools.cpp:6:0: information: Include file: "core/content/tools.h" not found. [missingInclude]
+#include "core/content/tools.h"
+^
+Checking core\content\settings.cpp: _WIN32...
+Checking core\content\tools.cpp: _WIN32...
+4/34 files checked 3% done
+Checking core\plugin\plugin.cpp ...
+5/34 files checked 4% done
+Checking core\tasks\task_manager.cpp ...
+core\plugin\plugin.cpp:6:0: information: Include file: "core/plugin/plugin.h" not found. [missingInclude]
+#include "core/plugin/plugin.h"
+^
+core\tasks\task_manager.cpp:7:0: information: Include file: "logger.h" not found. [missingInclude]
+#include "logger.h"
+^
+core\content\project_manager.h:250:17: performance: inconclusive: Technically the member function 'DearTs::Core::ContentRegistry::ProjectManager::projectToJSON' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    std::string projectToJSON(std::shared_ptr<Project> project);
+                ^
+core\content\project_manager.cpp:251:29: note: Technically the member function 'DearTs::Core::ContentRegistry::ProjectManager::projectToJSON' can be static (but you may consider moving to unnamed namespace).
+std::string ProjectManager::projectToJSON(std::shared_ptr<Project> project) {
+                            ^
+core\content\project_manager.h:250:17: note: Technically the member function 'DearTs::Core::ContentRegistry::ProjectManager::projectToJSON' can be static (but you may consider moving to unnamed namespace).
+    std::string projectToJSON(std::shared_ptr<Project> project);
+                ^
+core\tasks\task_manager.h:237:10: performance: inconclusive: Technically the member function 'DearTs::Core::Tasks::TaskManager::start' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    void start(std::shared_ptr<Task> task);
+         ^
+core\tasks\task_manager.cpp:89:19: note: Technically the member function 'DearTs::Core::Tasks::TaskManager::start' can be static (but you may consider moving to unnamed namespace).
+void TaskManager::start(std::shared_ptr<Task> task) {
+                  ^
+core\tasks\task_manager.h:237:10: note: Technically the member function 'DearTs::Core::Tasks::TaskManager::start' can be static (but you may consider moving to unnamed namespace).
+    void start(std::shared_ptr<Task> task);
+         ^
+core\tasks\task_manager.h:242:10: performance: inconclusive: Technically the member function 'DearTs::Core::Tasks::TaskManager::cancel' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    void cancel(std::shared_ptr<Task> task);
+         ^
+core\tasks\task_manager.cpp:108:19: note: Technically the member function 'DearTs::Core::Tasks::TaskManager::cancel' can be static (but you may consider moving to unnamed namespace).
+void TaskManager::cancel(std::shared_ptr<Task> task) {
+                  ^
+core\tasks\task_manager.h:242:10: note: Technically the member function 'DearTs::Core::Tasks::TaskManager::cancel' can be static (but you may consider moving to unnamed namespace).
+    void cancel(std::shared_ptr<Task> task);
+         ^
+6/34 files checked 8% done
+Checking core\ui\command_palette.cpp ...
+core\tasks\task_manager.cpp:123:26: style: Consider using std::copy_if algorithm instead of a raw loop. [useStlAlgorithm]
+            running_tasks.push_back(task);
+                         ^
+7/34 files checked 10% done
+Checking core\ui\icon_font.cpp ...
+core\ui\command_palette.cpp:6:0: information: Include file: "core/ui/command_palette.h" not found. [missingInclude]
+#include "core/ui/command_palette.h"
+^
+Checking core\plugin\plugin.cpp: _WIN32...
+8/34 files checked 12% done
+Checking core\ui\imgui_extensions.cpp ...
+Checking core\ui\command_palette.cpp: _WIN32...
+core\ui\icon_font.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 21 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+core\app\application.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 147 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+9/34 files checked 14% done
+Checking core\ui\imgui_layer.cpp ...
+core\ui\imgui_extensions.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 20 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+core\app\application.h:12:0: information: Include file: "logger.h" not found. [missingInclude]
+#include "logger.h"
+^
+core\ui\imgui_layer.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 163 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+core\app\application.h:78:22: style: Virtual function 'shutdown' is called from destructor '~Application()' at line 42. Dynamic binding is not used. [virtualCallInConstructor]
+        virtual void shutdown();
+                     ^
+core\app\application.cpp:42:9: note: Calling shutdown
+        shutdown();
+        ^
+core\app\application.h:78:22: note: shutdown is a virtual function
+        virtual void shutdown();
+                     ^
+core\content\registry_base.h:30:5: style: Class 'UnlocalizedString' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    UnlocalizedString(const char* string)
+    ^
+Checking core\app\application.cpp: ANDROID;__ANDROID__...
+Checking core\app\application.cpp: ANDROID;assert...
+Checking core\app\application.cpp: DEBUG;_DEBUG;__GNUC__;__OPTIMIZE__...
+core\ui\icon_font.cpp:68:5: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+    for (const char* path : possible_paths) {
+    ^
+Checking core\ui\imgui_extensions.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+Checking core\ui\icon_font.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+Checking core\app\application.cpp: DLL_EXPORT;SDL_PLATFORM_WINDOWS...
+Checking core\app\application.cpp: FLT_EPSILON...
+Checking core\ui\imgui_layer.cpp: ANDROID;__ANDROID__...
+Checking core\app\application.cpp: HAS_BROKEN_BSWAP=0;__i386__...
+Checking core\ui\imgui_extensions.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking core\ui\icon_font.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking core\app\application.cpp: HAVE_ALLOCA_H...
+Checking core\app\application.cpp: HAVE_SIGNAL_H;__WATCOMC__...
+Checking core\app\application.cpp: HAVE_STRLCAT;strlcat;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking core\app\application.cpp: HAVE_STRLCPY;strlcpy;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking core\ui\imgui_extensions.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+Checking core\ui\icon_font.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+Checking core\app\application.cpp: HAVE_STRTOK_R;strtok_r;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking core\ui\imgui_layer.cpp: ANDROID;assert...
+Checking core\ui\imgui_layer.cpp: DEBUG;_DEBUG;__GNUC__;__OPTIMIZE__...
+lib\liblogger\logger.h:56:14: error: syntax error: 1 = [syntaxError]
+    TRACE = 0,    ///< 详细跟踪信息
+             ^
+Checking core\ui\imgui_layer.cpp: DLL_EXPORT;SDL_PLATFORM_WINDOWS...
+10/34 files checked 17% done
+Checking core\ui\layout_manager.cpp ...
+core\ui\layout_manager.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 20 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+core\ui\layout_manager.cpp:7:0: information: Include file: "logger.h" not found. [missingInclude]
+#include "logger.h"
+^
+Checking core\ui\imgui_extensions.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+Checking core\ui\icon_font.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+core\ui\layout_manager.h:54:31: performance: inconclusive: Technically the member function 'DearTs::Core::UI::LayoutManager::saveToString' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    [[nodiscard]] std::string saveToString() const;
+                              ^
+core\ui\layout_manager.cpp:66:28: note: Technically the member function 'DearTs::Core::UI::LayoutManager::saveToString' can be static (but you may consider moving to unnamed namespace).
+std::string LayoutManager::saveToString() const {
+                           ^
+core\ui\layout_manager.h:54:31: note: Technically the member function 'DearTs::Core::UI::LayoutManager::saveToString' can be static (but you may consider moving to unnamed namespace).
+    [[nodiscard]] std::string saveToString() const;
+                              ^
+core\ui\layout_manager.h:61:10: performance: inconclusive: Technically the member function 'DearTs::Core::UI::LayoutManager::loadFromString' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    bool loadFromString(const std::string& content);
+         ^
+core\ui\layout_manager.cpp:72:21: note: Technically the member function 'DearTs::Core::UI::LayoutManager::loadFromString' can be static (but you may consider moving to unnamed namespace).
+bool LayoutManager::loadFromString(const std::string& content) {
+                    ^
+core\ui\layout_manager.h:61:10: note: Technically the member function 'DearTs::Core::UI::LayoutManager::loadFromString' can be static (but you may consider moving to unnamed namespace).
+    bool loadFromString(const std::string& content);
+         ^
+core\ui\layout_manager.h:82:10: performance: inconclusive: Technically the member function 'DearTs::Core::UI::LayoutManager::closeAllViews' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    void closeAllViews();
+         ^
+core\ui\layout_manager.cpp:125:21: note: Technically the member function 'DearTs::Core::UI::LayoutManager::closeAllViews' can be static (but you may consider moving to unnamed namespace).
+void LayoutManager::closeAllViews() {
+                    ^
+core\ui\layout_manager.h:82:10: note: Technically the member function 'DearTs::Core::UI::LayoutManager::closeAllViews' can be static (but you may consider moving to unnamed namespace).
+    void closeAllViews();
+         ^
+core\ui\layout_manager.h:87:44: performance: inconclusive: Technically the member function 'DearTs::Core::UI::LayoutManager::getSavedLayouts' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    [[nodiscard]] std::vector<std::string> getSavedLayouts() const;
+                                           ^
+core\ui\layout_manager.cpp:131:41: note: Technically the member function 'DearTs::Core::UI::LayoutManager::getSavedLayouts' can be static (but you may consider moving to unnamed namespace).
+std::vector<std::string> LayoutManager::getSavedLayouts() const {
+                                        ^
+core\ui\layout_manager.h:87:44: note: Technically the member function 'DearTs::Core::UI::LayoutManager::getSavedLayouts' can be static (but you may consider moving to unnamed namespace).
+    [[nodiscard]] std::vector<std::string> getSavedLayouts() const;
+                                           ^
+core\ui\layout_manager.h:93:10: performance: inconclusive: Technically the member function 'DearTs::Core::UI::LayoutManager::deleteLayout' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    bool deleteLayout(const std::string& name);
+         ^
+core\ui\layout_manager.cpp:139:21: note: Technically the member function 'DearTs::Core::UI::LayoutManager::deleteLayout' can be static (but you may consider moving to unnamed namespace).
+bool LayoutManager::deleteLayout(const std::string& name) {
+                    ^
+core\ui\layout_manager.h:93:10: note: Technically the member function 'DearTs::Core::UI::LayoutManager::deleteLayout' can be static (but you may consider moving to unnamed namespace).
+    bool deleteLayout(const std::string& name);
+         ^
+core\ui\layout_manager.h:129:31: performance: inconclusive: Technically the member function 'DearTs::Core::UI::LayoutManager::getDefaultLayoutPath' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    [[nodiscard]] std::string getDefaultLayoutPath() const;
+                              ^
+core\ui\layout_manager.cpp:153:28: note: Technically the member function 'DearTs::Core::UI::LayoutManager::getDefaultLayoutPath' can be static (but you may consider moving to unnamed namespace).
+std::string LayoutManager::getDefaultLayoutPath() const {
+                           ^
+core\ui\layout_manager.h:129:31: note: Technically the member function 'DearTs::Core::UI::LayoutManager::getDefaultLayoutPath' can be static (but you may consider moving to unnamed namespace).
+    [[nodiscard]] std::string getDefaultLayoutPath() const;
+                              ^
+core\ui\layout_manager.h:134:10: performance: inconclusive: Technically the member function 'DearTs::Core::UI::LayoutManager::applyLayout' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    void applyLayout();
+         ^
+core\ui\layout_manager.cpp:157:21: note: Technically the member function 'DearTs::Core::UI::LayoutManager::applyLayout' can be static (but you may consider moving to unnamed namespace).
+void LayoutManager::applyLayout() {
+                    ^
+core\ui\layout_manager.h:134:10: note: Technically the member function 'DearTs::Core::UI::LayoutManager::applyLayout' can be static (but you may consider moving to unnamed namespace).
+    void applyLayout();
+         ^
+Checking core\ui\layout_manager.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+Checking core\ui\imgui_layer.cpp: FLT_EPSILON...
+Checking core\ui\imgui_extensions.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking core\ui\icon_font.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking core\ui\layout_manager.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking core\ui\imgui_extensions.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking core\ui\icon_font.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking core\ui\layout_manager.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+Checking core\ui\imgui_layer.cpp: HAS_BROKEN_BSWAP=0;__i386__...
+Checking core\ui\imgui_extensions.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+Checking core\ui\icon_font.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+Checking core\ui\layout_manager.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+Checking core\ui\imgui_extensions.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking core\ui\icon_font.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking core\ui\imgui_layer.cpp: HAVE_ALLOCA_H...
+Checking core\ui\layout_manager.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking core\ui\imgui_extensions.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking core\ui\icon_font.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking core\ui\layout_manager.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking core\ui\imgui_layer.cpp: HAVE_SIGNAL_H;__WATCOMC__...
+Checking core\ui\imgui_extensions.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking core\ui\icon_font.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking core\ui\layout_manager.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+Checking core\ui\imgui_extensions.cpp: IMGUI_USE_WCHAR32...
+Checking core\ui\icon_font.cpp: IMGUI_USE_WCHAR32...
+Checking core\ui\imgui_layer.cpp: HAVE_STRLCAT;strlcat;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking core\ui\layout_manager.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+11/34 files checked 18% done
+Checking core\ui\shortcut_manager.cpp ...
+core\ui\shortcut_manager.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 20 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+core\ui\shortcut_manager.cpp:7:0: information: Include file: "logger.h" not found. [missingInclude]
+#include "logger.h"
+^
+12/34 files checked 19% done
+Checking core\ui\task_widget.cpp ...
+core\ui\task_widget.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 20 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+core\ui\task_widget.cpp:7:0: information: Include file: "logger.h" not found. [missingInclude]
+#include "logger.h"
+^
+core\ui\shortcut_manager.cpp:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+Checking core\ui\layout_manager.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking core\ui\imgui_layer.cpp: HAVE_STRLCPY;strlcpy;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+core\ui\task_widget.cpp:13:11: style: Variable 'task_manager' can be declared as reference to const [constVariableReference]
+    auto& task_manager = Tasks::TaskManager::instance();
+          ^
+core\ui\task_widget.cpp:64:11: style: Variable 'task_manager' can be declared as reference to const [constVariableReference]
+    auto& task_manager = Tasks::TaskManager::instance();
+          ^
+core\ui\task_widget.cpp:83:15: style: Variable 'task' can be declared as reference to const [constVariableReference]
+        auto& task = running_tasks[0];
+              ^
+core\ui\task_widget.cpp:43:16: style: Variable 'pos' is assigned a value that is never used. [unreadVariable]
+    ImVec2 pos = ImGui::GetCursorPos();
+               ^
+Checking core\ui\task_widget.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+Checking core\ui\layout_manager.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+core\ui\shortcut_manager.h:38:5: style: Struct 'Shortcut' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    Shortcut(int k, bool c = false, bool s = false, bool a = false, bool sup = false)
+    ^
+core\ui\shortcut_manager.cpp:191:14: style: Variable 'io' can be declared as reference to const [constVariableReference]
+    ImGuiIO& io = ImGui::GetIO();
+             ^
+core\ui\shortcut_manager.cpp:210:14: style: Variable 'io' can be declared as reference to const [constVariableReference]
+    ImGuiIO& io = ImGui::GetIO();
+             ^
+core\ui\shortcut_manager.cpp:265:11: style: Variable 'manager' can be declared as reference to const [constVariableReference]
+    auto& manager = instance();
+          ^
+core\ui\shortcut_manager.cpp:194:54: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (binding.name == name && binding.enabled) {
+                                                     ^
+core\ui\shortcut_manager.cpp:247:35: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (binding.name == name) {
+                                  ^
+core\ui\shortcut_manager.cpp:257:43: style: Consider using std::find_if algorithm instead of a raw loop. [useStlAlgorithm]
+        if (binding.shortcut == shortcut) {
+                                          ^
+Checking core\ui\shortcut_manager.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+Checking core\ui\imgui_layer.cpp: HAVE_STRTOK_R;strtok_r;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking core\ui\task_widget.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking core\ui\layout_manager.cpp: IMGUI_USE_WCHAR32...
+Checking core\ui\task_widget.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+13/34 files checked 20% done
+Checking core\ui\theme_manager.cpp ...
+core\ui\theme_manager.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 20 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+core\ui\theme_manager.cpp:7:0: information: Include file: "logger.h" not found. [missingInclude]
+#include "logger.h"
+^
+14/34 files checked 22% done
+Checking core\ui\title_bar.cpp ...
+Checking core\ui\shortcut_manager.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+core\ui\title_bar.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 162 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+core\ui\title_bar.cpp:7:0: information: Include file: "logger.h" not found. [missingInclude]
+#include "logger.h"
+^
+Checking core\ui\task_widget.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+core\ui\theme_manager.h:70:10: performance: inconclusive: Technically the member function 'DearTs::Core::UI::ThemeManager::loadTheme' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    bool loadTheme(const std::string& json_path);
+         ^
+core\ui\theme_manager.cpp:71:20: note: Technically the member function 'DearTs::Core::UI::ThemeManager::loadTheme' can be static (but you may consider moving to unnamed namespace).
+bool ThemeManager::loadTheme(const std::string& json_path) {
+                   ^
+core\ui\theme_manager.h:70:10: note: Technically the member function 'DearTs::Core::UI::ThemeManager::loadTheme' can be static (but you may consider moving to unnamed namespace).
+    bool loadTheme(const std::string& json_path);
+         ^
+core\ui\theme_manager.h:77:10: performance: inconclusive: Technically the member function 'DearTs::Core::UI::ThemeManager::saveTheme' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    bool saveTheme(const std::string& json_path) const;
+         ^
+core\ui\theme_manager.cpp:78:20: note: Technically the member function 'DearTs::Core::UI::ThemeManager::saveTheme' can be static (but you may consider moving to unnamed namespace).
+bool ThemeManager::saveTheme(const std::string& json_path) const {
+                   ^
+core\ui\theme_manager.h:77:10: note: Technically the member function 'DearTs::Core::UI::ThemeManager::saveTheme' can be static (but you may consider moving to unnamed namespace).
+    bool saveTheme(const std::string& json_path) const;
+         ^
+core\ui\theme_manager.cpp:367:16: style: Variable 'callback' can be declared as reference to const [constVariableReference]
+    for (auto& callback : m_theme_changed_callbacks) {
+               ^
+Checking core\ui\theme_manager.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+core\ui\title_bar.h:95:10: performance: inconclusive: Technically the member function 'DearTs::Core::UI::TitleBar::render_button' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    bool render_button(const char* label, const ImVec2& size, const ImVec4& color = ImVec4(0, 0, 0, 0));
+         ^
+core\ui\title_bar.cpp:106:16: note: Technically the member function 'DearTs::Core::UI::TitleBar::render_button' can be static (but you may consider moving to unnamed namespace).
+bool TitleBar::render_button(const char* label, const ImVec2& size, const ImVec4& color) {
+               ^
+core\ui\title_bar.h:95:10: note: Technically the member function 'DearTs::Core::UI::TitleBar::render_button' can be static (but you may consider moving to unnamed namespace).
+    bool render_button(const char* label, const ImVec2& size, const ImVec4& color = ImVec4(0, 0, 0, 0));
+         ^
+Checking core\ui\title_bar.cpp: ANDROID;__ANDROID__...
+Checking core\ui\task_widget.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking core\ui\theme_manager.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking core\ui\shortcut_manager.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+Checking core\ui\task_widget.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking core\ui\theme_manager.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+Checking core\ui\title_bar.cpp: ANDROID;assert...
+Checking core\ui\title_bar.cpp: DEBUG;_DEBUG;__GNUC__;__OPTIMIZE__...
+Checking core\ui\task_widget.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+Checking core\ui\shortcut_manager.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+Checking core\ui\theme_manager.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+Checking core\ui\task_widget.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking core\ui\title_bar.cpp: DLL_EXPORT;SDL_PLATFORM_WINDOWS...
+Checking core\ui\theme_manager.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking core\ui\shortcut_manager.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking core\ui\task_widget.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking core\ui\theme_manager.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking core\ui\title_bar.cpp: FLT_EPSILON...
+Checking core\ui\task_widget.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking core\ui\shortcut_manager.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking core\ui\theme_manager.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+Checking core\ui\task_widget.cpp: IMGUI_USE_WCHAR32...
+Checking core\ui\title_bar.cpp: HAS_BROKEN_BSWAP=0;__i386__...
+15/34 files checked 23% done
+Checking core\ui\view.cpp ...
+core\ui\view.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 21 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+Checking core\ui\theme_manager.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking core\ui\shortcut_manager.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+core\ui\view.h:118:24: style: inconclusive: Technically the member function 'DearTs::Core::UI::View::did_window_just_open' can be const. [functionConst]
+    [[nodiscard]] bool did_window_just_open();
+                       ^
+core\ui\view.cpp:52:12: note: Technically the member function 'DearTs::Core::UI::View::did_window_just_open' can be const.
+bool View::did_window_just_open() {
+           ^
+core\ui\view.h:118:24: note: Technically the member function 'DearTs::Core::UI::View::did_window_just_open' can be const.
+    [[nodiscard]] bool did_window_just_open();
+                       ^
+core\ui\view.h:123:24: style: inconclusive: Technically the member function 'DearTs::Core::UI::View::did_window_just_close' can be const. [functionConst]
+    [[nodiscard]] bool did_window_just_close();
+                       ^
+core\ui\view.cpp:56:12: note: Technically the member function 'DearTs::Core::UI::View::did_window_just_close' can be const.
+bool View::did_window_just_close() {
+           ^
+core\ui\view.h:123:24: note: Technically the member function 'DearTs::Core::UI::View::did_window_just_close' can be const.
+    [[nodiscard]] bool did_window_just_close();
+                       ^
+core\ui\view.h:128:10: performance: inconclusive: Technically the member function 'DearTs::Core::UI::View::bring_to_front' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    void bring_to_front();
+         ^
+core\ui\view.cpp:60:12: note: Technically the member function 'DearTs::Core::UI::View::bring_to_front' can be static (but you may consider moving to unnamed namespace).
+void View::bring_to_front() {
+           ^
+core\ui\view.h:128:10: note: Technically the member function 'DearTs::Core::UI::View::bring_to_front' can be static (but you may consider moving to unnamed namespace).
+    void bring_to_front();
+         ^
+Checking core\ui\title_bar.cpp: HAVE_ALLOCA_H...
+Checking core\ui\view.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+Checking core\ui\theme_manager.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking core\ui\view.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking core\ui\theme_manager.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking core\ui\shortcut_manager.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking core\ui\title_bar.cpp: HAVE_SIGNAL_H;__WATCOMC__...
+Checking core\ui\theme_manager.cpp: IMGUI_USE_WCHAR32...
+Checking core\ui\view.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+Checking core\ui\shortcut_manager.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking core\ui\title_bar.cpp: HAVE_STRLCAT;strlcat;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking core\ui\view.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+16/34 files checked 30% done
+Checking core\ui\view_manager.cpp ...
+core\ui\view_manager.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 20 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+core\ui\view_manager.cpp:8:0: information: Include file: "logger.h" not found. [missingInclude]
+#include "logger.h"
+^
+core\ui\view_manager.h:104:10: performance: inconclusive: Technically the member function 'DearTs::Core::UI::ViewManager::handleViewDocking' can be static (but you may consider moving to unnamed namespace). [functionStatic]
+    void handleViewDocking(View* view);
+         ^
+core\ui\view_manager.cpp:91:19: note: Technically the member function 'DearTs::Core::UI::ViewManager::handleViewDocking' can be static (but you may consider moving to unnamed namespace).
+void ViewManager::handleViewDocking(View* view) {
+                  ^
+core\ui\view_manager.h:104:10: note: Technically the member function 'DearTs::Core::UI::ViewManager::handleViewDocking' can be static (but you may consider moving to unnamed namespace).
+    void handleViewDocking(View* view);
+         ^
+Checking core\ui\view.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking core\ui\view_manager.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+Checking core\ui\title_bar.cpp: HAVE_STRLCPY;strlcpy;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking core\ui\shortcut_manager.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking core\ui\view_manager.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking core\ui\view.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking core\ui\title_bar.cpp: HAVE_STRTOK_R;strtok_r;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking core\ui\view_manager.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+Checking core\ui\shortcut_manager.cpp: IMGUI_USE_WCHAR32...
+Checking core\ui\view.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+17/34 files checked 33% done
+Checking core\utils\file_dialog.cpp ...
+core\utils\file_dialog.hpp:17:0: information: Include file: "core/result.h" not found. [missingInclude]
+#include "core/result.h"
+^
+core\utils\file_dialog.hpp:18:0: information: Include file: "core/tasks/task_manager.h" not found. [missingInclude]
+#include "core/tasks/task_manager.h"
+^
+core\utils\file_dialog.cpp:9:0: information: Include file: "core/tasks/task_manager.h" not found. [missingInclude]
+#include "core/tasks/task_manager.h"
+^
+core\utils\file_dialog.cpp:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+core\utils\file_dialog.cpp:55:5: style: Class 'ComPtr < IFileOpenDialog >' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    ComPtr(T* ptr) : m_ptr(ptr) {}
+    ^
+core\utils\file_dialog.cpp:55:5: style: Class 'ComPtr < IShellItem >' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    ComPtr(T* ptr) : m_ptr(ptr) {}
+    ^
+core\utils\file_dialog.cpp:55:5: style: Class 'ComPtr < IShellItemArray >' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    ComPtr(T* ptr) : m_ptr(ptr) {}
+    ^
+core\utils\file_dialog.cpp:55:5: style: Class 'ComPtr < IFileSaveDialog >' has a constructor with 1 argument that is not explicit. [noExplicitConstructor]
+    ComPtr(T* ptr) : m_ptr(ptr) {}
+    ^
+Checking core\utils\file_dialog.cpp: _WIN32...
+18/34 files checked 42% done
+Checking plugins\builtin\source\builtin_plugin.cpp ...
+plugins\builtin\source\builtin_plugin.cpp:7:0: information: Include file: "builtin_plugin.hpp" not found. [missingInclude]
+#include "builtin_plugin.hpp"
+^
+plugins\builtin\source\builtin_plugin.cpp:8:0: information: Include file: "views/hello_world_view.hpp" not found. [missingInclude]
+#include "views/hello_world_view.hpp"
+^
+plugins\builtin\source\builtin_plugin.cpp:9:0: information: Include file: "views/data_inspector_view.hpp" not found. [missingInclude]
+#include "views/data_inspector_view.hpp"
+^
+plugins\builtin\source\builtin_plugin.cpp:10:0: information: Include file: "core/ui/view.h" not found. [missingInclude]
+#include "core/ui/view.h"
+^
+plugins\builtin\source\builtin_plugin.cpp:11:0: information: Include file: "core/content/registry_base.h" not found. [missingInclude]
+#include "core/content/registry_base.h"
+^
+Checking core\ui\view_manager.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+Checking plugins\builtin\source\builtin_plugin.cpp: _WIN32...
+19/34 files checked 43% done
+Checking plugins\logger_viewer\source\logger_viewer_plugin.cpp ...
+plugins\logger_viewer\source\logger_viewer_plugin.cpp:6:0: information: Include file: "logger_viewer_plugin.hpp" not found. [missingInclude]
+#include "logger_viewer_plugin.hpp"
+^
+plugins\logger_viewer\source\logger_viewer_plugin.cpp:7:0: information: Include file: "views/logger_viewer_view.hpp" not found. [missingInclude]
+#include "views/logger_viewer_view.hpp"
+^
+plugins\logger_viewer\source\logger_viewer_plugin.cpp:8:0: information: Include file: "core/ui/view.h" not found. [missingInclude]
+#include "core/ui/view.h"
+^
+plugins\logger_viewer\source\logger_viewer_plugin.cpp:9:0: information: Include file: "core/content/registry_base.h" not found. [missingInclude]
+#include "core/content/registry_base.h"
+^
+Checking plugins\logger_viewer\source\logger_viewer_plugin.cpp: _WIN32...
+20/34 files checked 43% done
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp ...
+Checking core\ui\view.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+plugins\logger_viewer\source\logger_viewer_view.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 21 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+plugins\logger_viewer\source\logger_viewer_view.cpp:6:0: information: Include file: "views/logger_viewer_view.hpp" not found. [missingInclude]
+#include "views/logger_viewer_view.hpp"
+^
+plugins\logger_viewer\source\logger_viewer_view.cpp:8:0: information: Include file: "core/utils/file_dialog.hpp" not found. [missingInclude]
+#include "core/utils/file_dialog.hpp"
+^
+plugins\logger_viewer\source\logger_viewer_view.cpp:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+21/34 files checked 47% done
+Checking plugins\navigation\source\navigation_plugin.cpp ...
+plugins\navigation\source\navigation_plugin.cpp:6:0: information: Include file: "navigation_plugin.hpp" not found. [missingInclude]
+#include "navigation_plugin.hpp"
+^
+plugins\navigation\source\navigation_plugin.cpp:7:0: information: Include file: "views/sidebar_view.hpp" not found. [missingInclude]
+#include "views/sidebar_view.hpp"
+^
+plugins\navigation\source\navigation_plugin.cpp:8:0: information: Include file: "core/ui/view.h" not found. [missingInclude]
+#include "core/ui/view.h"
+^
+plugins\navigation\source\navigation_plugin.cpp:9:0: information: Include file: "core/content/registry_base.h" not found. [missingInclude]
+#include "core/content/registry_base.h"
+^
+Checking plugins\navigation\source\navigation_plugin.cpp: _WIN32...
+22/34 files checked 47% done
+Checking plugins\navigation\source\sidebar_view.cpp ...
+plugins\navigation\source\sidebar_view.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 21 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+plugins\navigation\source\sidebar_view.cpp:6:0: information: Include file: "views/sidebar_view.hpp" not found. [missingInclude]
+#include "views/sidebar_view.hpp"
+^
+plugins\navigation\source\sidebar_view.cpp:7:0: information: Include file: "core/ui/view.h" not found. [missingInclude]
+#include "core/ui/view.h"
+^
+plugins\navigation\source\sidebar_view.cpp:8:0: information: Include file: "core/ui/icon_font.hpp" not found. [missingInclude]
+#include "core/ui/icon_font.hpp"
+^
+plugins\navigation\source\sidebar_view.cpp:9:0: information: Include file: "core/content/registry_base.h" not found. [missingInclude]
+#include "core/content/registry_base.h"
+^
+Checking core\ui\view_manager.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking core\ui\view.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+plugins\logger_viewer\source\logger_viewer_view.cpp:537:11: style: The scope of the variable 'timestamp_width' can be reduced. [variableScope]
+    float timestamp_width = 140.0f;
+          ^
+plugins\logger_viewer\source\logger_viewer_view.cpp:538:11: style: The scope of the variable 'level_width' can be reduced. [variableScope]
+    float level_width = 70.0f;
+          ^
+plugins\logger_viewer\source\logger_viewer_view.cpp:539:11: style: The scope of the variable 'location_width' can be reduced. [variableScope]
+    float location_width = 150.0f;
+          ^
+plugins\logger_viewer\source\logger_viewer_view.cpp:540:11: style: The scope of the variable 'line_number_width' can be reduced. [variableScope]
+    float line_number_width = 60.0f;
+          ^
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+plugins\navigation\source\sidebar_view.cpp:239:23: style: Variable 'cursor_pos' is assigned a value that is never used. [unreadVariable]
+    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
+                      ^
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+Checking core\ui\view.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking core\ui\view_manager.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking core\ui\view.cpp: IMGUI_USE_WCHAR32...
+Checking core\ui\view_manager.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+23/34 files checked 49% done
+Checking plugins\settings\source\settings_plugin.cpp ...
+plugins\settings\source\settings_plugin.cpp:7:0: information: Include file: "settings_plugin.hpp" not found. [missingInclude]
+#include "settings_plugin.hpp"
+^
+plugins\settings\source\settings_plugin.cpp:8:0: information: Include file: "views/settings_view.hpp" not found. [missingInclude]
+#include "views/settings_view.hpp"
+^
+plugins\settings\source\settings_plugin.cpp:9:0: information: Include file: "core/ui/view.h" not found. [missingInclude]
+#include "core/ui/view.h"
+^
+plugins\settings\source\settings_plugin.cpp:10:0: information: Include file: "core/content/registry_base.h" not found. [missingInclude]
+#include "core/content/registry_base.h"
+^
+Checking plugins\settings\source\settings_plugin.cpp: _WIN32...
+24/34 files checked 50% done
+Checking plugins\settings\source\settings_view.cpp ...
+plugins\settings\source\settings_view.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 21 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+plugins\settings\source\settings_view.cpp:6:0: information: Include file: "views/settings_view.hpp" not found. [missingInclude]
+#include "views/settings_view.hpp"
+^
+plugins\settings\source\settings_view.cpp:7:0: information: Include file: "core/config/config_manager.h" not found. [missingInclude]
+#include "core/config/config_manager.h"
+^
+plugins\settings\source\settings_view.cpp:8:0: information: Include file: "core/ui/theme_manager.h" not found. [missingInclude]
+#include "core/ui/theme_manager.h"
+^
+plugins\settings\source\settings_view.cpp:9:0: information: Include file: "toast_manager.hpp" not found. [missingInclude]
+#include "toast_manager.hpp"
+^
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+Checking core\ui\view_manager.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+plugins\settings\source\settings_view.cpp:455:42: style: C-style pointer casting [cstyleCast]
+    ImGui::ColorEdit4("颜色选择器", (float*)&preview_color);
+                                         ^
+plugins\settings\source\settings_view.cpp:688:53: style: Consider using std::any_of algorithm instead of a raw loop. [useStlAlgorithm]
+        if (key.starts_with("toast_notification.")) {
+                                                    ^
+Checking core\ui\view_manager.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+Checking plugins\settings\source\settings_view.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+Checking core\ui\view_manager.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking plugins\settings\source\settings_view.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking core\ui\view_manager.cpp: IMGUI_USE_WCHAR32...
+Checking plugins\settings\source\settings_view.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+25/34 files checked 51% done
+Checking plugins\toast_notification\examples.cpp ...
+plugins\toast_notification\examples.cpp:7:0: information: Include file: "plugins/toast/toast_manager.hpp" not found. [missingInclude]
+#include "plugins/toast/toast_manager.hpp"
+^
+plugins\toast_notification\examples.cpp:129:23: style: Condition 'username.empty()' is always true [knownConditionTrueFalse]
+    if (username.empty()) {
+                      ^
+26/34 files checked 54% done
+Checking plugins\toast_notification\source\toast_manager.cpp ...
+plugins\toast_notification\source\toast_manager.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 20 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+plugins\toast_notification\source\toast_manager.cpp:6:0: information: Include file: "toast_manager.hpp" not found. [missingInclude]
+#include "toast_manager.hpp"
+^
+plugins\toast_notification\source\toast_manager.cpp:7:0: information: Include file: "core/ui/icon_font.hpp" not found. [missingInclude]
+#include "core/ui/icon_font.hpp"
+^
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+Checking plugins\settings\source\settings_view.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+plugins\toast_notification\source\toast_manager.cpp:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking plugins\settings\source\settings_view.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking plugins\settings\source\settings_view.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking plugins\settings\source\settings_view.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking plugins\navigation\source\sidebar_view.cpp: IMGUI_USE_WCHAR32...
+Checking plugins\settings\source\settings_view.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+Checking plugins\logger_viewer\source\logger_viewer_view.cpp: IMGUI_USE_WCHAR32...
+27/34 files checked 57% done
+Checking plugins\toast_notification\source\toast_plugin.cpp ...
+plugins\toast_notification\source\toast_plugin.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 21 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+plugins\toast_notification\source\toast_plugin.cpp:6:0: information: Include file: "toast_plugin.hpp" not found. [missingInclude]
+#include "toast_plugin.hpp"
+^
+plugins\toast_notification\source\toast_plugin.cpp:7:0: information: Include file: "toast_manager.hpp" not found. [missingInclude]
+#include "toast_manager.hpp"
+^
+plugins\toast_notification\source\toast_plugin.cpp:8:0: information: Include file: "toast_view.hpp" not found. [missingInclude]
+#include "toast_view.hpp"
+^
+plugins\toast_notification\source\toast_plugin.cpp:9:0: information: Include file: "core/content/commands.h" not found. [missingInclude]
+#include "core/content/commands.h"
+^
+Checking plugins\settings\source\settings_view.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+28/34 files checked 69% done
+Checking lib\liblogger\logger.cpp ...
+Checking lib\liblogger\logger.cpp: _WIN32...
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_DEBUG_PARANOID;_MSC_VER;__INTEL_COMPILER;__clang__...
+29/34 files checked 71% done
+Checking main\gui\source\dearts_application.cpp ...
+main\gui\source\dearts_application.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 163 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+main\gui\source\dearts_application.cpp:6:0: information: Include file: "dearts_application.hpp" not found. [missingInclude]
+#include "dearts_application.hpp"
+^
+main\gui\source\dearts_application.cpp:7:0: information: Include file: "toast_manager.hpp" not found. [missingInclude]
+#include "toast_manager.hpp"
+^
+main\gui\source\dearts_application.cpp:8:0: information: Include file: "toast_plugin.hpp" not found. [missingInclude]
+#include "toast_plugin.hpp"
+^
+main\gui\source\dearts_application.cpp:9:0: information: Include file: "builtin_plugin.hpp" not found. [missingInclude]
+#include "builtin_plugin.hpp"
+^
+main\gui\source\dearts_application.cpp:10:0: information: Include file: "core/content/callbacks.h" not found. [missingInclude]
+#include "core/content/callbacks.h"
+^
+main\gui\source\dearts_application.cpp:11:0: information: Include file: "core/content/commands.h" not found. [missingInclude]
+#include "core/content/commands.h"
+^
+main\gui\source\dearts_application.cpp:13:0: information: Include file: "logger_viewer_plugin.hpp" not found. [missingInclude]
+#include "logger_viewer_plugin.hpp"
+^
+main\gui\source\dearts_application.cpp:14:0: information: Include file: "navigation_plugin.hpp" not found. [missingInclude]
+#include "navigation_plugin.hpp"
+^
+main\gui\source\dearts_application.cpp:15:0: information: Include file: "settings_plugin.hpp" not found. [missingInclude]
+#include "settings_plugin.hpp"
+^
+Checking plugins\settings\source\settings_view.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+main\gui\source\dearts_application.cpp:0:0: information: Limiting analysis of branches. Use --check-level=exhaustive to analyze all branches. [normalCheckLevelMaxBranches]
+
+^
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_DEFINE_MATH_OPERATORS...
+Checking plugins\settings\source\settings_view.cpp: IMGUI_USE_WCHAR32...
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking main\gui\source\dearts_application.cpp: ANDROID;__ANDROID__...
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_DISABLE_DEBUG_TOOLS...
+30/34 files checked 81% done
+Checking main\gui\source\main.cpp ...
+main\gui\source\main.cpp:0:0: information: Too many #ifdef configurations - cppcheck only checks 12 of 143 configurations. Use --force to check all configurations. [toomanyconfigs]
+
+^
+main\gui\include\dearts_application.hpp:12:0: information: Include file: "core/app/application.h" not found. [missingInclude]
+#include "core/app/application.h"
+^
+main\gui\include\dearts_application.hpp:13:0: information: Include file: "core/ui/theme_manager.h" not found. [missingInclude]
+#include "core/ui/theme_manager.h"
+^
+main\gui\include\dearts_application.hpp:14:0: information: Include file: "core/ui/shortcut_manager.h" not found. [missingInclude]
+#include "core/ui/shortcut_manager.h"
+^
+main\gui\include\dearts_application.hpp:15:0: information: Include file: "core/ui/command_palette.h" not found. [missingInclude]
+#include "core/ui/command_palette.h"
+^
+main\gui\include\dearts_application.hpp:16:0: information: Include file: "core/ui/title_bar.h" not found. [missingInclude]
+#include "core/ui/title_bar.h"
+^
+main\gui\include\dearts_application.hpp:17:0: information: Include file: "core/ui/view_manager.h" not found. [missingInclude]
+#include "core/ui/view_manager.h"
+^
+main\gui\include\dearts_application.hpp:18:0: information: Include file: "core/ui/icon_font.hpp" not found. [missingInclude]
+#include "core/ui/icon_font.hpp"
+^
+main\gui\include\dearts_application.hpp:19:0: information: Include file: "core/ui/task_widget.h" not found. [missingInclude]
+#include "core/ui/task_widget.h"
+^
+main\gui\include\dearts_application.hpp:20:0: information: Include file: "core/tasks/task_manager.h" not found. [missingInclude]
+#include "core/tasks/task_manager.h"
+^
+main\gui\include\dearts_application.hpp:21:0: information: Include file: "core/plugin/plugin.h" not found. [missingInclude]
+#include "core/plugin/plugin.h"
+^
+main\gui\include\dearts_application.hpp:22:0: information: Include file: "core/config/config_manager.h" not found. [missingInclude]
+#include "core/config/config_manager.h"
+^
+main\gui\source\main.cpp:9:0: information: Include file: "core/config/config_manager.h" not found. [missingInclude]
+#include "core/config/config_manager.h"
+^
+Checking main\gui\source\main.cpp: ANDROID;__ANDROID__...
+Checking main\gui\source\main.cpp: DLL_EXPORT;SDL_PLATFORM_WINDOWS...
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking main\gui\source\main.cpp: FLT_EPSILON...
+Checking main\gui\source\main.cpp: HAS_BROKEN_BSWAP=0;__i386__...
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS...
+Checking main\gui\source\main.cpp: HAVE_ALLOCA_H...
+Checking main\gui\source\main.cpp: HAVE_STRLCAT;strlcat;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking main\gui\source\main.cpp: HAVE_STRLCPY;strlcpy;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking main\gui\source\main.cpp: HAVE_STRTOK_R;strtok_r;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking main\gui\source\dearts_application.cpp: ANDROID;assert...
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking main\gui\source\dearts_application.cpp: DEBUG;_DEBUG;__GNUC__;__OPTIMIZE__...
+Checking main\gui\source\main.cpp: HAVE_WCSLCAT;wcslcat;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking main\gui\source\dearts_application.cpp: DLL_EXPORT;SDL_PLATFORM_WINDOWS...
+Checking main\gui\source\main.cpp: HAVE_WCSLCPY;wcslcpy;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking main\gui\source\main.cpp: INT64_C...
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_DISABLE_OBSOLETE_FUNCTIONS;ImTextureID...
+31/34 files checked 82% done
+Checking plugins\toast_notification\source\toast_manager.cpp: IMGUI_USE_WCHAR32...
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_INCLUDE_IMGUI_USER_H...
+Checking main\gui\source\dearts_application.cpp: FLT_EPSILON...
+32/34 files checked 87% done
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_OVERRIDE_DRAWVERT_STRUCT_LAYOUT...
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_USE_BGRA_PACKED_COLOR...
+Checking main\gui\source\dearts_application.cpp: HAS_BROKEN_BSWAP=0;__i386__...
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_USE_STB_SPRINTF;__GNUC__;__clang__...
+Checking main\gui\source\dearts_application.cpp: HAVE_ALLOCA_H...
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_USE_STB_SPRINTF;__MINGW32__;__clang__...
+Checking plugins\toast_notification\source\toast_plugin.cpp: IMGUI_USE_WCHAR32...
+Checking main\gui\source\dearts_application.cpp: HAVE_SIGNAL_H;__WATCOMC__...
+33/34 files checked 89% done
+Checking main\gui\source\dearts_application.cpp: HAVE_STRLCAT;strlcat;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking main\gui\source\dearts_application.cpp: HAVE_STRLCPY;strlcpy;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+Checking main\gui\source\dearts_application.cpp: HAVE_STRTOK_R;strtok_r;SDL_DISABLE_ANALYZE_MACROS;__clang_analyzer__...
+34/34 files checked 100% done
+nofile:0:0: information: Active checkers: There was critical errors (use --checkers-report=<filename> to see details) [checkersReport]
+

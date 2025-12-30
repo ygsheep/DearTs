@@ -107,167 +107,44 @@ void DearTsApplication::on_update(double delta_time) {
 }
 
 void DearTsApplication::on_render() {
-    // 清空渲染器
+    // 1. 清空渲染器
     if (m_renderer) {
         SDL_SetRenderDrawColor(m_renderer, 30, 30, 30, 255);
         SDL_RenderClear(m_renderer);
     }
 
-    // ImGui NewFrame
+    // 2. ImGui NewFrame
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    // 处理快捷键
+    // 3. 处理快捷键
     if (m_command_palette && m_command_palette->check_shortcut()) {
         m_command_palette->toggle();
     }
     Core::UI::ShortcutManager::instance().handleShortcuts();
 
-    // 渲染自定义标题栏
-    float title_bar_height = 0.0f;
-    if (m_title_bar.is_borderless()) {
-        // 使用配置设置 MenuBar 的内边距
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-            ImVec2(m_title_bar_config.frame_padding_x, m_title_bar_config.frame_padding_y));
+    // 4. 渲染自定义标题栏（返回标题栏高度）
+    float title_bar_height = render_title_bar();
 
-        if (ImGui::BeginMainMenuBar()) {
-            // 获取实际的 MenuBar 高度（在设置 FramePadding 之后）
-            title_bar_height = ImGui::GetFrameHeight();
+    // 5. 创建和渲染 DockSpace
+    render_dock_space(title_bar_height);
 
-            // 绘制自定义标题栏内容
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 5));
+    // 6. 渲染所有视图
+    render_views();
 
-            // 左侧：窗口标题（使用图标字体渲染图标部分）
-            ImGui::SetCursorPosX(m_title_bar_config.title_left_margin);
-
-            // 使用图标字体渲染图标
-            if (Core::UI::IconFont::isLoaded()) {
-                ImGui::PushFont(Core::UI::IconFont::getFont());
-                ImGui::TextColored(ImVec4(0.3f, 0.6f, 0.9f, 1.0f), "%s", ICON_TOOLS "  ");
-                ImGui::PopFont();
-                // 继续使用中文字体渲染文本
-                ImGui::SameLine(0, 0);
-                ImGui::TextColored(ImVec4(0.3f, 0.6f, 0.9f, 1.0f), "DearTs 工具箱");
-            } else {
-                // 图标字体未加载，使用纯文本
-                ImGui::TextColored(ImVec4(0.3f, 0.6f, 0.9f, 1.0f), "🧰 DearTs 工具箱");
-            }
-
-            // 右侧：控制按钮
-            float start_x = ImGui::GetMainViewport()->Size.x -
-                           (m_title_bar_config.button_count * m_title_bar_config.button_width +
-                            (m_title_bar_config.button_count - 1) * m_title_bar_config.button_spacing +
-                            m_title_bar_config.button_right_margin);
-            ImGui::SameLine(start_x);
-
-            // 使用图标字体（如果已加载）
-            if (Core::UI::IconFont::isLoaded()) {
-                ImGui::PushFont(Core::UI::IconFont::getFont());
-            }
-
-            // 设置按钮
-            if (ImGui::Button(ICON_SETTINGS, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
-                LOG_INFO("Settings button clicked");
-                // 切换设置窗口
-                auto* settings_view = Core::ContentRegistry::Views::get_by_name(
-                    Core::ContentRegistry::UnlocalizedString("Settings")
-                );
-                if (settings_view != nullptr) {
-                    bool& is_open = settings_view->get_window_open_state();
-                    is_open = !is_open;
-                    LOG_INFO("Settings window {}", is_open ? "opened" : "closed");
-                } else {
-                    LOG_WARN("Settings view not found!");
-                }
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("设置");
-            }
-            ImGui::SameLine(0, m_title_bar_config.button_spacing);
-
-            // 关于按钮
-            if (ImGui::Button(ICON_INFO, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
-                LOG_INFO("About button clicked");
-                m_show_about_window = !m_show_about_window;
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("关于");
-            }
-            ImGui::SameLine(0, m_title_bar_config.button_spacing);
-
-            // 关闭按钮
-            if (ImGui::Button(ICON_CLOSE, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
-                this->request_exit(0);
-            }
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("关闭");
-            }
-
-            // 恢复原来的字体
-            if (Core::UI::IconFont::isLoaded()) {
-                ImGui::PopFont();
-            }
-
-            ImGui::PopStyleVar(); // ItemSpacing
-
-            ImGui::EndMainMenuBar();
-        }
-        ImGui::PopStyleVar(); // FramePadding
-    }
-
-    // 创建 DockSpace
-    ImGuiViewport* viewport = ImGui::GetMainViewport();
-    float menuBarHeight = m_title_bar.is_borderless() ? title_bar_height : 0.0f;
-
-    ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + menuBarHeight));
-    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, viewport->Size.y - menuBarHeight));
-    ImGui::SetNextWindowViewport(viewport->ID);
-
-    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDocking |
-                                   ImGuiWindowFlags_NoTitleBar |
-                                   ImGuiWindowFlags_NoCollapse |
-                                   ImGuiWindowFlags_NoResize |
-                                   ImGuiWindowFlags_NoMove |
-                                   ImGuiWindowFlags_NoBackground |
-                                   ImGuiWindowFlags_NoNavFocus;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    ImGui::Begin("DockSpace", nullptr, window_flags);
-    ImGui::PopStyleVar(3);
-
-    ImGui::DockSpace(ImGui::GetID("MainDockSpace"));
-    ImGui::End();
-
-    // 渲染所有视图（从 ContentRegistry::Views）
-    for (auto& [name, view] : Core::ContentRegistry::Views::get_all()) {
-        // 跟踪窗口状态
-        view->track_window_state();
-
-        if (view->should_draw()) {
-            view->draw();
-        }
-    }
-
-    // 渲染菜单栏
+    // 7. 渲染其他组件
     render_menu_bar();
-
-    // 渲染主窗口
     render_main_window();
-
-    // 渲染工具窗口
     render_tool_windows();
 
-    // 渲染 Toast 通知（必须在 ImGui::Render 之前）
+    // 8. 渲染 Toast 通知
     DearTs::Plugins::Toast::ToastManager::instance().render();
 
-    // 渲染 ImGui
+    // 9. 渲染 ImGui
     ImGui::Render();
-
     ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_renderer);
 
-    // 多视口支持
+    // 10. 多视口支持
     if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
@@ -873,4 +750,142 @@ void DearTsApplication::render_tool_windows() {
     }
 }
 
+float DearTsApplication::render_title_bar() {
+    float title_bar_height = 0.0f;
+
+    if (!m_title_bar.is_borderless()) {
+        return title_bar_height;
+    }
+
+    // 使用配置设置 MenuBar 的内边距
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+        ImVec2(m_title_bar_config.frame_padding_x, m_title_bar_config.frame_padding_y));
+
+    if (ImGui::BeginMainMenuBar()) {
+        // 获取实际的 MenuBar 高度（在设置 FramePadding 之后）
+        title_bar_height = ImGui::GetFrameHeight();
+
+        // 绘制自定义标题栏内容
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2, 5));
+
+        // 左侧：窗口标题（使用图标字体渲染图标部分）
+        ImGui::SetCursorPosX(m_title_bar_config.title_left_margin);
+
+        // 使用图标字体渲染图标
+        if (Core::UI::IconFont::isLoaded()) {
+            ImGui::PushFont(Core::UI::IconFont::getFont());
+            ImGui::TextColored(ImVec4(0.3f, 0.6f, 0.9f, 1.0f), "%s", ICON_TOOLS "  ");
+            ImGui::PopFont();
+            // 继续使用中文字体渲染文本
+            ImGui::SameLine(0, 0);
+            ImGui::TextColored(ImVec4(0.3f, 0.6f, 0.9f, 1.0f), "DearTs 工具箱");
+        } else {
+            // 图标字体未加载，使用纯文本
+            ImGui::TextColored(ImVec4(0.3f, 0.6f, 0.9f, 1.0f), "🧰 DearTs 工具箱");
+        }
+
+        // 右侧：控制按钮
+        float start_x = ImGui::GetMainViewport()->Size.x -
+                       (m_title_bar_config.button_count * m_title_bar_config.button_width +
+                        (m_title_bar_config.button_count - 1) * m_title_bar_config.button_spacing +
+                        m_title_bar_config.button_right_margin);
+        ImGui::SameLine(start_x);
+
+        // 使用图标字体（如果已加载）
+        if (Core::UI::IconFont::isLoaded()) {
+            ImGui::PushFont(Core::UI::IconFont::getFont());
+        }
+
+        // 设置按钮
+        if (ImGui::Button(ICON_SETTINGS, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
+            LOG_INFO("Settings button clicked");
+            // 切换设置窗口
+            auto* settings_view = Core::ContentRegistry::Views::get_by_name(
+                Core::ContentRegistry::UnlocalizedString("Settings")
+            );
+            if (settings_view != nullptr) {
+                bool& is_open = settings_view->get_window_open_state();
+                is_open = !is_open;
+                LOG_INFO("Settings window {}", is_open ? "opened" : "closed");
+            } else {
+                LOG_WARN("Settings view not found!");
+            }
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("设置");
+        }
+        ImGui::SameLine(0, m_title_bar_config.button_spacing);
+
+        // 关于按钮
+        if (ImGui::Button(ICON_INFO, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
+            LOG_INFO("About button clicked");
+            m_show_about_window = !m_show_about_window;
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("关于");
+        }
+        ImGui::SameLine(0, m_title_bar_config.button_spacing);
+
+        // 关闭按钮
+        if (ImGui::Button(ICON_CLOSE, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
+            this->request_exit(0);
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("关闭");
+        }
+
+        // 恢复原来的字体
+        if (Core::UI::IconFont::isLoaded()) {
+            ImGui::PopFont();
+        }
+
+        ImGui::PopStyleVar(); // ItemSpacing
+
+        ImGui::EndMainMenuBar();
+    }
+    ImGui::PopStyleVar(); // FramePadding
+
+    return title_bar_height;
+}
+
+void DearTsApplication::render_dock_space(float title_bar_height) {
+    // 创建 DockSpace
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    float menuBarHeight = m_title_bar.is_borderless() ? title_bar_height : 0.0f;
+
+    ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y + menuBarHeight));
+    ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, viewport->Size.y - menuBarHeight));
+    ImGui::SetNextWindowViewport(viewport->ID);
+
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDocking |
+                                   ImGuiWindowFlags_NoTitleBar |
+                                   ImGuiWindowFlags_NoCollapse |
+                                   ImGuiWindowFlags_NoResize |
+                                   ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoBackground |
+                                   ImGuiWindowFlags_NoNavFocus;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::Begin("DockSpace", nullptr, window_flags);
+    ImGui::PopStyleVar(3);
+
+    ImGui::DockSpace(ImGui::GetID("MainDockSpace"));
+    ImGui::End();
+}
+
+void DearTsApplication::render_views() {
+    // 渲染所有视图（从 ContentRegistry::Views）
+    for (auto& [name, view] : Core::ContentRegistry::Views::get_all()) {
+        // 跟踪窗口状态
+        view->track_window_state();
+
+        if (view->should_draw()) {
+            view->draw();
+        }
+    }
+}
+
 } // namespace DearTs::Main::GUI
+

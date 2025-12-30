@@ -364,7 +364,7 @@ void ThemeManager::applyClassicTheme() {
 }
 
 void ThemeManager::notifyThemeChanged() {
-    for (auto& callback : m_theme_changed_callbacks) {
+    for (const auto& callback : m_theme_changed_callbacks) {
         callback(m_current_theme);
     }
 }

@@ -591,7 +591,6 @@ std::shared_ptr<DearTs::Core::Tasks::Task> read_file_async(
                 // 分块读取（每块 4MB）
                 const size_t chunk_size = 4 * 1024 * 1024;
                 size_t bytes_read = 0;
-                size_t total_chunks = (result.file_size + chunk_size - 1) / chunk_size;
 
                 while (bytes_read < result.file_size && !should_cancel) {
                     size_t bytes_to_read = std::min(chunk_size, result.file_size - bytes_read);

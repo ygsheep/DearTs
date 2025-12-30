@@ -10,6 +10,12 @@
 #include <string>
 #include <vector>
 
+// 前向声明
+namespace DearTs::Plugins::Settings {
+class ToastSettingsWidget;
+class ThemeSettingsWidget;
+}
+
 namespace DearTs::Plugins::Settings {
 
 /**
@@ -146,6 +152,10 @@ private:
     float m_window_scale = 1.0f;         ///< 窗口缩放比例
     bool m_needs_restart = false;        ///< 是否需要重启应用
     bool m_font_changed = false;         ///< 字体是否已更改
+
+    // 设置组件
+    std::unique_ptr<ToastSettingsWidget> m_toast_widget;    ///< Toast 设置组件
+    std::unique_ptr<ThemeSettingsWidget> m_theme_widget;    ///< 主题设置组件
 };
 
 } // namespace DearTs::Plugins::Settings

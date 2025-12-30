@@ -306,7 +306,6 @@ std::string ProjectManager::projectToJSON(std::shared_ptr<Project> project) {
 std::shared_ptr<Project> ProjectManager::projectFromJSON(const std::string& json_str) {
     // 简单的 JSON 解析（生产环境应使用专门的 JSON 库）
     ProjectMetadata metadata;
-    std::vector<ProjectFile> files;
 
     // 提取元数据
     size_t pos = 0;

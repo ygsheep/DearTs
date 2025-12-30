@@ -32,9 +32,11 @@ int ToastManager::show(
     ToastMessage toast(title, message, type, duration);
     toast.id = generate_id();
 
+    // Save id before moving
+    int toast_id = toast.id;
     m_toasts.push_back(std::move(toast));
 
-    return toast.id;
+    return toast_id;
 }
 
 int ToastManager::info(const std::string& title, const std::string& message) {

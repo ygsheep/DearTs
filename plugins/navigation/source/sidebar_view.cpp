@@ -236,7 +236,6 @@ void SidebarView::draw_view_item(UI::View* view) {
     }
 
     // 在 Selectable 上面绘制内容
-    ImVec2 cursor_pos = ImGui::GetCursorScreenPos();
     ImVec2 item_min = ImGui::GetItemRectMin();
     ImVec2 item_max = ImGui::GetItemRectMax();
     float item_height_actual = item_max.y - item_min.y;

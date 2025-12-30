@@ -15,8 +15,12 @@ add_executable(${PROJECT_NAME}
     # Settings 插件
     ${CMAKE_SOURCE_DIR}/plugins/settings/include/settings_plugin.hpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/include/views/settings_view.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/theme_settings_widget.hpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_plugin.cpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_view.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/source/toast_settings_widget.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/source/toast_settings_widget.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/theme_settings_widget.cpp
     # LoggerViewer 插件
     ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/logger_viewer_plugin.hpp
     ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/views/logger_viewer_view.hpp

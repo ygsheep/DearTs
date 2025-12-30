@@ -10,7 +10,7 @@
 namespace DearTs::Core::UI {
 
 void TaskWidget::render() {
-    auto& task_manager = Tasks::TaskManager::instance();
+    const auto& task_manager = Tasks::TaskManager::instance();
     auto running_tasks = task_manager.getRunningTasks();
 
     if (running_tasks.empty()) {
@@ -40,7 +40,6 @@ void TaskWidget::renderTask(const std::shared_ptr<Tasks::Task>& task) {
 
     // 状态标签
     ImGui::SameLine();
-    ImVec2 pos = ImGui::GetCursorPos();
     ImGui::PushStyleColor(ImGuiCol_Text, getStatusColor(task->getStatus()));
     ImGui::Text("[%s]", getStatusText(task->getStatus()));
     ImGui::PopStyleColor();
@@ -61,7 +60,7 @@ void TaskWidget::renderTask(const std::shared_ptr<Tasks::Task>& task) {
 }
 
 void TaskWidget::renderCompact() {
-    auto& task_manager = Tasks::TaskManager::instance();
+    const auto& task_manager = Tasks::TaskManager::instance();
     size_t running_count = task_manager.getRunningTaskCount();
 
     if (running_count == 0) {
@@ -80,7 +79,7 @@ void TaskWidget::renderCompact() {
     // 显示进度
     auto running_tasks = task_manager.getRunningTasks();
     if (!running_tasks.empty()) {
-        auto& task = running_tasks[0];
+        const auto& task = running_tasks[0];
         float progress = task->getProgressPercent();
         ImGui::SameLine(0, 10);
         ImGui::Text("[%.0f%%]", progress * 100);

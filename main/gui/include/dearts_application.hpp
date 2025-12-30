@@ -144,6 +144,23 @@ private:
      */
     void render_tool_windows();
 
+    /**
+     * @brief 渲染自定义标题栏
+     * @return 标题栏高度
+     */
+    float render_title_bar();
+
+    /**
+     * @brief 创建和渲染 DockSpace
+     * @param title_bar_height 标题栏高度
+     */
+    void render_dock_space(float title_bar_height);
+
+    /**
+     * @brief 渲染所有视图
+     */
+    void render_views();
+
 private:
     // ImGui 相关
     ImGuiContext* m_imgui_context = nullptr;

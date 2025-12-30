@@ -4,6 +4,8 @@
  */
 
 #include "views/settings_view.hpp"
+#include "toast_settings_widget.hpp"
+#include "widgets/theme_settings_widget.hpp"
 #include "core/config/config_manager.h"
 #include "core/ui/theme_manager.h"
 #include "toast_manager.hpp"
@@ -14,7 +16,9 @@
 namespace DearTs::Plugins::Settings {
 
 SettingsView::SettingsView()
-    : ViewWindow("设置") {
+    : ViewWindow("设置")
+    , m_toast_widget(std::make_unique<ToastSettingsWidget>())
+    , m_theme_widget(std::make_unique<ThemeSettingsWidget>()) {
 }
 
 void SettingsView::draw_content() {
@@ -279,411 +283,13 @@ void SettingsView::draw_window_settings() {
 }
 
 void SettingsView::draw_theme_settings() {
-    ImGui::Text("主题配置");
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    auto& theme_manager = Core::UI::ThemeManager::instance();
-    auto& config = Core::Config::ConfigManager::instance();
-    Core::UI::Theme current_theme = theme_manager.getCurrentTheme();
-
-    // ==================== 字体和窗口设置（放在前面） ====================
-    ImGui::Text("字体和窗口设置");
-    ImGui::Separator();
-
-    // 字体大小
-    float font_size = static_cast<float>(config.get_or<double>("dearts.font.size", 16.0));
-
-    ImGui::Text("字体大小: %.1f px", font_size);
-    if (ImGui::SliderFloat("##font_size", &font_size, 12.0f, 24.0f, "%.1f px")) {
-        // 字体大小已修改
-        config.set("dearts.font.size", static_cast<double>(font_size));
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "dearts.font.size") == m_modified_keys.end()) {
-            m_modified_keys.push_back("dearts.font.size");
-        }
-        m_needs_restart = true;
-    }
-
-    // 窗口缩放
-    float window_scale = static_cast<float>(config.get_or<double>("dearts.window.scale", 1.0));
-
-    ImGui::Text("窗口缩放: %.0f%%", window_scale * 100.0f);
-    if (ImGui::SliderFloat("##window_scale", &window_scale, 0.5f, 2.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
-        // 窗口缩放已修改
-        config.set("dearts.window.scale", static_cast<double>(window_scale));
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "dearts.window.scale") == m_modified_keys.end()) {
-            m_modified_keys.push_back("dearts.window.scale");
-        }
-        m_needs_restart = true;
-    }
-
-    // 预设按钮
-    ImGui::Spacing();
-    ImGui::Text("快速预设:");
-
-    if (ImGui::Button("小号 (14px)")) {
-        config.set("dearts.font.size", 14.0);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "dearts.font.size") == m_modified_keys.end()) {
-            m_modified_keys.push_back("dearts.font.size");
-        }
-        m_needs_restart = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("标准 (16px)")) {
-        config.set("dearts.font.size", 16.0);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "dearts.font.size") == m_modified_keys.end()) {
-            m_modified_keys.push_back("dearts.font.size");
-        }
-        m_needs_restart = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("大号 (18px)")) {
-        config.set("dearts.font.size", 18.0);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "dearts.font.size") == m_modified_keys.end()) {
-            m_modified_keys.push_back("dearts.font.size");
-        }
-        m_needs_restart = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("超大 (20px)")) {
-        config.set("dearts.font.size", 20.0);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "dearts.font.size") == m_modified_keys.end()) {
-            m_modified_keys.push_back("dearts.font.size");
-        }
-        m_needs_restart = true;
-    }
-
-    // 重启提示
-    ImGui::Spacing();
-    if (m_needs_restart) {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.0f, 1.0f));
-        ImGui::TextWrapped("⚠ 字体或缩放已更改，需重启应用生效！");
-        ImGui::PopStyleColor();
-
-        if (ImGui::Button("保存并重启")) {
-            save_config();
-            LOG_INFO("用户请求重启以应用字体/缩放更改");
-            ImGui::Text("配置已保存，请重启应用");
-        }
-    } else {
-        ImGui::TextDisabled("ℹ 字体和缩放更改需重启生效");
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // ==================== 主题选择 ====================
-    ImGui::Text("主题选择");
-    ImGui::Text("当前主题: %s", Core::UI::ThemeManager::getThemeName(current_theme));
-    ImGui::Spacing();
-
-    // 暗色主题
-    if (current_theme == Core::UI::Theme::Dark) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.2f, 1.0f));
-    }
-    if (ImGui::Button("暗色主题", ImVec2(120, 0))) {
-        theme_manager.setTheme(Core::UI::Theme::Dark);
-        theme_manager.applyImGuiStyle();
-        LOG_INFO("Theme changed to Dark");
-    }
-    if (current_theme == Core::UI::Theme::Dark) {
-        ImGui::PopStyleColor();
-    }
-    ImGui::SameLine();
-
-    // 亮色主题
-    if (current_theme == Core::UI::Theme::Light) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.2f, 1.0f));
-    }
-    if (ImGui::Button("亮色主题", ImVec2(120, 0))) {
-        theme_manager.setTheme(Core::UI::Theme::Light);
-        theme_manager.applyImGuiStyle();
-        LOG_INFO("Theme changed to Light");
-    }
-    if (current_theme == Core::UI::Theme::Light) {
-        ImGui::PopStyleColor();
-    }
-    ImGui::SameLine();
-
-    // 经典主题
-    if (current_theme == Core::UI::Theme::Classic) {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.6f, 0.2f, 1.0f));
-    }
-    if (ImGui::Button("经典主题", ImVec2(120, 0))) {
-        theme_manager.setTheme(Core::UI::Theme::Classic);
-        theme_manager.applyImGuiStyle();
-        LOG_INFO("Theme changed to Classic");
-    }
-    if (current_theme == Core::UI::Theme::Classic) {
-        ImGui::PopStyleColor();
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // 快捷键提示
-    ImGui::Text("快捷键:");
-    ImGui::BulletText("Ctrl+Alt+1 - 暗色主题");
-    ImGui::BulletText("Ctrl+Alt+2 - 亮色主题");
-
-    ImGui::Spacing();
-
-    // 主题预览区域
-    ImGui::Text("预览:");
-    ImGui::Separator();
-
-    // 显示一些 UI 元素预览当前主题
-    ImGui::Text("普通文本");
-    ImGui::TextColored(ImVec4(0.3f, 0.6f, 0.9f, 1.0f), "彩色文本");
-    ImGui::Checkbox("示例复选框", &m_show_confirm_reset);
-    if (ImGui::Button("示例按钮")) {
-        LOG_INFO("Theme preview button clicked");
-    }
-
-    // 滑块示例
-    static float preview_value = 50.0f;
-    ImGui::SliderFloat("示例滑块", &preview_value, 0.0f, 100.0f);
-
-    // 进度条示例
-    ImGui::Text("进度条:");
-    ImGui::ProgressBar(0.75f, ImVec2(-1, 0), "75%");
-
-    // 颜色编辑器示例
-    static ImVec4 preview_color = ImVec4(0.3f, 0.6f, 0.9f, 1.0f);
-    ImGui::ColorEdit4("颜色选择器", (float*)&preview_color);
+    // 使用 ThemeSettingsWidget 组件渲染
+    m_theme_widget->render();
 }
 
 void SettingsView::draw_toast_settings() {
-    ImGui::Text("气泡消息配置");
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    auto& config = Core::Config::ConfigManager::instance();
-
-    // Slider 最小/最大值常量（MSVC 不支持复合字面量）
-    const double min_duration = 0.1;
-    const double max_duration = 1.0;
-    const double min_width = 200.0;
-    const double max_width_val = 600.0;
-    const double min_padding = 10.0;
-    const double max_padding_x = 40.0;
-    const double max_padding_y = 30.0;
-    const double min_spacing = 4.0;
-    const double max_spacing = 20.0;
-
-    // ==================== 动画设置 ====================
-    ImGui::Text("动画设置");
-    ImGui::Separator();
-
-    // 进入动画时长
-    double enter_duration = config.get_or<double>("toast_notification.enter_duration", 0.5);
-    double original_enter = enter_duration;
-
-    ImGui::Text("进入动画时长: %.2f 秒", enter_duration);
-    if (ImGui::SliderScalar("##enter_duration", ImGuiDataType_Double, &enter_duration, &min_duration, &max_duration, "%.2f 秒")) {
-        config.set("toast_notification.enter_duration", enter_duration);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.enter_duration") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.enter_duration");
-        }
-    }
-
-    // 退出动画时长
-    double exit_duration = config.get_or<double>("toast_notification.exit_duration", 0.3);
-    double original_exit = exit_duration;
-
-    ImGui::Text("退出动画时长: %.2f 秒", exit_duration);
-    if (ImGui::SliderScalar("##exit_duration", ImGuiDataType_Double, &exit_duration, &min_duration, &max_duration, "%.2f 秒")) {
-        config.set("toast_notification.exit_duration", exit_duration);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.exit_duration") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.exit_duration");
-        }
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // ==================== 布局设置 ====================
-    ImGui::Text("布局设置");
-    ImGui::Separator();
-
-    // 最大宽度
-    double max_width = config.get_or<double>("toast_notification.max_width", 400.0);
-    double original_max_width = max_width;
-
-    ImGui::Text("最大宽度: %.0f px", max_width);
-    if (ImGui::SliderScalar("##max_width", ImGuiDataType_Double, &max_width, &min_width, &max_width_val, "%.0f px")) {
-        config.set("toast_notification.max_width", max_width);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.max_width") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.max_width");
-        }
-    }
-
-    // 水平内边距
-    double padding_x = config.get_or<double>("toast_notification.padding_x", 20.0);
-    double original_padding_x = padding_x;
-
-    ImGui::Text("水平内边距: %.0f px", padding_x);
-    if (ImGui::SliderScalar("##padding_x", ImGuiDataType_Double, &padding_x, &min_padding, &max_padding_x, "%.0f px")) {
-        config.set("toast_notification.padding_x", padding_x);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.padding_x") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.padding_x");
-        }
-    }
-
-    // 垂直内边距
-    double padding_y = config.get_or<double>("toast_notification.padding_y", 16.0);
-    double original_padding_y = padding_y;
-
-    ImGui::Text("垂直内边距: %.0f px", padding_y);
-    if (ImGui::SliderScalar("##padding_y", ImGuiDataType_Double, &padding_y, &min_padding, &max_padding_y, "%.0f px")) {
-        config.set("toast_notification.padding_y", padding_y);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.padding_y") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.padding_y");
-        }
-    }
-
-    // Toast 间距
-    double spacing = config.get_or<double>("toast_notification.spacing", 8.0);
-    double original_spacing = spacing;
-
-    ImGui::Text("Toast 间距: %.0f px", spacing);
-    if (ImGui::SliderScalar("##spacing", ImGuiDataType_Double, &spacing, &min_spacing, &max_spacing, "%.0f px")) {
-        config.set("toast_notification.spacing", spacing);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.spacing") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.spacing");
-        }
-    }
-
-    // Toast 位置
-    int position = config.get_or<int>("toast_notification.position", 2);  // 默认 TopRight (2)
-    int original_position = position;
-
-    ImGui::Text("显示位置:");
-    ImGui::Spacing();
-
-    const char* position_items[] = { "左上角", "上中", "右上角", "左下角", "下中", "右下角" };
-    if (ImGui::Combo("##position", &position, position_items, 6)) {
-        config.set("toast_notification.position", position);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.position") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.position");
-        }
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("(选择 Toast 显示位置)");
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // ==================== 显示设置 ====================
-    ImGui::Text("显示设置");
-    ImGui::Separator();
-
-    // 最大同时显示数量
-    int max_toasts = config.get_or<int>("toast_notification.max_toasts", 5);
-    int original_max_toasts = max_toasts;
-
-    ImGui::Text("最大同时显示数量: %d", max_toasts);
-    if (ImGui::SliderInt("##max_toasts", &max_toasts, 1, 10)) {
-        config.set("toast_notification.max_toasts", max_toasts);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.max_toasts") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.max_toasts");
-        }
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // ==================== 交互选项 ====================
-    ImGui::Text("交互选项");
-    ImGui::Separator();
-
-    // 显示进度条
-    bool show_progress_bar = config.get_or<bool>("toast_notification.show_progress_bar", true);
-    bool original_show_progress = show_progress_bar;
-
-    if (ImGui::Checkbox("显示进度条", &show_progress_bar)) {
-        config.set("toast_notification.show_progress_bar", show_progress_bar);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.show_progress_bar") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.show_progress_bar");
-        }
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("(显示剩余时间)");
-
-    // 显示关闭按钮
-    bool show_close_button = config.get_or<bool>("toast_notification.show_close_button", true);
-    bool original_show_close = show_close_button;
-
-    if (ImGui::Checkbox("显示关闭按钮", &show_close_button)) {
-        config.set("toast_notification.show_close_button", show_close_button);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.show_close_button") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.show_close_button");
-        }
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("(右上角 ✕ 按钮)");
-
-    // 悬停暂停
-    bool pause_on_hover = config.get_or<bool>("toast_notification.pause_on_hover", true);
-    bool original_pause = pause_on_hover;
-
-    if (ImGui::Checkbox("悬停暂停计时", &pause_on_hover)) {
-        config.set("toast_notification.pause_on_hover", pause_on_hover);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.pause_on_hover") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.pause_on_hover");
-        }
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("(鼠标悬停时暂停倒计时)");
-
-    // 点击关闭
-    bool click_to_close = config.get_or<bool>("toast_notification.click_to_close", false);
-    bool original_click = click_to_close;
-
-    if (ImGui::Checkbox("点击关闭", &click_to_close)) {
-        config.set("toast_notification.click_to_close", click_to_close);
-        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), "toast_notification.click_to_close") == m_modified_keys.end()) {
-            m_modified_keys.push_back("toast_notification.click_to_close");
-        }
-    }
-    ImGui::SameLine();
-    ImGui::TextDisabled("(点击 Toast 窗口关闭)");
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // ==================== 测试按钮 ====================
-    ImGui::Text("测试气泡消息");
-    ImGui::Separator();
-
-    ImGui::Text("点击下方按钮预览不同类型的气泡消息：");
-
-    if (ImGui::Button("信息提示")) {
-        DearTs::Plugins::Toast::ToastManager::instance().info("信息", "这是一条信息提示");
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("成功提示")) {
-        DearTs::Plugins::Toast::ToastManager::instance().success("成功", "操作已成功完成");
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("警告提示")) {
-        DearTs::Plugins::Toast::ToastManager::instance().warning("警告", "请注意可能存在的问题");
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("错误提示")) {
-        DearTs::Plugins::Toast::ToastManager::instance().error("错误", "操作失败，请重试");
-    }
-
-    // 说明文本
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextDisabled("ℹ 配置更改会实时生效，保存后下次启动仍会保留");
+    // 使用 ToastSettingsWidget 组件渲染
+    m_toast_widget->render();
 }
 
 void SettingsView::draw_action_buttons() {
@@ -694,10 +300,26 @@ void SettingsView::draw_action_buttons() {
 void SettingsView::save_config() {
     auto& config = Core::Config::ConfigManager::instance();
 
+    // 合并 ToastSettingsWidget 的修改列表
+    const auto& toast_modified = m_toast_widget->get_modified_keys();
+    for (const auto& key : toast_modified) {
+        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), key) == m_modified_keys.end()) {
+            m_modified_keys.push_back(key);
+        }
+    }
+
+    // 合并 ThemeSettingsWidget 的修改列表
+    const auto& theme_modified = m_theme_widget->get_modified_keys();
+    for (const auto& key : theme_modified) {
+        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), key) == m_modified_keys.end()) {
+            m_modified_keys.push_back(key);
+        }
+    }
+
     // 检查是否有 toast 相关的配置被修改
     bool has_toast_changes = false;
     for (const auto& key : m_modified_keys) {
-        if (key.find("toast_notification.") == 0) {
+        if (key.starts_with("toast_notification.")) {
             has_toast_changes = true;
             break;
         }
@@ -738,6 +360,8 @@ void SettingsView::save_config() {
     } else {
         LOG_INFO("配置已保存");
         m_modified_keys.clear();
+        m_toast_widget->clear_modified_keys();  // 清空 toast widget 的修改记录
+        m_theme_widget->clear_modified_keys();  // 清空 theme widget 的修改记录
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "保存成功！");
     }
 }
