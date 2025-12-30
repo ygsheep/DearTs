@@ -37,13 +37,13 @@ struct ComplexEvent {
 class EventBusTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Clear any existing subscribers by creating a new scope
-        // Note: EventBus is a singleton, so we can't easily reset it
-        // Tests should use unique event types to avoid interference
+        // 清除所有订阅者，避免测试间干扰
+        EventBus::instance().clear();
     }
 
     void TearDown() override {
-        // Clean up
+        // 清除所有订阅者
+        EventBus::instance().clear();
     }
 };
 
@@ -203,14 +203,14 @@ TEST_F(EventBusTest, TokenDestroyed_AutoUnsubscribes) {
     int call_count = 0;
 
     {
-        // Token goes out of scope
-        auto token = EventBus::instance().subscribe<TestEvent>(
+        // EventGuard goes out of scope and auto-unsubscribes
+        EventGuard<TestEvent> guard = make_event_guard<TestEvent>(
             [&](const TestEvent& e) { call_count++; }
         );
 
         EventBus::instance().publish(TestEvent{ .value = 1, .message = "" });
         EXPECT_EQ(call_count, 1);
-    }  // Token destroyed here
+    }  // Guard destroyed here, auto-unsubscribes
 
     // Should not be called anymore
     EventBus::instance().publish(TestEvent{ .value = 2, .message = "" });

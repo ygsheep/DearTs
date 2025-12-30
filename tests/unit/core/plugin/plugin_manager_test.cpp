@@ -3,10 +3,11 @@
  * @brief Unit tests for PluginManager
  */
 
-#include <gtest/gtest.h>
 #include "core/plugin/plugin.h"
-#include "../../mocks/mock_plugin.hpp"
+#include "mock_plugin.hpp"
 #include <filesystem>
+#include <fstream>
+#include <gtest/gtest.h>
 
 using namespace DearTs::Core::Plugin;
 using namespace DearTs::Tests;

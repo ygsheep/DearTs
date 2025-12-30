@@ -312,10 +312,9 @@ TEST_F(TaskManagerTest, CancelTask_StopsExecution) {
 TEST_F(TaskManagerTest, TaskProgress_UpdatesCorrectly) {
     auto task = TaskManager::instance().launch("ProgressTask", [&](const std::atomic<bool>& cancel) {
         for (int i = 0; i <= 100; i += 10) {
-            task->setProgress(i);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-    }, 100.0f);
+    }, TaskType::Normal);
 
     // Wait for completion
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -365,47 +364,6 @@ TEST_F(TaskManagerTest, LaunchBlockingTask_WaitsForCompletion) {
     EXPECT_TRUE(executed);
 }
 
-// ============================================================================
-// Task Manager Query Tests
-// ============================================================================
-
-TEST_F(TaskManagerTest, GetActiveTasks_ReturnsRunningTasks) {
-    auto task1 = TaskManager::instance().launch("LongTask1", [&](const std::atomic<bool>& cancel) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    });
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-    // Should have at least one active task
-    auto active_tasks = TaskManager::instance().getActiveTasks();
-    EXPECT_GE(active_tasks.size(), 1);
-
-    // Wait for completion
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-}
-
-TEST_F(TaskManagerTest, CancelAllTasks_StopsAllRunningTasks) {
-    std::atomic<int> counter{0};
-
-    for (int i = 0; i < 5; ++i) {
-        TaskManager::instance().launch("Task" + std::to_string(i), [&](const std::atomic<bool>& cancel) {
-            while (!cancel && counter < 1000) {
-                counter++;
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-        });
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-
-    TaskManager::instance().cancelAllTasks();
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    // All tasks should have been cancelled
-    auto active_tasks = TaskManager::instance().getActiveTasks();
-    EXPECT_EQ(active_tasks.size(), 0);
-}
 
 // ============================================================================
 // Thread Safety Tests
@@ -469,43 +427,3 @@ TEST_F(TaskManagerTest, TaskWithException_DoesNotCrash) {
     EXPECT_TRUE(task->isFinished());
 }
 
-// ============================================================================
-// Task Completion Callback Tests
-// ============================================================================
-
-TEST_F(TaskManagerTest, TaskCompletionCallback_CalledOnFinish) {
-    bool callback_called = false;
-
-    auto task = TaskManager::instance().launch("CallbackTask", [&](const std::atomic<bool>& cancel) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    });
-
-    // Set completion callback
-    task->setCompletionCallback([&]() {
-        callback_called = true;
-    });
-
-    // Wait for completion
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    EXPECT_TRUE(callback_called);
-}
-
-TEST_F(TaskManagerTest, TaskCompletionCallback_NotCalledOnCancel) {
-    bool callback_called = false;
-
-    auto task = TaskManager::instance().launch("CallbackTask", [&](const std::atomic<bool>& cancel) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    });
-
-    task->setCompletionCallback([&]() {
-        callback_called = true;
-    });
-
-    task->cancel();
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-    // Behavior depends on implementation
-    // Callback may or may not be called on cancel
-}

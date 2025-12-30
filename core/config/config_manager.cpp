@@ -22,14 +22,20 @@ bool ConfigManager::has(const std::string& key) const {
 }
 
 void ConfigManager::remove(const std::string& key) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_values.erase(key);
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_values.erase(key);
+    }
+    // 在锁外调用日志，避免死锁
     LOG_INFO("Removed config: {}", key);
 }
 
 void ConfigManager::register_meta(const std::string& key, ConfigMeta meta) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-    m_metas[key] = std::move(meta);
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_metas[key] = std::move(meta);
+    }
+    // 在锁外调用日志，避免死锁
     LOG_INFO("Registered config meta: {}", key);
 }
 
@@ -45,11 +51,9 @@ Result<ConfigMeta, std::string> ConfigManager::get_meta(const std::string& key) 
 }
 
 Result<void, std::string> ConfigManager::load_from_file(const std::filesystem::path& path) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
+    // 在锁外检查文件存在性并记录日志
     LOG_INFO("Loading config from: {}", path.string());
 
-    // 检查文件是否存在
     if (!std::filesystem::exists(path)) {
         LOG_WARN("Config file not found: {}", path.string());
         return Result<void, std::string>::err("File not found");
@@ -68,27 +72,38 @@ Result<void, std::string> ConfigManager::load_from_file(const std::filesystem::p
         file.close();
 
         int loaded_count = 0;
+        std::vector<std::string> unsupported_keys;
 
-        // 遍历 JSON 对象，转换为 ConfigValue
-        for (auto& [key, value] : j.items()) {
-            if (value.is_boolean()) {
-                m_values[key] = value.get<bool>();
-                loaded_count++;
-            } else if (value.is_number_integer()) {
-                m_values[key] = value.get<int>();
-                loaded_count++;
-            } else if (value.is_number()) {
-                m_values[key] = value.get<double>();
-                loaded_count++;
-            } else if (value.is_string()) {
-                m_values[key] = value.get<std::string>();
-                loaded_count++;
-            } else {
-                LOG_WARN("Unsupported JSON type for key: {}", key);
+        // 在锁内更新数据
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+
+            // 遍历 JSON 对象，转换为 ConfigValue
+            for (auto& [key, value] : j.items()) {
+                if (value.is_boolean()) {
+                    m_values[key] = value.get<bool>();
+                    loaded_count++;
+                } else if (value.is_number_integer()) {
+                    m_values[key] = value.get<int>();
+                    loaded_count++;
+                } else if (value.is_number()) {
+                    m_values[key] = value.get<double>();
+                    loaded_count++;
+                } else if (value.is_string()) {
+                    m_values[key] = value.get<std::string>();
+                    loaded_count++;
+                } else {
+                    unsupported_keys.push_back(key);
+                }
             }
         }
 
+        // 在锁外记录日志
+        for (const auto& key : unsupported_keys) {
+            LOG_WARN("Unsupported JSON type for key: {}", key);
+        }
         LOG_INFO("Loaded {} config items from {}", loaded_count, path.string());
+
         return Result<void, std::string>::ok();
 
     } catch (const nlohmann::json::parse_error& e) {
@@ -104,13 +119,15 @@ Result<void, std::string> ConfigManager::load_from_file(const std::filesystem::p
 }
 
 Result<void, std::string> ConfigManager::save_to_file(const std::filesystem::path& path) {
-    std::lock_guard<std::mutex> lock(m_mutex);
-
+    // 在锁外记录日志
     LOG_INFO("Saving config to: {}", path.string());
 
-    try {
-        // 创建 JSON 对象
-        nlohmann::json j;
+    nlohmann::json j;
+    size_t item_count = 0;
+
+    // 在锁内读取数据并构建 JSON
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
 
         // 将 ConfigValue 转换为 JSON
         for (const auto& [key, value] : m_values) {
@@ -124,7 +141,10 @@ Result<void, std::string> ConfigManager::save_to_file(const std::filesystem::pat
                 j[key] = std::get<std::string>(value);
             }
         }
+        item_count = m_values.size();
+    }
 
+    try {
         // 打开文件并写入（使用缩进格式化）
         std::ofstream file(path);
         if (!file.is_open()) {
@@ -134,7 +154,8 @@ Result<void, std::string> ConfigManager::save_to_file(const std::filesystem::pat
         file << j.dump(4);  // 4 空格缩进
         file.close();
 
-        LOG_INFO("Saved {} config items to {}", m_values.size(), path.string());
+        // 在锁外记录日志
+        LOG_INFO("Saved {} config items to {}", item_count, path.string());
         return Result<void, std::string>::ok();
 
     } catch (const nlohmann::json::exception& e) {
@@ -150,7 +171,18 @@ void ConfigManager::add_change_callback(
     m_global_change_callbacks.push_back(std::move(callback));
 }
 
+void ConfigManager::clear_change_callbacks() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_global_change_callbacks.clear();
+}
+
 void ConfigManager::clear() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_values.clear();
+    m_metas.clear();
+}
+
+void ConfigManager::clear_for_test() {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_values.clear();
     m_metas.clear();

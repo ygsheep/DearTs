@@ -18,9 +18,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 # 链接库
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    imgui
-    imgui_sdl3
-    SDL3-static
+        imgui
+        imgui_sdl3
+        SDL3-static
+        freetype
+        lunasvg::lunasvg
 )
 
 # Windows 特定设置

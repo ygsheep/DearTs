@@ -11,6 +11,7 @@
 #include <string>
 
 namespace DearTs::Tests {
+using DearTs::Core::Result;
 
 /**
  * @brief Mock plugin for testing

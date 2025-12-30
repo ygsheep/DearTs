@@ -8,22 +8,30 @@
 #include <fstream>
 
 using namespace DearTs::Core::Config;
+using DearTs::Core::Result;
 
 /**
  * @brief Test fixture for ConfigManager tests
  */
 class ConfigManagerTest : public ::testing::Test {
 protected:
+    // 使用测试实例级别的 counter 避免跨测试污染
+    int m_test_counter = 0;
+
+    // 每个测试开始前清除 ConfigManager 状态
     void SetUp() override {
-        // Clear all configuration before each test
-        ConfigManager::instance().clear();
+        // 清除所有配置和元数据
+        ConfigManager::instance().clear_for_test();
+        // 清除所有全局回调
+        ConfigManager::instance().clear_change_callbacks();
     }
 
-    void TearDown() override {
-        // Clean up after each test
-        ConfigManager::instance().clear();
+    // 生成唯一测试键，使用测试实例隔离
+    std::string get_unique_key(const std::string& suffix = "") {
+        m_test_counter++;
+        return "test_" + std::to_string(m_test_counter) + "_" + suffix;
     }
-
+};
 
 // ============================================================================
 // Basic Operations Tests
@@ -31,7 +39,7 @@ protected:
 
 TEST_F(ConfigManagerTest, SetGetInteger_ReturnsCorrectValue) {
     // Arrange
-    const std::string key = "test.value";
+    const std::string key = get_unique_key("value");
     const int expected = 42;
 
     // Act
@@ -45,7 +53,7 @@ TEST_F(ConfigManagerTest, SetGetInteger_ReturnsCorrectValue) {
 }
 
 TEST_F(ConfigManagerTest, SetGetString_ReturnsCorrectValue) {
-    const std::string key = "test.message";
+    const std::string key = get_unique_key("message");
     const std::string expected = "Hello, World!";
 
     auto set_result = ConfigManager::instance().set(key, expected);
@@ -57,7 +65,7 @@ TEST_F(ConfigManagerTest, SetGetString_ReturnsCorrectValue) {
 }
 
 TEST_F(ConfigManagerTest, SetGetDouble_ReturnsCorrectValue) {
-    const std::string key = "test.pi";
+    const std::string key = get_unique_key("pi");
     const double expected = 3.14159;
 
     auto set_result = ConfigManager::instance().set(key, expected);
@@ -69,7 +77,7 @@ TEST_F(ConfigManagerTest, SetGetDouble_ReturnsCorrectValue) {
 }
 
 TEST_F(ConfigManagerTest, SetGetBool_ReturnsCorrectValue) {
-    const std::string key = "test.enabled";
+    const std::string key = get_unique_key("enabled");
     const bool expected = true;
 
     auto set_result = ConfigManager::instance().set(key, expected);
@@ -91,7 +99,7 @@ TEST_F(ConfigManagerTest, GetNonExistentKey_ReturnsDefaultValue) {
 }
 
 TEST_F(ConfigManagerTest, GetOr_ReturnsValueOrDefault) {
-    const std::string key = "test.value";
+    const std::string key = get_unique_key("value");
 
     // Test with existing value
     ConfigManager::instance().set(key, 42);
@@ -106,7 +114,7 @@ TEST_F(ConfigManagerTest, GetOr_ReturnsValueOrDefault) {
 // ============================================================================
 
 TEST_F(ConfigManagerTest, GetTypeMismatch_ReturnsError) {
-    const std::string key = "test.value";
+    const std::string key = get_unique_key("value");
 
     // Set as int
     ConfigManager::instance().set(key, 42);
@@ -119,9 +127,9 @@ TEST_F(ConfigManagerTest, GetTypeMismatch_ReturnsError) {
 }
 
 TEST_F(ConfigManagerTest, SetAndGetDifferentTypes_WorkCorrectly) {
-    const std::string int_key = "test.int";
-    const std::string str_key = "test.str";
-    const std::string bool_key = "test.bool";
+    const std::string int_key = get_unique_key("int");
+    const std::string str_key = get_unique_key("str");
+    const std::string bool_key = get_unique_key("bool");
 
     ASSERT_TRUE(ConfigManager::instance().set(int_key, 42).isOk());
     ASSERT_TRUE(ConfigManager::instance().set(str_key, "hello").isOk());
@@ -137,7 +145,7 @@ TEST_F(ConfigManagerTest, SetAndGetDifferentTypes_WorkCorrectly) {
 // ============================================================================
 
 TEST_F(ConfigManagerTest, Has_ExistingKey_ReturnsTrue) {
-    const std::string key = "test.value";
+    const std::string key = get_unique_key("value");
     ConfigManager::instance().set(key, 42);
 
     EXPECT_TRUE(ConfigManager::instance().has(key));
@@ -148,7 +156,7 @@ TEST_F(ConfigManagerTest, Has_NonExistentKey_ReturnsFalse) {
 }
 
 TEST_F(ConfigManagerTest, Remove_ExistingKey_RemovesValue) {
-    const std::string key = "test.value";
+    const std::string key = get_unique_key("value");
     ConfigManager::instance().set(key, 42);
 
     ConfigManager::instance().remove(key);
@@ -169,12 +177,12 @@ TEST_F(ConfigManagerTest, Remove_NonExistentKey_DoesNothing) {
 // ============================================================================
 
 TEST_F(ConfigManagerTest, RegisterMeta_GetReturnsCorrectMeta) {
-    const std::string key = "test.value";
-    ConfigMeta meta;
-        meta.description = "Test value",
-        meta.default_value = 42,
-        meta.is_required = false
-    
+    const std::string key = get_unique_key("value");
+    ConfigMeta meta{
+        .description = "Test value",
+        .default_value = 42,
+        .is_required = false
+    };
 
     ConfigManager::instance().register_meta(key, meta);
 
@@ -193,12 +201,12 @@ TEST_F(ConfigManagerTest, GetMeta_NonExistentKey_ReturnsError) {
 }
 
 TEST_F(ConfigManagerTest, Get_UsesMetaDefaultValue) {
-    const std::string key = "test.value";
-    ConfigMeta meta;
-        meta.description = "Test value",
-        meta.default_value = 100,
-        meta.is_required = false
-    
+    const std::string key = get_unique_key("value");
+    ConfigMeta meta{
+        .description = "Test value",
+        .default_value = 100,
+        .is_required = false
+    };
 
     ConfigManager::instance().register_meta(key, meta);
 
@@ -213,12 +221,12 @@ TEST_F(ConfigManagerTest, Get_UsesMetaDefaultValue) {
 // ============================================================================
 
 TEST_F(ConfigManagerTest, ValidateCallback_ValidValue_Succeeds) {
-    const std::string key = "test.value";
+    const std::string key = get_unique_key("value");
     ConfigMeta meta;
-    metameta.description = "Test value";
-    metameta.default_value = 50;
-    metameta.is_required = false;
-    metameta.validate_callback = [(const ConfigValue& value) {
+    meta.description = "Test value";
+    meta.default_value = 50;
+    meta.is_required = false;
+    meta.validate_callback = [](const ConfigValue& value) {
         if (std::holds_alternative<int>(value)) {
             int int_value = std::get<int>(value);
             if (int_value >= 0 && int_value <= 100) {
@@ -227,7 +235,7 @@ TEST_F(ConfigManagerTest, ValidateCallback_ValidValue_Succeeds) {
             return Result<void, std::string>::err("Value must be between 0 and 100");
         }
         return Result<void, std::string>::err("Value must be an integer");
-    
+    };
 
     ConfigManager::instance().register_meta(key, meta);
 
@@ -237,12 +245,12 @@ TEST_F(ConfigManagerTest, ValidateCallback_ValidValue_Succeeds) {
 }
 
 TEST_F(ConfigManagerTest, ValidateCallback_InvalidValue_Fails) {
-    const std::string key = "test.value";
-    ConfigMeta meta;
-    metameta.description = "Test value";
-    metameta.default_value = 50;
-    metameta.is_required = false;
-    metameta.validate_callback = [(const ConfigValue& value) {
+    const std::string key = get_unique_key("value");
+    const ConfigMeta meta{
+    .description = "Test value",
+    .default_value = 50,
+    .is_required = false,
+    .validate_callback = [](const ConfigValue& value) {
         if (std::holds_alternative<int>(value)) {
             int int_value = std::get<int>(value);
             if (int_value >= 0 && int_value <= 100) {
@@ -251,7 +259,8 @@ TEST_F(ConfigManagerTest, ValidateCallback_InvalidValue_Fails) {
             return Result<void, std::string>::err("Value must be between 0 and 100");
         }
         return Result<void, std::string>::err("Value must be an integer");
-    
+        }
+    };
 
     ConfigManager::instance().register_meta(key, meta);
 
@@ -266,18 +275,19 @@ TEST_F(ConfigManagerTest, ValidateCallback_InvalidValue_Fails) {
 // ============================================================================
 
 TEST_F(ConfigManagerTest, ChangeCallback_CalledOnValueChange) {
-    const std::string key = "test.value";
+    const std::string key = get_unique_key("value");
     bool callback_called = false;
     ConfigValue new_value;
 
-    ConfigMeta meta;
-        meta.description = "Test value",
-        meta.default_value = 0,
-        meta.is_required = false,
-        meta.change_callback = [&](const ConfigValue& value) {
+    ConfigMeta meta{
+        .description = "Test value",
+        .default_value = 0,
+        .is_required = false,
+        .change_callback = [&](const ConfigValue& value) {
             callback_called = true;
             new_value = value;
         }
+    };
     
 
     ConfigManager::instance().register_meta(key, meta);
@@ -291,6 +301,7 @@ TEST_F(ConfigManagerTest, ChangeCallback_CalledOnValueChange) {
 TEST_F(ConfigManagerTest, GlobalChangeCallback_CalledOnAnyChange) {
     bool callback_called = false;
     std::string captured_key;
+    const std::string test_key = get_unique_key("value");
 
     ConfigManager::instance().add_change_callback(
         [&](const std::string& key, const ConfigValue& old_val, const ConfigValue& new_val) {
@@ -299,10 +310,10 @@ TEST_F(ConfigManagerTest, GlobalChangeCallback_CalledOnAnyChange) {
         }
     );
 
-    ConfigManager::instance().set("test.value", 42);
+    ConfigManager::instance().set(test_key, 42);
 
     EXPECT_TRUE(callback_called);
-    EXPECT_EQ(captured_key, "test.value");
+    EXPECT_EQ(captured_key, test_key);
 }
 
 // ============================================================================
@@ -310,19 +321,20 @@ TEST_F(ConfigManagerTest, GlobalChangeCallback_CalledOnAnyChange) {
 // ============================================================================
 
 TEST_F(ConfigManagerTest, Clear_RemovesAllValues) {
-    ConfigManager::instance().set("test1", 1);
-    ConfigManager::instance().set("test2", 2);
-    ConfigManager::instance().set("test3", 3);
+    std::string prefix = get_unique_key("clear");
+    ConfigManager::instance().set(prefix + "1", 1);
+    ConfigManager::instance().set(prefix + "2", 2);
+    ConfigManager::instance().set(prefix + "3", 3);
 
-    EXPECT_TRUE(ConfigManager::instance().has("test1"));
-    EXPECT_TRUE(ConfigManager::instance().has("test2"));
-    EXPECT_TRUE(ConfigManager::instance().has("test3"));
+    EXPECT_TRUE(ConfigManager::instance().has(prefix + "1"));
+    EXPECT_TRUE(ConfigManager::instance().has(prefix + "2"));
+    EXPECT_TRUE(ConfigManager::instance().has(prefix + "3"));
 
     ConfigManager::instance().clear();
 
-    EXPECT_FALSE(ConfigManager::instance().has("test1"));
-    EXPECT_FALSE(ConfigManager::instance().has("test2"));
-    EXPECT_FALSE(ConfigManager::instance().has("test3"));
+    EXPECT_FALSE(ConfigManager::instance().has(prefix + "1"));
+    EXPECT_FALSE(ConfigManager::instance().has(prefix + "2"));
+    EXPECT_FALSE(ConfigManager::instance().has(prefix + "3"));
 }
 
 // ============================================================================
@@ -330,18 +342,22 @@ TEST_F(ConfigManagerTest, Clear_RemovesAllValues) {
 // ============================================================================
 
 TEST_F(ConfigManagerTest, GetAllKeys_ReturnsAllKeys) {
-    ConfigManager::instance().set("test1", 1);
-    ConfigManager::instance().set("test2", 2);
-    ConfigManager::instance().set("test3", 3);
+    std::string key1 = get_unique_key("1");
+    std::string key2 = get_unique_key("2");
+    std::string key3 = get_unique_key("3");
+
+    ConfigManager::instance().set(key1, 1);
+    ConfigManager::instance().set(key2, 2);
+    ConfigManager::instance().set(key3, 3);
 
     auto keys = ConfigManager::instance().get_all_keys();
 
     EXPECT_EQ(keys.size(), 3);
     // Note: order might vary due to unordered_map
     std::sort(keys.begin(), keys.end());
-    EXPECT_EQ(keys[0], "test1");
-    EXPECT_EQ(keys[1], "test2");
-    EXPECT_EQ(keys[2], "test3");
+    EXPECT_EQ(keys[0], key1);
+    EXPECT_EQ(keys[1], key2);
+    EXPECT_EQ(keys[2], key3);
 }
 
 TEST_F(ConfigManagerTest, GetAllKeys_Empty_ReturnsEmptyVector) {
@@ -354,13 +370,14 @@ TEST_F(ConfigManagerTest, GetAllKeys_Empty_ReturnsEmptyVector) {
 // ============================================================================
 
 TEST_F(ConfigManagerTest, HierarchicalKeys_WorkCorrectly) {
-    ConfigManager::instance().set("app.window.width", 1280);
-    ConfigManager::instance().set("app.window.height", 720);
-    ConfigManager::instance().set("app.theme.name", "dark");
+    std::string prefix = get_unique_key("app");
+    ConfigManager::instance().set(prefix + ".window.width", 1280);
+    ConfigManager::instance().set(prefix + ".window.height", 720);
+    ConfigManager::instance().set(prefix + ".theme.name", "dark");
 
-    EXPECT_EQ(ConfigManager::instance().get<int>("app.window.width").unwrap(), 1280);
-    EXPECT_EQ(ConfigManager::instance().get<int>("app.window.height").unwrap(), 720);
-    EXPECT_EQ(ConfigManager::instance().get<std::string>("app.theme.name").unwrap(), "dark");
+    EXPECT_EQ(ConfigManager::instance().get<int>(prefix + ".window.width").unwrap(), 1280);
+    EXPECT_EQ(ConfigManager::instance().get<int>(prefix + ".window.height").unwrap(), 720);
+    EXPECT_EQ(ConfigManager::instance().get<std::string>(prefix + ".theme.name").unwrap(), "dark");
 }
 
 // ============================================================================
@@ -368,23 +385,27 @@ TEST_F(ConfigManagerTest, HierarchicalKeys_WorkCorrectly) {
 // ============================================================================
 
 TEST_F(ConfigManagerTest, ConfigScope_PrefixesKeysCorrectly) {
-    ConfigScope scope("app.window");
+    std::string prefix = get_unique_key("app.window");
+    ConfigScope scope(prefix);
 
     scope.set("width", 1280);
     scope.set("height", 720);
 
     // Keys should be prefixed
-    EXPECT_TRUE(ConfigManager::instance().has("app.window.width"));
-    EXPECT_TRUE(ConfigManager::instance().has("app.window.height"));
+    std::string width_key = prefix + ".width";
+    std::string height_key = prefix + ".height";
+    EXPECT_TRUE(ConfigManager::instance().has(width_key));
+    EXPECT_TRUE(ConfigManager::instance().has(height_key));
 
-    EXPECT_EQ(ConfigManager::instance().get<int>("app.window.width").unwrap(), 1280);
-    EXPECT_EQ(ConfigManager::instance().get<int>("app.window.height").unwrap(), 720);
+    EXPECT_EQ(ConfigManager::instance().get<int>(width_key).unwrap(), 1280);
+    EXPECT_EQ(ConfigManager::instance().get<int>(height_key).unwrap(), 720);
 }
 
 TEST_F(ConfigManagerTest, ConfigScope_GetOr_PrefixedKeys) {
-    ConfigScope scope("app");
+    std::string prefix = get_unique_key("app");
+    ConfigScope scope(prefix);
 
-    ConfigManager::instance().set("app.version", "1.0.0");
+    ConfigManager::instance().set(prefix + ".version", "1.0.0");
 
     EXPECT_EQ(scope.get_or<std::string>("version", "0.0.0"), "1.0.0");
 }
@@ -402,13 +423,14 @@ TEST_F(ConfigManagerTest, ConfigScope_MakeKey_ReturnsCorrectKey) {
 TEST_F(ConfigManagerTest, ThreadSafety_ConcurrentSets_DoNotCrash) {
     const int num_threads = 10;
     const int operations_per_thread = 100;
+    const std::string test_prefix = get_unique_key("thread");
 
     std::vector<std::thread> threads;
 
     for (int i = 0; i < num_threads; ++i) {
-        threads.emplace_back([i, operations_per_thread]() {
+        threads.emplace_back([i, operations_per_thread, &test_prefix]() {
             for (int j = 0; j < operations_per_thread; ++j) {
-                std::string key = "thread_" + std::to_string(i) + "_value_" + std::to_string(j);
+                std::string key = test_prefix + "_" + std::to_string(i) + "_value_" + std::to_string(j);
                 ConfigManager::instance().set(key, j);
             }
         });
@@ -421,7 +443,7 @@ TEST_F(ConfigManagerTest, ThreadSafety_ConcurrentSets_DoNotCrash) {
     // Verify all values were set
     for (int i = 0; i < num_threads; ++i) {
         for (int j = 0; j < operations_per_thread; ++j) {
-            std::string key = "thread_" + std::to_string(i) + "_value_" + std::to_string(j);
+            std::string key = test_prefix + "_" + std::to_string(i) + "_value_" + std::to_string(j);
             EXPECT_TRUE(ConfigManager::instance().has(key));
         }
     }
@@ -432,27 +454,35 @@ TEST_F(ConfigManagerTest, ThreadSafety_ConcurrentSets_DoNotCrash) {
 // ============================================================================
 
 TEST_F(ConfigManagerTest, SaveAndLoadToFile_PreservesValues) {
-    // Create a temporary file
-    std::filesystem::path temp_file = "test_config.json";
+    // Create a temporary file with unique name
+    std::string test_prefix = get_unique_key("config");
+    std::filesystem::path temp_file = test_prefix + ".json";
 
     // Set some values
-    ConfigManager::instance().set("test.int", 42);
-    ConfigManager::instance().set("test.str", "hello");
-    ConfigManager::instance().set("test.bool", true);
+    std::string int_key = test_prefix + ".int";
+    std::string str_key = test_prefix + ".str";
+    std::string bool_key = test_prefix + ".bool";
+
+    ConfigManager::instance().set(int_key, 42);
+    ConfigManager::instance().set(str_key, "hello");
+    ConfigManager::instance().set(bool_key, true);
 
     // Save to file
     auto save_result = ConfigManager::instance().save_to_file(temp_file);
     if (save_result.isOk()) {
-        // Clear and reload
-        ConfigManager::instance().clear();
-        EXPECT_FALSE(ConfigManager::instance().has("test.int"));
+        // Remove keys to test loading
+        ConfigManager::instance().remove(int_key);
+        ConfigManager::instance().remove(str_key);
+        ConfigManager::instance().remove(bool_key);
+
+        EXPECT_FALSE(ConfigManager::instance().has(int_key));
 
         // Load from file
         auto load_result = ConfigManager::instance().load_from_file(temp_file);
         if (load_result.isOk()) {
-            EXPECT_EQ(ConfigManager::instance().get<int>("test.int").unwrap(), 42);
-            EXPECT_EQ(ConfigManager::instance().get<std::string>("test.str").unwrap(), "hello");
-            EXPECT_EQ(ConfigManager::instance().get<bool>("test.bool").unwrap(), true);
+            EXPECT_EQ(ConfigManager::instance().get<int>(int_key).unwrap(), 42);
+            EXPECT_EQ(ConfigManager::instance().get<std::string>(str_key).unwrap(), "hello");
+            EXPECT_EQ(ConfigManager::instance().get<bool>(bool_key).unwrap(), true);
         }
 
         // Clean up
@@ -492,7 +522,7 @@ TEST_F(ConfigManagerTest, SpecialCharactersInKey_WorkCorrectly) {
 }
 
 TEST_F(ConfigManagerTest, OverwriteValue_Succeeds) {
-    const std::string key = "test.value";
+    const std::string key = get_unique_key("value");
 
     ConfigManager::instance().set(key, 10);
     EXPECT_EQ(ConfigManager::instance().get<int>(key).unwrap(), 10);

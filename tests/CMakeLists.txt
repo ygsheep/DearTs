@@ -3,6 +3,8 @@
 
 cmake_minimum_required(VERSION 3.20)
 
+include_directories(mocks/)
+
 # == Options ==
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(BUILD_UI_TESTS "Build UI automation tests" OFF)  # Disabled: ImGui Test Engine needs additional setup
@@ -44,13 +46,21 @@ if(BUILD_UNIT_TESTS)
         PRIVATE
         ${CMAKE_SOURCE_DIR}
         ${CMAKE_SOURCE_DIR}/core
-        ${CMAKE_SOURCE_DIR}/lib
+        ${CMAKE_SOURCE_DIR}/lib/liblogger
+    )
+
+    # 源文件（新架构实现）
+    target_sources(dearts_unit_tests PRIVATE
+            ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
+            ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
+            ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
     )
 
     target_link_libraries(dearts_unit_tests
         PRIVATE
         gtest
         gtest_main
+        deartsdl_logger
         # Add DearTs core libraries here
         # e.g., DearTsCore
     )

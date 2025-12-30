@@ -143,7 +143,8 @@ add_subdirectory(examples/sdl_render_example)
 add_subdirectory(examples/sdl_interactive_example)
 
 # Add plugins
-add_subdirectory(plugins/builtin)
+# Note: builtin plugin is compiled directly into main executable, not as separate library
+# add_subdirectory(plugins/builtin)
 add_subdirectory(plugins/toast_notification)
 add_subdirectory(plugins/command_palette)
 

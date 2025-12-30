@@ -29,6 +29,29 @@ public:
     EventToken() : m_id(0), m_is_valid(false) {}
     explicit EventToken(ID id) : m_id(id), m_is_valid(true) {}
 
+    // 拷贝构造函数
+    EventToken(const EventToken&) = default;
+    // 拷贝赋值运算符
+    EventToken& operator=(const EventToken&) = default;
+
+    // 移动构造函数
+    EventToken(EventToken&& other) noexcept
+        : m_id(other.m_id), m_is_valid(other.m_is_valid) {
+        other.m_is_valid = false;
+        other.m_id = 0;
+    }
+
+    // 移动赋值运算符
+    EventToken& operator=(EventToken&& other) noexcept {
+        if (this != &other) {
+            m_id = other.m_id;
+            m_is_valid = other.m_is_valid;
+            other.m_is_valid = false;
+            other.m_id = 0;
+        }
+        return *this;
+    }
+
     [[nodiscard]] bool is_valid() const { return m_is_valid; }
     [[nodiscard]] ID get_id() const { return m_id; }
 
@@ -133,18 +156,15 @@ public:
      */
     template<typename T>
     void publish(const T& event) {
-        std::vector<CallbackWrapper> callbacks_copy;
-
-        {
-            std::lock_guard<std::recursive_mutex> lock(m_mutex);
-            auto it = m_callbacks.find(typeid(T));
-            if (it != m_callbacks.end()) {
-                callbacks_copy = it->second;
-            }
+        // 在锁内获取回调列表并调用（避免大栈分配）
+        std::lock_guard<std::recursive_mutex> lock(m_mutex);
+        auto it = m_callbacks.find(typeid(T));
+        if (it == m_callbacks.end()) {
+            return;  // 没有订阅者，直接返回
         }
 
-        // 在锁外调用回调，避免死锁
-        for (const auto& wrapper : callbacks_copy) {
+        // 在锁内调用回调（注意：回调不应该访问 EventBus 以避免死锁）
+        for (const auto& wrapper : it->second) {
             try {
                 wrapper.callback(&event);
             } catch (const std::exception& e) {
