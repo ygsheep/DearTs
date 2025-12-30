@@ -791,6 +791,9 @@ float DearTsApplication::render_title_bar() {
                         m_title_bar_config.button_right_margin);
         ImGui::SameLine(start_x);
 
+        // 垂直对齐按钮
+        ImGui::AlignTextToFramePadding();
+
         // 使用图标字体（如果已加载）
         if (Core::UI::IconFont::isLoaded()) {
             ImGui::PushFont(Core::UI::IconFont::getFont());
