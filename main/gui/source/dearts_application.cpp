@@ -791,15 +791,14 @@ float DearTsApplication::render_title_bar() {
                         m_title_bar_config.button_right_margin);
         ImGui::SameLine(start_x);
 
-        // 计算按钮垂直偏移，让 30px 按钮在 36px MenuBar 中垂直居中
+        // 手动设置按钮的垂直位置，让其在标题栏中居中
         float title_bar_height = m_title_bar_config.get_title_bar_height();
-        float button_offset_y = (title_bar_height - m_title_bar_config.button_height) / 2.0f;
+        float button_y = (title_bar_height - m_title_bar_config.button_height) / 2.0f;
+        ImVec2 cursor_pos = ImGui::GetCursorPos();
+        ImGui::SetCursorPos(ImVec2(cursor_pos.x, button_y));
 
-        LOG_INFO("MenuBar height: {}, button height: {}, button_offset_y: {}",
-                 title_bar_height, m_title_bar_config.button_height, button_offset_y);
-
-        // 设置按钮的 FramePadding 为 (0, offset)，让按钮在 MenuBar 内容区域内垂直居中
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, button_offset_y));
+        // 设置按钮的 FramePadding 为 0，确保按钮大小准确
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
         // 使用图标字体（如果已加载）
         if (Core::UI::IconFont::isLoaded()) {
