@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.20)
 
 # == Options ==
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
-option(BUILD_UI_TESTS "Build UI automation tests" ON)
+option(BUILD_UI_TESTS "Build UI automation tests" OFF)  # Disabled: ImGui Test Engine needs additional setup
 option(ENABLE_COVERAGE "Enable code coverage reporting" OFF)
 
 # == Google Test Integration ==
