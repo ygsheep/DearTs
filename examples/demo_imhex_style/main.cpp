@@ -3,7 +3,7 @@
  * @brief 展示新架构特性的演示程序
  * @details 这个示例演示了所有新架构特性的使用方法
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 
@@ -16,7 +16,8 @@
 #include "core/content/project_manager.h"
 #include "core/plugin/plugin.h"
 #include "core/config/config_manager.h"
-#include "core/ui/command_palette.h"
+// CommandPalette 已移至 plugins/command_palette，示例中不再需要
+// #include "core/ui/command_palette.h"
 #include "core/ui/title_bar.h"
 #include "core/ui/theme_manager.h"
 #include "core/ui/shortcut_manager.h"
@@ -297,11 +298,7 @@ protected:
         // 5. 加载插件
         setup_plugins();
 
-        // 6. 创建命令面板
-        m_command_palette = std::make_unique<UI::CommandPalette>();
-        m_command_palette->set_shortcut(static_cast<int>(ImGuiKey_P), true, false, false);  // Ctrl+P
-
-        // 7. 设置自定义标题栏
+        // 6. 设置自定义标题栏
         m_title_bar.set_borderless(true);
 
         // 设置当前窗口指针（用于窗口控制）
@@ -345,7 +342,7 @@ protected:
         LOG_INFO("DemoApplication shutting down...");
 
         // 清理资源
-        m_command_palette.reset();
+        // CommandPalette 现在由插件系统管理，无需手动清理
 
         // 卸载所有插件
         Plugin::PluginManager::instance().clear();
@@ -442,12 +439,7 @@ protected:
         frame_count++;
 
         // 处理快捷键（必须在 ImGui::NewFrame() 之后调用，以确保 ImGui 键盘状态已更新）
-        // 检查命令面板快捷键
-        if (m_command_palette && m_command_palette->check_shortcut()) {
-            LOG_INFO("Command palette shortcut triggered");
-            m_command_palette->toggle();
-        }
-
+        // CommandPalette 快捷键现在由插件系统处理
         // 处理其他快捷键
         LOG_DEBUG("About to call handleShortcuts()");
         UI::ShortcutManager::instance().handleShortcuts();
@@ -1323,17 +1315,13 @@ private:
             ImGui::End();
         }
 
-        // 渲染命令面板
-        if (m_command_palette) {
-            m_command_palette->render();
-        }
-
+        // CommandPalette 现在由插件系统自动渲染
         ImGui::Render();
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_renderer);
     }
 
 private:
-    std::unique_ptr<UI::CommandPalette> m_command_palette;
+    // CommandPalette 已移至插件系统，不再需要成员变量
     UI::TitleBar m_title_bar;
 
     // 标题栏配置（从 ConfigManager 加载）

@@ -6,6 +6,8 @@
 #include "views/logger_viewer_view.hpp"
 #include "liblogger/logger.h"
 #include "core/utils/file_dialog.hpp"
+#include "core/ui/icon_font.hpp"
+#include "core/content/registry_base.h"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -14,9 +16,10 @@
 #include <cmath>
 
 namespace DearTs::Plugins::LoggerViewer {
+using DearTs::Core::ContentRegistry::UnlocalizedString;
 
 LoggerViewerView::LoggerViewerView()
-    : ViewWindow("日志查看器") {
+    : ViewWindow(UnlocalizedString("日志查看器"), ICON_LOGS) {
     // 查找日志目录
     std::vector<std::filesystem::path> log_dirs = {
         "logs",

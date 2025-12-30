@@ -245,21 +245,15 @@ void ShortcutManager::handleShortcuts() {
         const auto& sc = binding.shortcut;
 
         bool key_pressed = ImGui::IsKeyPressed(static_cast<ImGuiKey>(sc.key));
-        bool ctrl = sc.ctrl == (io.KeyCtrl || io.KeySuper);
-        bool shift = sc.shift == io.KeyShift;
-        bool alt = sc.alt == io.KeyAlt;
-        bool super_ = sc.super_ == io.KeySuper;
 
-        // 检查所有修饰键是否匹配
-        bool modifiers_match = true;
-        if (sc.ctrl && !ctrl) modifiers_match = false;
-        if (!sc.ctrl && ctrl && (io.KeyCtrl || io.KeySuper)) modifiers_match = false;
-        if (sc.shift && !shift) modifiers_match = false;
-        if (!sc.shift && shift) modifiers_match = false;
-        if (sc.alt && !alt) modifiers_match = false;
-        if (!sc.alt && alt) modifiers_match = false;
-        if (sc.super_ && !super_) modifiers_match = false;
-        if (!sc.super_ && super_) modifiers_match = false;
+        // 修复修饰键匹配逻辑
+        bool ctrl_match = sc.ctrl == (io.KeyCtrl || io.KeySuper);
+        bool shift_match = sc.shift == io.KeyShift;
+        bool alt_match = sc.alt == io.KeyAlt;
+        bool super_match = sc.super_ == io.KeySuper;
+
+        // 所有修饰键必须都匹配
+        bool modifiers_match = ctrl_match && shift_match && alt_match && super_match;
 
         if (key_pressed && modifiers_match) {
             LOG_DEBUG("Shortcut triggered: {}", binding.name);

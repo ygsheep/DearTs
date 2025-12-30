@@ -3,7 +3,7 @@
  * @brief 项目管理器
  * @details 管理项目的创建、加载、保存和最近项目列表
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

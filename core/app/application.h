@@ -3,7 +3,7 @@
  * @brief 应用程序基类
  * @details 提供应用程序生命周期管理，遵循 DearTs 代码规范
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

@@ -3,7 +3,7 @@
  * @brief DearTs 应用程序主类
  * @details 基于 DearTs 框架的 DearTs 应用，集成 ImGui、主题、快捷键等功能
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 
@@ -12,7 +12,6 @@
 #include "core/app/application.h"
 #include "core/ui/theme_manager.h"
 #include "core/ui/shortcut_manager.h"
-#include "core/ui/command_palette.h"
 #include "core/ui/title_bar.h"
 #include "core/ui/view_manager.h"
 #include "core/ui/icon_font.hpp"
@@ -168,7 +167,7 @@ private:
     // UI 组件
     DearTsConfig m_title_bar_config;
     Core::UI::TitleBar m_title_bar;
-    std::unique_ptr<Core::UI::CommandPalette> m_command_palette;
+    // CommandPalette 现在由插件系统管理，不再需要成员变量
 
     // 窗口状态
     bool m_show_demo_window = false;

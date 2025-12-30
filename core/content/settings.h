@@ -3,7 +3,7 @@
  * @brief 设置注册表
  * @details 独立的设置管理模块
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

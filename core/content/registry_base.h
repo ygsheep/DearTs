@@ -2,7 +2,7 @@
  * @file registry_base.h
  * @brief Content Registry 基础类和通用定义
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

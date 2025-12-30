@@ -3,7 +3,7 @@
  * @brief 快捷键管理器
  * @details 管理全局和局部快捷键绑定
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

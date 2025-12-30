@@ -7,6 +7,7 @@
 #include "toast_manager.hpp"
 #include "toast_plugin.hpp"
 #include "builtin_plugin.hpp"
+#include "command_palette_plugin.hpp"
 #include "core/content/callbacks.h"
 #include "core/content/commands.h"
 #include "liblogger/logger.h"
@@ -51,11 +52,7 @@ bool DearTsApplication::on_init() {
     // 7. 设置视图
     setup_views();
 
-    // 8. 创建命令面板
-    m_command_palette = std::make_unique<Core::UI::CommandPalette>();
-    m_command_palette->set_shortcut(static_cast<int>(ImGuiKey_P), true, false, false);  // Ctrl+P
-
-    // 9. 设置自定义标题栏
+    // 8. 设置自定义标题栏
     m_title_bar.set_borderless(true);
     Core::UI::WindowControls::set_current_window(m_window);
 
@@ -117,10 +114,7 @@ void DearTsApplication::on_render() {
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    // 3. 处理快捷键
-    if (m_command_palette && m_command_palette->check_shortcut()) {
-        m_command_palette->toggle();
-    }
+    // 3. 处理快捷键（CommandPalette快捷键由插件系统处理）
     Core::UI::ShortcutManager::instance().handleShortcuts();
 
     // 4. 渲染自定义标题栏（返回标题栏高度）
@@ -202,7 +196,7 @@ void DearTsApplication::on_shutdown() {
     Core::Config::ConfigManager::instance().save_to_file("config.json");
 
     // 清理资源
-    m_command_palette.reset();
+    // CommandPalette 现在由插件系统管理，无需手动清理
 
     // 卸载所有插件
     Core::Plugin::PluginManager::instance().clear();
@@ -385,54 +379,50 @@ void DearTsApplication::setup_events() {
 void DearTsApplication::setup_commands_and_tools() {
     using namespace Core::ContentRegistry;
 
-    // 文件命令
-    Commands::add("file.open", "打开文件", []() {
-        LOG_INFO("Command: Open File");
-    });
+    // 为所有视图注册切换命令
+    // 格式: view.toggle.<view_name>
 
-    Commands::add("file.save", "保存文件", []() {
-        LOG_INFO("Command: Save File");
-    });
-
-    Commands::add("file.exit", "退出", [this]() {
-        LOG_INFO("Command: Exit");
-        this->request_exit(0);
-    });
-
-    // 视图命令
-    Commands::add("view.toggle_fullscreen", "切换全屏", [this]() {
-        LOG_INFO("Command: Toggle Fullscreen");
-        if (m_window) {
-            bool is_fullscreen = SDL_GetWindowFlags(m_window) & SDL_WINDOW_FULLSCREEN;
-            SDL_SetWindowFullscreen(m_window, !is_fullscreen);
+    // 侧边栏
+    Commands::add("view.toggle.sidebar", "侧边栏", []() {
+        auto* view = Views::get_by_name(UnlocalizedString("侧边栏"));
+        if (view) {
+            view->get_window_open_state() = !view->get_window_open_state();
         }
     });
 
-    Commands::add("view.reset_layout", "重置布局", []() {
-        LOG_INFO("Command: Reset Layout");
+    // 数据检查器
+    Commands::add("view.toggle.data_inspector", "数据检查器", []() {
+        auto* view = Views::get_by_name(UnlocalizedString("数据检查器"));
+        if (view) {
+            view->get_window_open_state() = !view->get_window_open_state();
+        }
     });
 
-    // 工具命令
-    Commands::add("tools.calculator", "计算器", []() {
-        LOG_INFO("Command: Calculator");
+    // 设置
+    Commands::add("view.toggle.settings", "设置", []() {
+        auto* view = Views::get_by_name(UnlocalizedString("设置"));
+        if (view) {
+            view->get_window_open_state() = !view->get_window_open_state();
+        }
     });
 
-    Commands::add("tools.color_picker", "颜色选择器", []() {
-        LOG_INFO("Command: Color Picker");
+    // 日志查看器
+    Commands::add("view.toggle.logger_viewer", "日志查看器", []() {
+        auto* view = Views::get_by_name(UnlocalizedString("日志查看器"));
+        if (view) {
+            view->get_window_open_state() = !view->get_window_open_state();
+        }
     });
 
-    Commands::add("tools.notepad", "记事本", []() {
-        LOG_INFO("Command: Notepad");
+    // 通知测试器
+    Commands::add("view.toggle.toast_tester", "通知测试器", []() {
+        auto* view = Views::get_by_name(UnlocalizedString("通知测试器"));
+        if (view) {
+            view->get_window_open_state() = !view->get_window_open_state();
+        }
     });
 
-    // 任务命令
-    Commands::add("tasks.start_test", "启动测试任务", []() {
-        Core::Tasks::TaskManager::instance().launch("测试任务", [](const std::atomic<bool>& should_cancel) {
-            for (int i = 0; i <= 100 && !should_cancel; ++i) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            }
-        });
-    });
+    LOG_INFO("视图切换命令已注册");
 }
 
 void DearTsApplication::setup_shortcuts() {
@@ -462,10 +452,8 @@ void DearTsApplication::setup_shortcuts() {
         Core::ContentRegistry::Commands::Registry::instance().execute("view.toggle_fullscreen");
     }, ShortcutType::Global);
 
-    // 命令面板快捷键
-    manager.addShortcut("command_palette", Shortcut(ImGuiKey_P, true, false, false), []() {
-        LOG_INFO("Shortcut: Command Palette (Ctrl+P)");
-    }, ShortcutType::Global);
+    // 命令面板快捷键现在由 CommandPalettePlugin 管理
+    // 这里不再需要注册
 
     // 主题快捷键
     manager.addShortcut("theme.dark", Shortcut(ImGuiKey_1, true, false, true), []() {
@@ -542,6 +530,16 @@ void DearTsApplication::setup_plugins() {
         LOG_ERROR("Failed to load ToastPlugin: {}", result.error());
     } else {
         LOG_INFO("ToastPlugin loaded successfully");
+    }
+
+    // 添加命令面板插件
+    auto command_palette_plugin = std::make_unique<DearTs::Plugins::CommandPalette::CommandPalettePlugin>();
+    result = plugin_manager.add_builtin(std::move(command_palette_plugin));
+
+    if (result.isErr()) {
+        LOG_ERROR("Failed to load CommandPalettePlugin: {}", result.error());
+    } else {
+        LOG_INFO("CommandPalettePlugin loaded successfully");
     }
 
     // 获取插件信息
@@ -785,7 +783,7 @@ float DearTsApplication::render_title_bar() {
         }
 
         // 右侧：控制按钮
-        float title_bar_height = m_title_bar_config.get_title_bar_height();
+        title_bar_height = m_title_bar_config.get_title_bar_height();
         float button_y = (title_bar_height - m_title_bar_config.button_height) / 2.0f;
 
         // 设置按钮样式：去除背景色，确保图标水平居中

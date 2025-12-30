@@ -3,7 +3,7 @@
  * @brief 工具注册表
  * @details 独立的工具管理模块
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

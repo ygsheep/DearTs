@@ -3,7 +3,7 @@
  * @brief 布局管理器
  * @details 参考 ImHex 实现窗口布局的保存、加载和管理
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

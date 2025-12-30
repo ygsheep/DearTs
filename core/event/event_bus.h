@@ -3,7 +3,7 @@
  * @brief 类型安全的事件总线系统
  * @details 使用现代 C++ 实现的编译时类型安全事件系统
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

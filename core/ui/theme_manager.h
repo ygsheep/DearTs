@@ -3,7 +3,7 @@
  * @brief 主题管理器
  * @details 管理应用程序主题，支持暗色、亮色和自定义主题
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

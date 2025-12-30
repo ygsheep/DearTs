@@ -8,15 +8,18 @@
 #include "widgets/theme_settings_widget.hpp"
 #include "core/config/config_manager.h"
 #include "core/ui/theme_manager.h"
+#include "core/ui/icon_font.hpp"
+#include "core/content/registry_base.h"
 #include "toast_manager.hpp"
 #include "liblogger/logger.h"
 #include <imgui.h>
 #include <algorithm>
 
 namespace DearTs::Plugins::Settings {
+using DearTs::Core::ContentRegistry::UnlocalizedString;
 
 SettingsView::SettingsView()
-    : ViewWindow("设置")
+    : ViewWindow(UnlocalizedString("设置"), ICON_SETTINGS)
     , m_toast_widget(std::make_unique<ToastSettingsWidget>())
     , m_theme_widget(std::make_unique<ThemeSettingsWidget>()) {
 }
