@@ -788,7 +788,10 @@ float DearTsApplication::render_title_bar() {
         float title_bar_height = m_title_bar_config.get_title_bar_height();
         float button_y = (title_bar_height - m_title_bar_config.button_height) / 2.0f;
 
-        // 设置按钮样式，确保图标水平居中
+        // 设置按钮样式：去除背景色，确保图标水平居中
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0)); // 透明背景
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.3f, 0.3f, 0.3f, 0.5f)); // 悬停时半透明灰色
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.4f, 0.4f, 0.4f, 0.7f)); // 按下时更深的灰色
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
         ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.5f, 0.5f)); // 水平和垂直居中
 
@@ -797,12 +800,23 @@ float DearTsApplication::render_title_bar() {
             ImGui::PushFont(Core::UI::IconFont::getFont());
         }
 
-        // 最小化按钮
+        // 计算按钮起始位置（4个按钮：关于、最小化、最大化/还原、关闭）
         float start_x = ImGui::GetMainViewport()->Size.x -
-                       (m_title_bar_config.button_count * m_title_bar_config.button_width +
-                        (m_title_bar_config.button_count - 1) * m_title_bar_config.button_spacing +
+                       (4 * m_title_bar_config.button_width +
+                        3 * m_title_bar_config.button_spacing +
                         m_title_bar_config.button_right_margin);
+
+        // 关于按钮
         ImGui::SetCursorPos(ImVec2(start_x, button_y));
+        if (ImGui::Button(ICON_INFO, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
+            m_show_about_window = !m_show_about_window;
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("关于");
+        }
+
+        // 最小化按钮
+        ImGui::SetCursorPos(ImVec2(start_x + m_title_bar_config.button_width + m_title_bar_config.button_spacing, button_y));
         if (ImGui::Button(ICON_MINIMIZE, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
             if (m_window) {
                 SDL_MinimizeWindow(m_window);
@@ -813,7 +827,7 @@ float DearTsApplication::render_title_bar() {
         }
 
         // 最大化/还原按钮
-        ImGui::SetCursorPos(ImVec2(start_x + m_title_bar_config.button_width + m_title_bar_config.button_spacing, button_y));
+        ImGui::SetCursorPos(ImVec2(start_x + (m_title_bar_config.button_width + m_title_bar_config.button_spacing) * 2, button_y));
         if (ImGui::Button(m_is_maximized ? ICON_RESTORE : ICON_MAXIMIZE,
                          ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
             if (m_window) {
@@ -833,7 +847,7 @@ float DearTsApplication::render_title_bar() {
         }
 
         // 关闭按钮
-        ImGui::SetCursorPos(ImVec2(start_x + (m_title_bar_config.button_width + m_title_bar_config.button_spacing) * 2, button_y));
+        ImGui::SetCursorPos(ImVec2(start_x + (m_title_bar_config.button_width + m_title_bar_config.button_spacing) * 3, button_y));
         if (ImGui::Button(ICON_CLOSE, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
             this->request_exit(0);
         }
@@ -846,6 +860,7 @@ float DearTsApplication::render_title_bar() {
             ImGui::PopFont();
         }
 
+        ImGui::PopStyleColor(3); // Button, ButtonHovered, ButtonActive
         ImGui::PopStyleVar(2); // FramePadding + ButtonTextAlign
         ImGui::PopStyleVar(); // ItemSpacing
 
