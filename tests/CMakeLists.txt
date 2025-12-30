@@ -148,6 +148,9 @@ if(BUILD_UI_TESTS)
             "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.cpp"
         )
 
+        # Filter out main files if any
+        list(FILTER UI_TEST_SOURCES EXCLUDE REGEX ".*_main\\.cpp$")
+
         # UI Tests Executable
         add_executable(dearts_ui_tests
             ${UI_TEST_SOURCES}
@@ -157,15 +160,31 @@ if(BUILD_UI_TESTS)
             PRIVATE
             ${CMAKE_SOURCE_DIR}
             ${CMAKE_SOURCE_DIR}/core
+            ${CMAKE_SOURCE_DIR}/lib
             ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine
             ${CMAKE_SOURCE_DIR}/third_party/imgui
+            ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
+            ${CMAKE_SOURCE_DIR}/third_party/SDL/include
+        )
+
+        # 源文件（UI 测试需要的核心实现）
+        target_sources(dearts_ui_tests PRIVATE
+            ${CMAKE_SOURCE_DIR}/main/gui/source/dearts_application.cpp
         )
 
         target_link_libraries(dearts_ui_tests
             PRIVATE
             imgui_test_engine
             imgui
-            # Link against DearTs core and SDL
+            imgui_sdl3
+            SDL3::SDL3-static
+            deartsdl_logger
+        )
+
+        # Define ImGui Test Engine enable flag
+        target_compile_definitions(dearts_ui_tests
+            PRIVATE
+            IMGUI_TEST_ENGINE_ENABLE
         )
 
         message(STATUS "UI tests configured: dearts_ui_tests")
