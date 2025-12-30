@@ -1,0 +1,99 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSVC
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup vcpkg
+        uses: microsoft/vcpkg-action@v4
+        with:
+          cache-all: true
+
+      - name: Install dependencies via vcpkg
+        run: |
+          vcpkg install sdl3:x64-windows
+          vcpkg install freetype:x64-windows
+          vcpkg install fmt:x64-windows
+          vcpkg install nlohmann-json:x64-windows
+          vcpkg integrate install
+
+      - name: Configure CMake
+        run: |
+            cmake -B build `
+              -DCMAKE_BUILD_TYPE=Release `
+              -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake" `
+              -DVCPKG_TARGET_TRIPLET=x64-windows
+
+      - name: Build project
+        run: cmake --build build --config Release
+
+      - name: Locate executable
+        run: |
+          echo "Searching for executable..."
+          if (Test-Path "build/bin/Release/DearTs.exe") {
+            echo "Found: build/bin/Release/DearTs.exe"
+            Copy-Item "build/bin/Release/DearTs.exe" "DearTs-x64-windows.exe"
+          } elseif (Test-Path "build/bin/DearTs.exe") {
+            echo "Found: build/bin/DearTs.exe"
+            Copy-Item "build/bin/DearTs.exe" "DearTs-x64-windows.exe"
+          } else {
+            Write-Error "Executable not found!"
+            Get-ChildItem -Path build -Recurse -Filter "*.exe"
+          }
+
+      - name: Copy resources
+        run: |
+          if (Test-Path "resources") {
+            Copy-Item -Path "resources" -Destination "resources" -Recurse
+          }
+
+      - name: Create release package
+        run: |
+          Compress-Archive -Path "DearTs-x64-windows.exe", "resources" -DestinationPath "DearTs-x64-windows.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DearTs-x64-windows
+          path: DearTs-x64-windows.zip
+          retention-days: 90
+
+      - name: Create GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Release v${{ github.run_number }}
+          body: |
+            ## DearTs Windows x64 Build
+
+            自动构建的 Windows 版本。
+
+            ### 包含文件
+            - DearTs-x64-windows.exe
+            - resources/ (字体等资源文件)
+
+            ### 安装说明
+            1. 下载 DearTs-x64-windows.zip
+            2. 解压缩到任意目录
+            3. 运行 DearTs-x64-windows.exe
+
+          files: DearTs-x64-windows.zip
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

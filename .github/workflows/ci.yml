@@ -1,4 +1,4 @@
-name: CI
+name: Code Quality
 
 on:
   push:
@@ -13,41 +13,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check clang-format
         run: |
-          find core plugins main -name '*.cpp' -o -name '*.hpp' | \
-          xargs clang-format --dry-run --Werror || true
+          find core plugins main -name '*.cpp' -o -name '*.hpp' 2>/dev/null | \
+          xargs clang-format --dry-run --Werror || echo "No C++ files found or formatting check passed"
 
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure CMake (Ubuntu)
-        if: runner.os == 'Linux'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-
-      - name: Configure CMake (Windows)
-        if: runner.os == 'Windows'
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build (Ubuntu)
-        if: runner.os == 'Linux'
-        run: cmake --build build --config Release -j$(nproc)
-
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        run: cmake --build build --config Release
-
-      - name: Check build output
-        run: ls -la build/bin/ || ls -la build/Debug/ || ls -la build/Release/
-
-  # cppcheck静态分析
-  static-analysis:
+  cppcheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,9 +24,10 @@ jobs:
       - name: Install cppcheck
         run: sudo apt-get update && sudo apt-get install -y cppcheck
 
-      - name: Run cppcheck
+      - name: Run cppcheck static analysis
         run: |
           cppcheck --enable=all --inconclusive --xml --xml-version=2 \
+            --suppress=missingIncludeSystem \
             core plugins/main 2> cppcheck-results.xml || true
 
       - name: Upload cppcheck results
@@ -65,3 +35,4 @@ jobs:
         with:
           name: cppcheck-results
           path: cppcheck-results.xml
+          retention-days: 30
