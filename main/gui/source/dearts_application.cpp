@@ -757,7 +757,7 @@ float DearTsApplication::render_title_bar() {
         return title_bar_height;
     }
 
-    // 使用配置设置 MenuBar 的内边距
+    // 使用配置设置 MenuBar 的内边距（保持原有的 10px，让 MenuBar 高度为 36px）
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
         ImVec2(m_title_bar_config.frame_padding_x, m_title_bar_config.frame_padding_y));
 
@@ -791,11 +791,14 @@ float DearTsApplication::render_title_bar() {
                         m_title_bar_config.button_right_margin);
         ImGui::SameLine(start_x);
 
-        // 计算按钮垂直偏移，让 30px 高度的按钮在 36px 标题栏中垂直居中
+        // 计算按钮垂直偏移，让 30px 按钮在 36px MenuBar 中垂直居中
         float title_bar_height = m_title_bar_config.get_title_bar_height();
         float button_offset_y = (title_bar_height - m_title_bar_config.button_height) / 2.0f;
 
-        // 设置按钮的 FramePadding，让按钮垂直居中
+        LOG_INFO("MenuBar height: {}, button height: {}, button_offset_y: {}",
+                 title_bar_height, m_title_bar_config.button_height, button_offset_y);
+
+        // 设置按钮的 FramePadding 为 (0, offset)，让按钮在 MenuBar 内容区域内垂直居中
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, button_offset_y));
 
         // 使用图标字体（如果已加载）
