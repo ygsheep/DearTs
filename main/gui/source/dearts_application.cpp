@@ -791,7 +791,7 @@ float DearTsApplication::render_title_bar() {
                         m_title_bar_config.button_right_margin);
         ImGui::SameLine(start_x);
 
-        // 计算按钮垂直偏移，让 24px 高度的按钮在 36px 标题栏中垂直居中
+        // 计算按钮垂直偏移，让 30px 高度的按钮在 36px 标题栏中垂直居中
         float title_bar_height = m_title_bar_config.get_title_bar_height();
         float button_offset_y = (title_bar_height - m_title_bar_config.button_height) / 2.0f;
 

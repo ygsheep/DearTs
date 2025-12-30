@@ -32,8 +32,8 @@ struct DearTsConfig {
     float frame_padding_x = 8.0f;
     float frame_padding_y = 10.0f;
     float title_left_margin = 10.0f;
-    float button_width = 36.0f;
-    float button_height = 24.0f;  // 按钮高度
+    float button_width = 30.0f;
+    float button_height = 30.0f;  // 按钮高度
     float button_spacing = 3.0f;
     float button_right_margin = 10.0f;
     int button_count = 3;
