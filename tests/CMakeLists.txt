@@ -7,6 +7,7 @@ include_directories(mocks/)
 
 # == Options ==
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
+option(BUILD_INTEGRATION_TESTS "Build integration tests" ON)
 option(BUILD_UI_TESTS "Build UI automation tests" OFF)  # Disabled: ImGui Test Engine needs additional setup
 option(ENABLE_COVERAGE "Enable code coverage reporting" OFF)
 
@@ -85,6 +86,54 @@ if(BUILD_UNIT_TESTS)
     message(STATUS "Unit tests configured: dearts_unit_tests")
 endif()
 
+# == Integration Tests ==
+if(BUILD_INTEGRATION_TESTS)
+    message(STATUS "Building integration tests with Google Test")
+
+    # == Collect integration test sources ==
+    file(GLOB_RECURSE INTEGRATION_TEST_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/integration/*.cpp"
+    )
+
+    # Filter out main files if any
+    list(FILTER INTEGRATION_TEST_SOURCES EXCLUDE REGEX ".*_main\\.cpp$")
+
+    # == Integration Tests Executable ==
+    add_executable(dearts_integration_tests
+        ${INTEGRATION_TEST_SOURCES}
+    )
+
+    target_include_directories(dearts_integration_tests
+        PRIVATE
+        ${CMAKE_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/core
+        ${CMAKE_SOURCE_DIR}/lib/liblogger
+        ${CMAKE_SOURCE_DIR}/third_party/json/include
+    )
+
+    # 源文件（集成测试需要的核心实现）
+    target_sources(dearts_integration_tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
+        ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
+        ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
+        ${CMAKE_SOURCE_DIR}/core/content/commands.cpp
+        ${CMAKE_SOURCE_DIR}/core/content/settings.cpp
+    )
+
+    target_link_libraries(dearts_integration_tests
+        PRIVATE
+        gtest
+        gtest_main
+        deartsdl_logger
+    )
+
+    # == CTest Integration ==
+    include(GoogleTest)
+    gtest_discover_tests(dearts_integration_tests)
+
+    message(STATUS "Integration tests configured: dearts_integration_tests")
+endif()
+
 # == ImGui Test Engine Integration ==
 if(BUILD_UI_TESTS)
     message(STATUS "Building UI automation tests with ImGui Test Engine")
@@ -128,8 +177,9 @@ endif()
 # == Testing Summary ==
 message(STATUS "")
 message(STATUS "=== DearTs Testing Configuration ===")
-message(STATUS "  Build Unit Tests:    ${BUILD_UNIT_TESTS}")
-message(STATUS "  Build UI Tests:      ${BUILD_UI_TESTS}")
-message(STATUS "  Enable Coverage:     ${ENABLE_COVERAGE}")
-message(STATUS "=====================================")
+message(STATUS "  Build Unit Tests:       ${BUILD_UNIT_TESTS}")
+message(STATUS "  Build Integration Tests: ${BUILD_INTEGRATION_TESTS}")
+message(STATUS "  Build UI Tests:         ${BUILD_UI_TESTS}")
+message(STATUS "  Enable Coverage:        ${ENABLE_COVERAGE}")
+message(STATUS "==========================================")
 message(STATUS "")
