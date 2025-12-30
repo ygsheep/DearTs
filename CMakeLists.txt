@@ -145,6 +145,7 @@ add_subdirectory(examples/sdl_interactive_example)
 # Add plugins
 add_subdirectory(plugins/builtin)
 add_subdirectory(plugins/toast_notification)
+add_subdirectory(plugins/command_palette)
 
 message(STATUS "Final Working Configuration:")
 message(STATUS "  SDL3: Static library")

@@ -3,7 +3,7 @@
  * @brief 命令注册表
  * @details 独立的命令面板管理模块
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

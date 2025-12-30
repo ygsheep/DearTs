@@ -3,7 +3,7 @@
  * @brief 自定义窗口标题栏组件
  * @details 参考 ImHex 设计，提供跨平台的自定义标题栏
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

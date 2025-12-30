@@ -3,7 +3,7 @@
  * @brief 插件系统接口和实现
  * @details 提供标准化的插件加载和管理机制
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

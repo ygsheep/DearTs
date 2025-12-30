@@ -19,12 +19,13 @@
 | Callbacks | `core/content/callbacks.h` | `core/content/callbacks.cpp` | ✅ |
 | Plugin | `core/plugin/plugin.h` | `core/plugin/plugin.cpp` | ✅ |
 | ConfigManager | `core/config/config_manager.h` | `core/config/config_manager.cpp` | ✅ |
-| CommandPalette | `core/ui/command_palette.h` | `core/ui/command_palette.cpp` | ✅ |
+| CommandPalette | `plugins/command_palette/include/command_palette_view.hpp` | `plugins/command_palette/source/command_palette_view.cpp` | ✅ |
 
 ### 3. 修复的编译错误
-- ✅ 添加 `#include <imgui.h>` 到 `command_palette.h`
+- ✅ 添加 `#include <imgui.h>` 到 `command_palette.h` (已移至插件)
 - ✅ 修复 `ImGuiKey` 类型问题（使用 `int` 代替）
 - ✅ 更新示例代码中的快捷键设置
+- ✅ **重构命令面板为插件架构** (2024-12-30)
 
 ## 编译项目
 
@@ -178,18 +179,13 @@ DEARTS_BUILTIN_PLUGIN(MyPlugin)
 ```
 
 ### 使用命令面板
+命令面板现在作为插件提供，使用 `Ctrl+Shift+P` 快捷键打开：
 ```cpp
-#include "core/ui/command_palette.h"
-
-auto palette = std::make_unique<UI::CommandPalette>();
-palette->set_shortcut(static_cast<int>(ImGuiKey_P), true, false, false);  // Ctrl+P
-
-// 在渲染循环中
-if (palette->check_shortcut()) {
-    palette->open();
-}
-
-palette->render();
+// 命令面板插件会自动加载
+// 通过 ContentRegistry 注册的命令会自动显示在命令面板中
+ContentRegistry::Commands::add("my.command", "My Command", []() {
+    // 执行命令
+});
 ```
 
 ## 项目结构

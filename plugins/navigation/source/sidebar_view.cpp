@@ -12,11 +12,12 @@
 #include <imgui.h>
 
 using namespace DearTs::Core;
+using DearTs::Core::ContentRegistry::UnlocalizedString;
 
 namespace DearTs::Plugins::Navigation {
 
 SidebarView::SidebarView()
-    : ViewWindow("侧边栏") {
+    : ViewWindow(UnlocalizedString("侧边栏"), ICON_SIDEBAR) {
     LOG_INFO("SidebarView initialized");
 
     // 设置默认显示
@@ -45,7 +46,7 @@ void SidebarView::draw_content() {
     // 统计信息
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f),
-        "显示: %d / 总计: %d", m_visible_count, m_total_count);
+        "显示: %d / 总计: %d", m_visible_count, m_total_count - 1);
 }
 
 void SidebarView::draw_search_box() {

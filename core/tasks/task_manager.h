@@ -3,7 +3,7 @@
  * @brief 任务管理器
  * @details 管理异步任务执行、进度跟踪和取消
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

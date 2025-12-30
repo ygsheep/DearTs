@@ -7,11 +7,13 @@
 #pragma once
 
 #include "core/ui/view.h"
+#include "core/ui/icon_font.hpp"
 #include <vector>
 #include <string>
 #include <cstdint>
 
 namespace DearTs::Plugins::Builtin {
+using DearTs::Core::ContentRegistry::UnlocalizedString;
 
 /**
  * @brief 数据检查器视图
@@ -21,7 +23,7 @@ namespace DearTs::Plugins::Builtin {
 class DataInspectorView : public Core::UI::ViewWindow {
 public:
     explicit DataInspectorView()
-        : ViewWindow("数据检查器") {
+        : ViewWindow(UnlocalizedString("数据检查器"), ICON_ANALYTICS) {
     }
 
     ~DataInspectorView() override = default;

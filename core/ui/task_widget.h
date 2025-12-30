@@ -3,7 +3,7 @@
  * @brief 任务管理器 UI 组件
  * @details 提供任务进度显示和管理的 UI 界面
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

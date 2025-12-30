@@ -38,6 +38,11 @@ add_executable(${PROJECT_NAME}
     ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include/toast_plugin.hpp
     ${CMAKE_SOURCE_DIR}/plugins/toast_notification/source/toast_manager.cpp
     ${CMAKE_SOURCE_DIR}/plugins/toast_notification/source/toast_plugin.cpp
+    # Command Palette 插件
+    ${CMAKE_SOURCE_DIR}/plugins/command_palette/include/command_palette_plugin.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/command_palette/include/command_palette_view.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_plugin.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_view.cpp
     # Windows 资源文件（仅 Windows）
     ${CMAKE_SOURCE_DIR}/resources/dearts.rc
 )
@@ -61,6 +66,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include
     ${CMAKE_SOURCE_DIR}/plugins/navigation/include
     ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include
+    ${CMAKE_SOURCE_DIR}/plugins/command_palette/include
     ${CMAKE_SOURCE_DIR}/third_party/SDL/include
     ${CMAKE_SOURCE_DIR}/third_party/freetype/include
     ${CMAKE_SOURCE_DIR}/third_party/imgui
@@ -82,7 +88,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/command_palette.cpp
+    # Command Palette 现在是插件，移到了 plugins/command_palette/
+    # ${CMAKE_SOURCE_DIR}/core/ui/command_palette.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/title_bar.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/imgui_extensions.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/theme_manager.cpp

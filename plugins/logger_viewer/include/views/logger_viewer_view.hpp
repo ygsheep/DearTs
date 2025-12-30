@@ -3,7 +3,7 @@
  * @brief 日志查看器视图
  * @details 提供日志文件查看、筛选、搜索、去重等功能
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

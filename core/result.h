@@ -3,7 +3,7 @@
  * @brief Result 类型用于统一错误处理
  * @details 提供类型安全的错误处理机制，避免异常
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

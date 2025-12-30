@@ -7,10 +7,12 @@
 #pragma once
 
 #include "core/ui/view.h"
+#include "core/ui/icon_font.hpp"
 #include "toast_manager.hpp"
 #include <string>
 
 namespace DearTs::Plugins::Toast {
+using DearTs::Core::ContentRegistry::UnlocalizedString;
 
 /**
  * @brief Toast 测试视图
@@ -20,7 +22,7 @@ namespace DearTs::Plugins::Toast {
 class ToastView : public Core::UI::ViewWindow {
 public:
     explicit ToastView()
-        : ViewWindow("通知测试器") {
+        : ViewWindow(UnlocalizedString("通知测试器"), ICON_NOTIFICATIONS) {
     }
 
     ~ToastView() override = default;

@@ -3,7 +3,7 @@
  * @brief 视图管理器
  * @details 参考 ImHex 实现视图的注册、管理和停靠功能
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 

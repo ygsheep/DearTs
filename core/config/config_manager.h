@@ -3,7 +3,7 @@
  * @brief 配置管理器
  * @details 提供统一的配置管理接口，支持分层配置、类型安全、持久化
  * @author DearTs Team
- * @date 2024
+ * @date 2025
  * @version 1.0.0
  */
 
