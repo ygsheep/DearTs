@@ -788,10 +788,9 @@ float DearTsApplication::render_title_bar() {
         float title_bar_height = m_title_bar_config.get_title_bar_height();
         float button_y = (title_bar_height - m_title_bar_config.button_height) / 2.0f;
 
-        // 设置按钮的 FramePadding，让图标在按钮内垂直居中
-        // 计算 padding 让图标居中：按钮高度 30px，图标大约 16-18px
-        float icon_padding_y = (m_title_bar_config.button_height - ImGui::GetFontSize()) / 2.0f;
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, icon_padding_y));
+        // 设置按钮样式，确保图标水平居中
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_ButtonTextAlign, ImVec2(0.5f, 0.5f)); // 水平和垂直居中
 
         // 使用图标字体（如果已加载）
         if (Core::UI::IconFont::isLoaded()) {
@@ -847,7 +846,7 @@ float DearTsApplication::render_title_bar() {
             ImGui::PopFont();
         }
 
-        ImGui::PopStyleVar(); // FramePadding（按钮垂直偏移）
+        ImGui::PopStyleVar(2); // FramePadding + ButtonTextAlign
         ImGui::PopStyleVar(); // ItemSpacing
 
         ImGui::EndMainMenuBar();
