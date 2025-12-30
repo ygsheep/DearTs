@@ -8,7 +8,7 @@ include_directories(mocks/)
 # == Options ==
 option(BUILD_UNIT_TESTS "Build unit tests" ON)
 option(BUILD_INTEGRATION_TESTS "Build integration tests" ON)
-option(BUILD_UI_TESTS "Build UI automation tests" OFF)  # DISABLED: ImGui Test Engine incompatible with current ImGui version
+option(BUILD_UI_TESTS "Build UI automation tests" ON)  # DISABLED: ImGui Test Engine incompatible with current ImGui version
 option(ENABLE_COVERAGE "Enable code coverage reporting" OFF)
 
 # == Google Test Integration ==
@@ -172,6 +172,8 @@ if(BUILD_UI_TESTS)
             imgui_sdl3
             SDL3::SDL3-static
             deartsdl_logger
+            freetype
+            lunasvg
         )
 
         # Define ImGui Test Engine enable flag
