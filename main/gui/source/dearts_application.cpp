@@ -803,33 +803,34 @@ float DearTsApplication::render_title_bar() {
             ImGui::PushFont(Core::UI::IconFont::getFont());
         }
 
-        // 设置按钮
-        if (ImGui::Button(ICON_SETTINGS, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
-            LOG_INFO("Settings button clicked");
-            // 切换设置窗口
-            auto* settings_view = Core::ContentRegistry::Views::get_by_name(
-                Core::ContentRegistry::UnlocalizedString("Settings")
-            );
-            if (settings_view != nullptr) {
-                bool& is_open = settings_view->get_window_open_state();
-                is_open = !is_open;
-                LOG_INFO("Settings window {}", is_open ? "opened" : "closed");
-            } else {
-                LOG_WARN("Settings view not found!");
+        // 最小化按钮
+        if (ImGui::Button(ICON_MINIMIZE, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
+            if (m_window) {
+                SDL_MinimizeWindow(m_window);
             }
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("设置");
+            ImGui::SetTooltip("最小化");
         }
         ImGui::SameLine(0, m_title_bar_config.button_spacing);
 
-        // 关于按钮
-        if (ImGui::Button(ICON_INFO, ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
-            LOG_INFO("About button clicked");
-            m_show_about_window = !m_show_about_window;
+        // 最大化/还原按钮
+        if (ImGui::Button(m_is_maximized ? ICON_RESTORE : ICON_MAXIMIZE,
+                         ImVec2(m_title_bar_config.button_width, m_title_bar_config.button_height))) {
+            if (m_window) {
+                if (m_is_maximized) {
+                    // 还原窗口
+                    SDL_RestoreWindow(m_window);
+                    m_is_maximized = false;
+                } else {
+                    // 最大化窗口
+                    SDL_MaximizeWindow(m_window);
+                    m_is_maximized = true;
+                }
+            }
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("关于");
+            ImGui::SetTooltip(m_is_maximized ? "向下还原" : "最大化");
         }
         ImGui::SameLine(0, m_title_bar_config.button_spacing);
 

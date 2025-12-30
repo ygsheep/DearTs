@@ -179,6 +179,7 @@ private:
 
     // 窗口拖动状态
     bool m_is_dragging = false;
+    bool m_is_maximized = false;  // 窗口是否最大化
     ImVec2 m_drag_start_pos;
     ImVec2 m_window_start_pos;
 
