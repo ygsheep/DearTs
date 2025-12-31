@@ -80,6 +80,12 @@ if(EXISTS ${IMGUI_DIR})
         ${CMAKE_SOURCE_DIR}/third_party/lunasvg/include
         ${CMAKE_SOURCE_DIR}/core/config  # ImGui user config
     )
+    # Add Test Engine include path if available (for imgui_te_imconfig.h)
+    if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+        target_include_directories(imgui PUBLIC
+            ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine
+        )
+    endif()
     # ImGui 编译定义
     target_compile_definitions(imgui PUBLIC
         IMGUI_USER_CONFIG="imgui_user_config.h"
@@ -162,6 +168,7 @@ if(EXISTS ${IMGUI_TEST_ENGINE_DIR})
     target_link_libraries(imgui_test_engine PUBLIC imgui)
     target_compile_definitions(imgui_test_engine PUBLIC
         IMGUI_TEST_ENGINE_ENABLE
+        IMGUI_TEST_ENGINE_ENABLE_COROUTINE_STDTHREAD_IMPL
     )
     message(STATUS "ImGui Test Engine: Static library (v1.92.5 compatible)")
 else()

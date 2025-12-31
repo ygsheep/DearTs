@@ -182,6 +182,7 @@ if(BUILD_UI_TESTS)
         target_compile_definitions(dearts_ui_tests
             PRIVATE
             IMGUI_TEST_ENGINE_ENABLE
+            IMGUI_TEST_ENGINE_ENABLE_COROUTINE_STDTHREAD_IMPL
         )
 
         message(STATUS "UI tests configured: dearts_ui_tests")
