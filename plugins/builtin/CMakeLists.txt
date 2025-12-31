@@ -38,6 +38,7 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         # 依赖 DearTs 核心库（如果需要）
+        deartsdl_logger
 )
 
 # Windows 特定设置

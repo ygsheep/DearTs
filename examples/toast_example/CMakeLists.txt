@@ -37,7 +37,6 @@ target_sources(toast_example PRIVATE
     ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/command_palette.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/title_bar.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/imgui_extensions.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/theme_manager.cpp

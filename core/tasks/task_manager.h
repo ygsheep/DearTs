@@ -99,7 +99,7 @@ public:
      * @brief 更新进度
      */
     void setProgress(float progress) {
-        m_progress = progress;
+        m_progress = std::min(progress, m_max_progress);
         if (m_progress >= m_max_progress) {
             m_status = TaskStatus::Completed;
         }
@@ -162,6 +162,7 @@ private:
      * @brief 标记任务完成
      */
     void markCompleted() {
+        m_progress = m_max_progress;  // 完成时自动设置为最大进度
         m_status = TaskStatus::Completed;
         if (m_completed_callback) {
             m_completed_callback();

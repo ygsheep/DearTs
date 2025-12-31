@@ -36,7 +36,6 @@ target_sources(demo_imhex_style PRIVATE
     ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/command_palette.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/title_bar.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/imgui_extensions.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/theme_manager.cpp
@@ -49,8 +48,7 @@ target_sources(demo_imhex_style PRIVATE
 
 # 链接库
 target_link_libraries(demo_imhex_style PRIVATE
-        imgui
-        imgui_sdl3
+        imgui_full
         SDL3-static
         deartsdl_logger
         freetype

@@ -103,8 +103,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 
 # 链接库
 target_link_libraries(${PROJECT_NAME} PRIVATE
-        imgui
-        imgui_sdl3
+        imgui_full
         implot
         SDL3-static
         deartsdl_logger
