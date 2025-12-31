@@ -85,6 +85,8 @@ if(EXISTS ${IMGUI_DIR})
         ${CMAKE_SOURCE_DIR}/third_party/lunasvg/include
         ${CMAKE_SOURCE_DIR}/core/config  # ImGui user config
     )
+    # Link FreeType and LunaSVG (required for imgui_freetype.cpp)
+    target_link_libraries(imgui PUBLIC freetype lunasvg::lunasvg)
     # Add Test Engine include path if available (for imgui_te_imconfig.h)
     if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
         target_include_directories(imgui PUBLIC
@@ -128,12 +130,14 @@ if(EXISTS ${IMGUI_DIR})
     )
     target_link_libraries(imgui_sdl3 PRIVATE imgui)
 
-    # Create an alias library that includes ImGui + Test Engine (if available)
+    # Create an alias library that includes ImGui + Test Engine (if enabled)
     # This ensures all targets get the Test Engine linkage when needed
     add_library(imgui_full INTERFACE)
     target_link_libraries(imgui_full INTERFACE imgui imgui_sdl3)
-    if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
-        target_link_libraries(imgui_full INTERFACE imgui_test_engine)
+    if(ENABLE_IMGUI_TEST_ENGINE)
+        if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+            target_link_libraries(imgui_full INTERFACE imgui_test_engine)
+        endif()
     endif()
 
     # Setup ImPlot
@@ -165,30 +169,35 @@ else()
 endif()
 
 # Setup ImGui Test Engine (compatible with ImGui v1.92.5)
-set(IMGUI_TEST_ENGINE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
-if(EXISTS ${IMGUI_TEST_ENGINE_DIR})
-    message(STATUS "Using ImGui Test Engine from third_party directory")
+# Only build if explicitly enabled
+if(ENABLE_IMGUI_TEST_ENGINE)
+    set(IMGUI_TEST_ENGINE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+    if(EXISTS ${IMGUI_TEST_ENGINE_DIR})
+        message(STATUS "Using ImGui Test Engine from third_party directory")
 
-    # ImGui Test Engine sources
-    file(GLOB IMGUI_TEST_ENGINE_SOURCES
-        ${IMGUI_TEST_ENGINE_DIR}/*.cpp
-    )
+        # ImGui Test Engine sources
+        file(GLOB IMGUI_TEST_ENGINE_SOURCES
+            ${IMGUI_TEST_ENGINE_DIR}/*.cpp
+        )
 
-    # Create ImGui Test Engine library
-    add_library(imgui_test_engine STATIC ${IMGUI_TEST_ENGINE_SOURCES})
-    target_include_directories(imgui_test_engine PUBLIC
-        ${IMGUI_TEST_ENGINE_DIR}
-        ${IMGUI_DIR}
-        ${CMAKE_SOURCE_DIR}/third_party/imgui
-    )
-    target_link_libraries(imgui_test_engine PUBLIC imgui)
-    target_compile_definitions(imgui_test_engine PUBLIC
-        IMGUI_TEST_ENGINE_ENABLE
-        IMGUI_TEST_ENGINE_ENABLE_COROUTINE_STDTHREAD_IMPL
-    )
-    message(STATUS "ImGui Test Engine: Static library (v1.92.5 compatible)")
+        # Create ImGui Test Engine library
+        add_library(imgui_test_engine STATIC ${IMGUI_TEST_ENGINE_SOURCES})
+        target_include_directories(imgui_test_engine PUBLIC
+            ${IMGUI_TEST_ENGINE_DIR}
+            ${IMGUI_DIR}
+            ${CMAKE_SOURCE_DIR}/third_party/imgui
+        )
+        target_link_libraries(imgui_test_engine PUBLIC imgui)
+        target_compile_definitions(imgui_test_engine PUBLIC
+            IMGUI_TEST_ENGINE_ENABLE
+            IMGUI_TEST_ENGINE_ENABLE_COROUTINE_STDTHREAD_IMPL
+        )
+        message(STATUS "ImGui Test Engine: Static library (v1.92.5 compatible)")
+    else()
+        message(WARNING "ImGui Test Engine requested but not found!")
+    endif()
 else()
-    message(WARNING "ImGui Test Engine not found!")
+    message(STATUS "ImGui Test Engine: Disabled (use -DENABLE_IMGUI_TEST_ENGINE=ON to enable)")
 endif()
 
 # Add GUI test application
