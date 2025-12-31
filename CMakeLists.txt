@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Options
+option(BUILD_UI_TESTS "Build UI tests with ImGui Test Engine" OFF)
+option(ENABLE_IMGUI_TEST_ENGINE "Enable ImGui Test Engine hooks in ImGui" ${BUILD_UI_TESTS})
+
 # Set output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -100,14 +104,17 @@ if(EXISTS ${IMGUI_DIR})
         #      - LunaSVG 头文件不会添加任何导入/导出修饰符
         #      - 符号直接链接到静态库，链接成功
         LUNASVG_BUILD_STATIC
+    )
+    # 只在启用 Test Engine 时定义 IMGUI_ENABLE_TEST_ENGINE
+    if(ENABLE_IMGUI_TEST_ENGINE)
         # 重要：定义 IMGUI_ENABLE_TEST_ENGINE 启用 ImGui Test Engine 支持
         # 原理：
         #   1. ImGui Test Engine 需要访问 ImGuiItemStatusFlags_* 等内部标志
         #   2. 这些标志只在 IMGUI_ENABLE_TEST_ENGINE 定义时才会编译到 imgui 中
         #   3. 不定义此宏会导致：ImGuiItemStatusFlags_Openable/Opened/Checkable/Checked/Inputable 等未声明
         #   4. 定义后：ImGui Test Engine 可以正确访问这些内部状态标志进行 UI 自动化测试
-        IMGUI_ENABLE_TEST_ENGINE
-    )
+        target_compile_definitions(imgui PUBLIC IMGUI_ENABLE_TEST_ENGINE)
+    endif()
     if(WIN32)
         target_compile_definitions(imgui PUBLIC _USE_MATH_DEFINES)
     endif()
