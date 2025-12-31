@@ -9,6 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Options
 option(BUILD_UI_TESTS "Build UI tests with ImGui Test Engine" OFF)
 option(ENABLE_IMGUI_TEST_ENGINE "Enable ImGui Test Engine hooks in ImGui" ${BUILD_UI_TESTS})
+option(BUILD_EXAMPLES "Build example programs" OFF)
 
 # Set output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -192,10 +193,14 @@ endif()
 
 # Add GUI test application
 add_subdirectory(main/gui)
-add_subdirectory(examples/demo_imhex_style)
-add_subdirectory(examples/toast_example)
-add_subdirectory(examples/sdl_render_example)
-add_subdirectory(examples/sdl_interactive_example)
+
+# Add examples (only if BUILD_EXAMPLES is ON)
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples/demo_imhex_style)
+    add_subdirectory(examples/toast_example)
+    add_subdirectory(examples/sdl_render_example)
+    add_subdirectory(examples/sdl_interactive_example)
+endif()
 
 # Add plugins
 # Note: builtin plugin is compiled directly into main executable, not as separate library
@@ -203,8 +208,8 @@ add_subdirectory(examples/sdl_interactive_example)
 add_subdirectory(plugins/toast_notification)
 add_subdirectory(plugins/command_palette)
 
-# Add tests (optional, can be disabled with -DBUILD_TESTING=OFF)
-option(BUILD_TESTING "Build the testing tree" ON)
+# Add tests (optional, can be enabled with -DBUILD_TESTING=ON)
+option(BUILD_TESTING "Build the testing tree" OFF)
 if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests)
