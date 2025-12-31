@@ -71,6 +71,19 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
+      - name: Check Build Output (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "=== Build Directory Structure ==="
+          Get-ChildItem -Path build -Recurse -Directory | Select-Object FullName
+          Write-Host "=== Build Bin Directory ==="
+          Get-ChildItem -Path build/bin -Recurse | Select-Object FullName, Length
+          Write-Host "=== Release Bin Directory ==="
+          if (Test-Path "build/bin/Release") {
+            Get-ChildItem -Path build/bin/Release -Recurse | Select-Object FullName, Length
+          }
+
       - name: Prepare Release Directory (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -87,10 +100,28 @@ jobs:
           if (Test-Path "third_party/freetype/Release/freetype.dll") {
             copy third_party/freetype/Release/freetype.dll release\
           }
-          # 复制 resources 文件夹
+          # 复制 resources 文件夹（检查多个可能的位置）
           if (Test-Path "${{ matrix.binary_dir }}/resources") {
+            Write-Host "Found resources in: ${{ matrix.binary_dir }}/resources"
             Copy-Item -Path "${{ matrix.binary_dir }}/resources" -Destination "release\resources" -Recurse
+          } elseif (Test-Path "build/bin/resources") {
+            Write-Host "Found resources in: build/bin/resources"
+            Copy-Item -Path "build/bin/resources" -Destination "release\resources" -Recurse
+          } elseif (Test-Path "resources") {
+            Write-Host "Found resources in: resources (source directory)"
+            Copy-Item -Path "resources" -Destination "release\resources" -Recurse
+          } else {
+            Write-Host "WARNING: resources directory not found!"
           }
+
+      - name: Check Release Directory (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "=== Release Directory Contents ==="
+          Get-ChildItem -Path release -Recurse | Select-Object FullName, Length
+          Write-Host "=== Release Directory Size ==="
+          Get-ChildItem -Path release -Recurse | Measure-Object -Property Length -Sum | Select-Object Count, @{Name="SizeMB";Expression={[math]::Round($_.Sum / 1MB, 2)}}
 
       - name: Prepare Release Directory (Unix)
         if: runner.os != 'Windows'
