@@ -100,16 +100,6 @@ install(EXPORT deartsdl_logger_targets
     NAMESPACE deartsdl_logger
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/deartsdl_logger)
 
-# 包含检测
-find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
-    pkg_check_modules(Threads REQUIRED Threads)
-    if(Threads_FOUND)
-        target_link_libraries(deartsdl_logger PUBLIC ${Threads_LIBRARIES})
-        target_include_directories(deartsdl_logger PUBLIC ${Threads_INCLUDE_DIRS})
-    endif()
-endif()
-
 # 测试
 if(DEARTS_LOG_BUILD_TESTS)
     enable_testing()
