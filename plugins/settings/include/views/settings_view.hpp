@@ -50,7 +50,7 @@ struct ConfigItemInfo {
 class SettingsView : public Core::UI::ViewWindow {
 public:
     explicit SettingsView();
-    ~SettingsView() override = default;
+    ~SettingsView() override;
 
     /**
      * @brief 绘制视图内容
