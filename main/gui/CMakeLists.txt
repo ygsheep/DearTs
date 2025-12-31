@@ -117,6 +117,15 @@ if(WIN32)
         _CRT_SECURE_NO_WARNINGS
         _USE_MATH_DEFINES
     )
+    # Release 版本设置为 GUI 应用程序（无控制台窗口）
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set_target_properties(${PROJECT_NAME} PROPERTIES
+            WIN32_EXECUTABLE TRUE
+        )
+        target_link_options(${PROJECT_NAME} PRIVATE
+            "/SUBSYSTEM:WINDOWS"
+        )
+    endif()
 endif()
 
 # 定义资源目录
