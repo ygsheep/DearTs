@@ -18,11 +18,6 @@ jobs:
             binary_dir: build/bin
             binary_name: DearTsApp
             zip_command: zip
-          - os: macos-latest
-            artifact: DearTs-macos-x86_64
-            binary_dir: build/bin
-            binary_name: DearTsApp
-            zip_command: zip
           - os: windows-latest
             artifact: DearTs-windows-x86_64
             binary_dir: build/bin/Release
@@ -60,16 +55,8 @@ jobs:
             libibus-1.0-dev \
             libudev-dev \
             libpulse-dev \
-            libsndio-dev
-
-      # macOS: 安装依赖
-      - name: Install Dependencies (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install \
-            cmake \
-            ninja \
-            pkg-config
+            libsndio-dev \
+            libxss-dev
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
