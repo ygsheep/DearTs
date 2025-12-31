@@ -1,375 +1,513 @@
-# DearTs Framework 插件系统详解
+# DearTs Framework - 插件开发指南
 
-## 概述
+<div align="center">
 
-DearTs Framework 提供了一个强大而灵活的插件系统，参考了 ImHex 的设计理念。插件系统允许开发者动态扩展应用功能，而无需修改核心代码库。
+**从零开始创建你的第一个 DearTs 插件**
 
-### 核心特性
+[前置要求](#前置要求) • [快速示例](#快速示例) • [核心概念](#核心概念) • [进阶主题](#进阶主题)
 
-- ✅ **API 版本检查** - 确保插件与框架兼容
-- ✅ **生命周期管理** - 加载、卸载、启用、禁用
-- ✅ **类型安全** - 使用 C++20 类型系统和 Result 错误处理
-- ✅ **单例模式** - PluginManager 全局管理
-- ✅ **动态加载** - 支持从动态库加载插件（预留）
-- ✅ **内置插件** - 支持编译时集成插件
+</div>
 
-## 架构设计
+---
 
-### 核心组件
+## 📋 前置要求
 
-```
-┌─────────────────────────────────────────────┐
-│           PluginManager (单例)             │
-│  ┌────────────────────────────────────┐   │
-│  │    PluginWrapper (插件包装)        │   │
-│  │  ┌──────────────────────────────┐  │   │
-│  │  │      IPlugin (插件接口)      │  │   │
-│  │  └──────────────────────────────┘  │   │
-│  └────────────────────────────────────┘   │
-└─────────────────────────────────────────────┘
-```
+### 知识储备
 
-### 插件生命周期
+- ✅ C++20 基础（概念、auto、lambda）
+- ✅ 面向对象编程（类、继承、虚函数）
+- ✅ 智能指针和 RAII
+- ✅ Git 基础操作
 
-```
-未加载 (Unloaded)
-    ↓ 加载
-已加载 (Loaded)
-    ↓ 启用
-已启用 (Enabled)
-    ↓ 禁用
-已加载 (Loaded)
-    ↓ 卸载
-未加载 (Unloaded)
-```
+### 开发环境
 
-## 核心类详解
+- **编译器**: MSVC 2022+ / GCC 11+ / Clang 13+
+- **CMake**: 3.20+
+- **IDE**: Visual Studio 2022 / VS Code / CLion
 
-### 1. IPlugin - 插件接口
+---
 
-所有插件必须继承此类并实现虚函数。
+## 🚀 快速示例
+
+### 最小化插件（5 分钟）
+
+#### 1. 创建插件类
 
 ```cpp
-class IPlugin {
+// my_plugin.hpp
+#pragma once
+#include "core/plugin/plugin.h"
+
+class MyPlugin : public IPlugin {
 public:
-    virtual ~IPlugin() = default;
-
-    // 获取插件信息（必须实现）
-    virtual PluginInfo get_info() const = 0;
-
-    // 生命周期钩子（可选实现）
-    virtual Result<void, std::string> on_load();
-    virtual void on_unload();
-    virtual void on_enable();
-    virtual void on_disable();
-};
-```
-
-**插件信息结构**：
-
-```cpp
-struct PluginInfo {
-    std::string name;           // 插件名称（唯一标识）
-    std::string author;         // 插件作者
-    std::string description;    // 插件描述
-    std::string version;        // 插件版本（如 "1.0.0"）
-    std::string api_version;    // 需要的 API 版本（如 "1.0.0"）
-
-    // 检查 API 版本兼容性
-    bool is_api_compatible(const std::string& current_api_version) const;
-};
-```
-
-### 2. PluginManager - 插件管理器
-
-单例模式，全局管理所有插件。
-
-```cpp
-// 获取单例实例
-PluginManager& manager = PluginManager::instance();
-
-// 添加内置插件
-Result<void, std::string> result = manager.add_builtin(
-    std::make_unique<MyPlugin>()
-);
-
-// 从文件加载动态插件
-Result<void, std::string> result = manager.load_from_file(
-    "plugins/my_plugin.dll"
-);
-
-// 从目录加载所有插件
-Result<size_t, std::string> result = manager.load_from_directory(
-    "plugins/"
-);
-
-// 启用/禁用插件
-manager.enable("MyPlugin");
-manager.disable("MyPlugin");
-
-// 卸载插件
-bool success = manager.unload("MyPlugin");
-
-// 获取插件信息
-std::vector<PluginInfo> plugins = manager.get_all_plugins_info();
-
-// 获取插件指针
-IPlugin* plugin = manager.get_plugin("MyPlugin");
-
-// 获取插件状态
-Result<PluginState, std::string> state = manager.get_plugin_state("MyPlugin");
-```
-
-### 3. PluginWrapper - 插件包装
-
-包装插件实例，管理插件状态和生命周期。
-
-```cpp
-class PluginWrapper {
-public:
-    PluginState get_state() const;
-    const std::string& get_error() const;
-    IPlugin* get() const;
-
-    Result<void, std::string> load();
-    void unload();
-    void enable();
-    void disable();
-};
-```
-
-## 创建插件
-
-### 方法 1: 内置插件（编译时集成）
-
-适用于随主程序一起分发的插件。
-
-```cpp
-// 1. 定义插件类
-class MyPlugin : public DearTs::Core::Plugin::IPlugin {
-public:
-    // 获取插件信息
+    // 插件信息
     PluginInfo get_info() const override {
         return PluginInfo{
-            .name = "My Plugin",
+            .name = "MyPlugin",
             .author = "Your Name",
-            .description = "My awesome plugin",
+            .description = "我的第一个插件",
             .version = "1.0.0",
             .api_version = "1.0.0"
         };
     }
 
-    // 加载时调用
+    // 插件加载时调用
     Result<void, std::string> on_load() override {
-        LOG_INFO("MyPlugin: Loading...");
-
-        // 注册命令
-        ContentRegistry::Commands::registerHandler(
-            "myplugin.action",
-            "My Action",
-            []() {
-                LOG_INFO("Action executed!");
-            }
-        );
-
-        // 注册视图
-        ViewManager::instance().addView<MyPluginView>();
-
-        // 注册工具
-        ContentRegistry::Tools::add(
-            "My Tool",
-            []() {
-                ImGui::Text("My Tool Content");
-            }
-        );
-
-        LOG_INFO("MyPlugin: Loaded successfully");
-        return Result<void, std::string>::ok();
+        LOG_INFO("MyPlugin loaded!");
+        return Result::ok();
     }
 
-    // 卸载时调用
+    // 插件卸载时调用
     void on_unload() override {
-        LOG_INFO("MyPlugin: Unloading...");
-
-        // 清理资源（框架会自动取消订阅等）
-    }
-
-    // 启用时调用
-    void on_enable() override {
-        LOG_INFO("MyPlugin: Enabled");
-    }
-
-    // 禁用时调用
-    void on_disable() override {
-        LOG_INFO("MyPlugin: Disabled");
+        LOG_INFO("MyPlugin unloaded!");
     }
 };
+```
 
-// 2. 注册内置插件
-void registerPlugins() {
-    auto result = PluginManager::instance().add_builtin(
+#### 2. 注册插件
+
+```cpp
+// main.cpp 或在 builtin plugin 中
+#include "my_plugin.hpp"
+
+int main() {
+    // ...
+
+    // 注册内置插件
+    PluginManager::instance().add_builtin(
         std::make_unique<MyPlugin>()
     );
 
-    if (result.isErr()) {
-        LOG_ERROR("Failed to load plugin: {}", result.error());
-    }
+    // ...
 }
 ```
 
-### 方法 2: 动态插件（运行时加载）
+#### 3. 编译运行
 
-适用于可选的第三方插件（未来支持）。
+```bash
+cmake --build build --config Release
+./build/bin/DearTsApp.exe
+```
+
+输出：
+```
+[INFO] MyPlugin loaded!
+```
+
+---
+
+## 📖 核心概念
+
+### 1. 插件生命周期
+
+```
+Unloaded (未加载)
+    ↓ add_builtin() / load_from_file()
+Loaded (已加载)
+    ↓ enable()
+Enabled (已启用)
+    ↓ disable()
+Loaded (已加载)
+    ↓ unload()
+Unloaded (未加载)
+```
+
+**生命周期方法**：
+
+| 方法 | 调用时机 | 用途 |
+|------|----------|------|
+| `get_info()` | 加载时 | 返回插件信息 |
+| `on_load()` | 加载时 | 注册命令、视图等 |
+| `on_unload()` | 卸载时 | 清理资源 |
+| `on_enable()` | 启用时 | 激活插件功能 |
+| `on_disable()` | 禁用时 | 停用插件功能 |
+
+### 2. Content Registry
+
+Content Registry 是 DearTs 的核心，提供统一的接口注册：
+
+#### 注册命令
 
 ```cpp
-// 插件动态库需要导出创建和销毁函数
-extern "C" {
-    __declspec(dllexport) IPlugin* dearts_create_plugin() {
-        return new MyPlugin();
-    }
+Result<void, std::string> on_load() override {
+    ContentRegistry::Commands::register_handler(
+        "myplugin.hello",      // 命令 ID
+        "Say Hello",           // 显示名称
+        []() {                 // 回调函数
+            LOG_INFO("Hello from MyPlugin!");
+        },
+        nullptr,               // 启用回调（可选）
+        "Ctrl+Shift+H"         // 快捷键（可选）
+    );
 
-    __declspec(dllexport) void dearts_destroy_plugin(IPlugin* plugin) {
-        delete plugin;
-    }
+    return Result::ok();
 }
+```
 
-// 主程序从文件加载
-auto result = PluginManager::instance().load_from_file(
-    "plugins/my_plugin.dll"
+#### 注册视图
+
+```cpp
+class MyView : public View {
+public:
+    std::string getName() const override {
+        return "My View";
+    }
+
+    void draw_content() override {
+        ImGui::Text("Hello from my view!");
+        if (ImGui::Button("Click me")) {
+            LOG_INFO("Button clicked!");
+        }
+    }
+};
+
+// 在 on_load() 中注册
+ContentRegistry::Views::add<MyView>();
+```
+
+#### 注册工具
+
+```cpp
+ContentRegistry::Tools::add(
+    "My Tool",              // 工具名称
+    []() {                  // 回调函数
+        LOG_INFO("Tool activated");
+    }
 );
 ```
 
-## 插件功能集成
-
-### 1. 注册命令
+#### 注册设置
 
 ```cpp
-class CommandPlugin : public IPlugin {
-    Result<void, std::string> on_load() override {
-        ContentRegistry::Commands::registerHandler(
-            "myplugin.hello",
-            "Say Hello",
-            []() {
-                LOG_INFO("Hello from MyPlugin!");
-            },
-            nullptr,
-            "Ctrl+Shift+H"  // 快捷键
-        );
+ContentRegistry::Settings::add(
+    "myplugin.enabled",     // 设置键
+    "Enable MyPlugin",      // 显示名称
+    true                    // 默认值
+);
+```
 
-        return Result<void, std::string>::ok();
-    }
+### 3. 事件系统
+
+#### 定义事件
+
+```cpp
+struct MyCustomEvent {
+    int value;
+    std::string message;
 };
 ```
 
-### 2. 注册视图
+#### 订阅事件
 
 ```cpp
-// 定义视图
-class MyPluginView : public View {
-public:
-    std::string getName() const override {
-        return "My Plugin View";
-    }
-
-    void drawContent() override {
-        ImGui::Text("Hello from plugin view!");
-    }
-};
-
-// 在插件中注册
-class ViewPlugin : public IPlugin {
-    Result<void, std::string> on_load() override {
-        ViewManager::instance().addView<MyPluginView>();
-        return Result<void, std::string>::ok();
-    }
-};
-```
-
-### 3. 注册工具
-
-```cpp
-class ToolPlugin : public IPlugin {
-    Result<void, std::string> on_load() override {
-        ContentRegistry::Tools::add(
-            "My Plugin Tool",
-            []() {
-                if (ImGui::Begin("My Plugin Tool")) {
-                    ImGui::Text("Tool content");
-                }
-                ImGui::End();
-            }
-        );
-
-        return Result<void, std::string>::ok();
-    }
-};
-```
-
-### 4. 订阅事件
-
-```cpp
-class EventPlugin : public IPlugin {
+class MyPlugin : public IPlugin {
 private:
-    EventBus::Token m_eventToken;
+    EventBus::Token m_eventToken;  // RAII 自动管理
 
 public:
     Result<void, std::string> on_load() override {
         // 订阅事件
-        m_eventToken = EventBus::instance().subscribe<DataModifiedEvent>(
-            [](const DataModifiedEvent& e) {
-                LOG_INFO("Data modified: {} bytes at 0x{:X}",
-                         e.size, e.offset);
+        m_eventToken = EventBus::instance().subscribe<MyCustomEvent>(
+            [](const MyCustomEvent& e) {
+                LOG_INFO("Received: {} - {}", e.value, e.message);
             }
         );
 
-        return Result<void, std::string>::ok();
-    }
-
-    void on_unload() override {
-        // Token 会自动取消订阅
+        return Result::ok();
     }
 };
 ```
 
-### 5. 注册设置
+#### 发布事件
 
 ```cpp
-class SettingsPlugin : public IPlugin {
+EventBus::instance().publish(MyCustomEvent{
+    42,
+    "Hello from event!"
+});
+```
+
+### 4. 配置管理
+
+```cpp
+class MyPlugin : public IPlugin {
+private:
+    ConfigScope m_config{"myplugin"};  // 自动添加 "myplugin." 前缀
+
+public:
     Result<void, std::string> on_load() override {
-        ContentRegistry::Settings::add(
-            "myplugin.auto_save",
-            "Auto Save",
-            true
-        );
+        // 读取配置
+        bool enabled = m_config.get_or<bool>("enabled", true);
+        int interval = m_config.get_or<int>("interval", 60);
 
-        ContentRegistry::Settings::add(
-            "myplugin.interval",
-            "Save Interval (seconds)",
-            60
-        );
+        LOG_INFO("Plugin enabled: {}, interval: {}", enabled, interval);
 
-        return Result<void, std::string>::ok();
+        // 写入配置
+        m_config.set("last_run", std::time(nullptr));
+
+        // 保存到文件
+        ConfigManager::instance().save_to_file("config.json");
+
+        return Result::ok();
     }
 };
 ```
 
-## 完整示例
+**配置文件 (config.json)**:
+```json
+{
+    "myplugin": {
+        "enabled": true,
+        "interval": 60,
+        "last_run": 1704067200
+    }
+}
+```
 
-### 示例 1: 简单功能插件
+---
+
+## 🔧 进阶主题
+
+### 1. 插件间通信
+
+```cpp
+// 插件 A 发布事件
+EventBus::instance().publish(DataModifiedEvent{});
+
+// 插件 B 订阅事件
+m_eventToken = EventBus::instance().subscribe<DataModifiedEvent>(
+    [](const DataModifiedEvent& e) {
+        // 处理数据修改
+    }
+);
+```
+
+### 2. 异步任务
+
+```cpp
+#include "core/tasks/task_manager.h"
+
+Result<void, std::string> on_load() override {
+    auto task = TaskManager::instance().launch(
+        "My Background Task",
+        [](const auto& cancel) {
+            for (int i = 0; i < 100 && !cancel.is_cancelled(); i++) {
+                task.update_progress(i, 100);
+                // 执行工作...
+            }
+            return Result::ok();
+        }
+    );
+
+    return Result::ok();
+}
+```
+
+### 3. 视图高级特性
+
+```cpp
+class MyView : public View {
+public:
+    std::string getName() const override {
+        return "My Advanced View";
+    }
+
+    void draw_content() override {
+        // 菜单栏
+        if (ImGui::BeginMenuBar()) {
+            if (ImGui::MenuItem("Refresh")) {
+                refresh_data();
+            }
+            ImGui::EndMenuBar();
+        }
+
+        // 状态栏
+        ImGui::Text("Status: %s", m_status.c_str());
+
+        // 可调整大小的分割
+        ImGui::Separator();
+
+        // 自定义绘制
+        draw_custom_content();
+    }
+
+private:
+    void refresh_data() {
+        LOG_INFO("Refreshing data...");
+    }
+
+    void draw_custom_content() {
+        // ...
+    }
+
+    std::string m_status = "Ready";
+};
+```
+
+### 4. 插件依赖
+
+```cpp
+PluginInfo get_info() const override {
+    return PluginInfo{
+        .name = "MyPlugin",
+        // ...
+        .dependencies = {"RequiredPlugin1", "RequiredPlugin2"}
+    };
+}
+```
+
+---
+
+## 🧪 测试插件
+
+### 单元测试
+
+```cpp
+// tests/unit/plugins/my_plugin_test.cpp
+#include <gtest/gtest.h>
+#include "my_plugin.hpp"
+
+TEST(MyPluginTest, GetInfo) {
+    MyPlugin plugin;
+    auto info = plugin.get_info();
+
+    EXPECT_EQ(info.name, "MyPlugin");
+    EXPECT_EQ(info.version, "1.0.0");
+}
+
+TEST(MyPluginTest, OnLoad) {
+    MyPlugin plugin;
+    auto result = plugin.on_load();
+
+    EXPECT_TRUE(result.isOk());
+}
+```
+
+### 手动测试
+
+1. 编译插件
+2. 运行应用
+3. 检查日志输出
+4. 验证功能正常
+
+---
+
+## 📚 最佳实践
+
+### ✅ DO
+
+1. **使用 Result<T, E> 处理错误**
+   ```cpp
+   Result<void, std::string> on_load() override {
+       if (!init()) {
+           return Result::err("Initialization failed");
+       }
+       return Result::ok();
+   }
+   ```
+
+2. **使用 RAII 管理资源**
+   ```cpp
+   class MyPlugin : public IPlugin {
+   private:
+       EventBus::Token m_eventToken;  // 自动取消订阅
+       ConfigScope m_config{"myplugin"};  // 自动前缀
+   };
+   ```
+
+3. **使用前缀避免命名冲突**
+   ```cpp
+   // 命令
+   "myplugin.action"
+
+   // 设置
+   "myplugin.setting_name"
+   ```
+
+4. **记录重要事件**
+   ```cpp
+   LOG_INFO("Plugin loading...");
+   LOG_ERROR("Failed to load: {}", error);
+   ```
+
+### ❌ DON'T
+
+1. **不要使用异常处理**
+   ```cpp
+   // ❌ 错误
+   void on_load() override {
+       throw std::runtime_error("Failed");
+   }
+
+   // ✅ 正确
+   Result<void, std::string> on_load() override {
+       return Result::err("Failed");
+   }
+   ```
+
+2. **不要忘记 API 版本**
+   ```cpp
+   PluginInfo{
+       // ...
+       .api_version = "1.0.0"  // 必须匹配框架
+   }
+   ```
+
+3. **不要使用全局状态**
+   ```cpp
+   // ❌ 错误
+   static int g_counter;
+
+   // ✅ 正确
+   class MyPlugin : public IPlugin {
+   private:
+       int m_counter;
+   };
+   ```
+
+4. **不要在 on_load() 中执行耗时操作**
+   ```cpp
+   // ❌ 错误
+   Result<void, std::string> on_load() override {
+       // 阻塞加载
+       load_huge_file();
+       return Result::ok();
+   }
+
+   // ✅ 正确
+   Result<void, std::string> on_load() override {
+       // 异步加载
+       TaskManager::instance().launch("Load File", []() {
+           load_huge_file();
+       });
+       return Result::ok();
+   }
+   ```
+
+---
+
+## 🎯 完整示例
+
+### 完整的插件示例
 
 ```cpp
 #pragma once
-
 #include "core/plugin/plugin.h"
+#include "core/events/event_bus.h"
 #include "core/content/commands.h"
-#include "liblogger/logger.h"
+#include "core/content/views.h"
+#include "core/config/config_manager.h"
 
-class HelloWorldPlugin : public DearTs::Core::Plugin::IPlugin {
+class HelloWorldPlugin : public IPlugin {
+private:
+    EventBus::Token m_eventToken;
+    ConfigScope m_config{"helloworld"};
+
 public:
     PluginInfo get_info() const override {
         return PluginInfo{
             .name = "HelloWorld",
-            .author = "DearTs Team",
+            .author = "Your Name",
             .description = "A simple hello world plugin",
             .version = "1.0.0",
             .api_version = "1.0.0"
@@ -377,329 +515,68 @@ public:
     }
 
     Result<void, std::string> on_load() override {
-        LOG_INFO("HelloWorldPlugin: Loading...");
+        // 读取配置
+        bool show_message = m_config.get_or<bool>("show_message", true);
+
+        if (show_message) {
+            LOG_INFO("Hello, World!");
+        }
 
         // 注册命令
-        ContentRegistry::Commands::registerHandler(
+        ContentRegistry::Commands::register_handler(
             "helloworld.say",
             "Say Hello",
             []() {
-                ImGui::OpenPopup("Hello Popup");
-                LOG_INFO("Hello from plugin!");
-            }
-        );
-
-        // 渲染弹窗
-        m_renderToken = ImGui::GetIO().MetricsActiveTotal++;
-        ImGui::GetIO().MetricsActiveTotal--;
-
-        LOG_INFO("HelloWorldPlugin: Loaded");
-        return Result<void, std::string>::ok();
-    }
-
-    void on_unload() override {
-        LOG_INFO("HelloWorldPlugin: Unloaded");
-    }
-
-    void on_enable() override {
-        LOG_INFO("HelloWorldPlugin: Enabled");
-    }
-
-    void on_disable() override {
-        LOG_INFO("HelloWorldPlugin: Disabled");
-    }
-
-    // 可选：渲染钩子
-    void onRender() {
-        if (ImGui::BeginPopup("Hello Popup")) {
-            ImGui::Text("Hello from HelloWorld Plugin!");
-            if (ImGui::Button("Close")) {
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
-        }
-    }
-
-private:
-    int m_renderToken = 0;
-};
-```
-
-### 示例 2: 数据处理插件
-
-```cpp
-class DataProcessorPlugin : public IPlugin {
-public:
-    PluginInfo get_info() const override {
-        return PluginInfo{
-            .name = "DataProcessor",
-            .author = "Data Team",
-            .description = "Advanced data processing plugin",
-            .version = "2.0.0",
-            .api_version = "1.0.0"
-        };
-    }
-
-    Result<void, std::string> on_load() override {
-        // 注册命令
-        ContentRegistry::Commands::registerHandler(
-            "dataprocessor.analyze",
-            "Analyze Data",
-            [this]() {
-                analyzeData();
-            }
-        );
-
-        ContentRegistry::Commands::registerHandler(
-            "dataprocessor.export",
-            "Export Data",
-            [this]() {
-                exportData();
-            }
+                LOG_INFO("Hello from command!");
+            },
+            nullptr,
+            "Ctrl+Shift+H"
         );
 
         // 订阅事件
-        m_dataEventToken = EventBus::instance().subscribe<DataModifiedEvent>(
-            [this](const DataModifiedEvent& e) {
-                onDataModified(e);
+        m_eventToken = EventBus::instance().subscribe<ApplicationReadyEvent>(
+            [](const ApplicationReadyEvent&) {
+                LOG_INFO("Application is ready!");
             }
         );
 
-        // 注册视图
-        ViewManager::instance().addView<DataAnalysisView>();
-
-        // 注册设置
-        ContentRegistry::Settings::add(
-            "dataprocessor.auto_analyze",
-            "Auto Analyze",
-            true
-        );
-
-        LOG_INFO("DataProcessorPlugin: Loaded successfully");
-        return Result<void, std::string>::ok();
-    }
-
-    void on_unload() override {
-        LOG_INFO("DataProcessorPlugin: Cleanup");
-    }
-
-private:
-    void analyzeData() {
-        LOG_INFO("Analyzing data...");
-        // 分析逻辑
-    }
-
-    void exportData() {
-        LOG_INFO("Exporting data...");
-        // 导出逻辑
-    }
-
-    void onDataModified(const DataModifiedEvent& event) {
-        if (auto_analyze) {
-            analyzeData();
-        }
-    }
-
-    EventBus::Token m_dataEventToken;
-    bool auto_analyze = true;
-};
-```
-
-## 插件最佳实践
-
-### 1. 插件命名规范
-
-```cpp
-// ✅ 推荐 - PascalCase，清晰描述功能
-class HexEditorPlugin : public IPlugin { };
-class DataInspectorPlugin : public IPlugin { };
-
-// ❌ 不推荐 - 模糊的名称
-class Plugin1 : public IPlugin { };
-class MyPlugin : public IPlugin { };
-```
-
-### 2. 错误处理
-
-```cpp
-// ✅ 推荐 - 使用 Result 类型
-Result<void, std::string> on_load() override {
-    if (!initializeResources()) {
-        return Result::err("Failed to initialize resources");
-    }
-    return Result::ok();
-}
-
-// ❌ 不推荐 - 异常（可能破坏稳定性）
-void on_load() override {
-    if (!initializeResources()) {
-        throw std::runtime_error("Failed");
-    }
-}
-```
-
-### 3. 资源管理
-
-```cpp
-// ✅ 推荐 - RAII
-class MyPlugin : public IPlugin {
-private:
-    std::unique_ptr<Resource> m_resource;
-
-public:
-    void on_unload() override {
-        // 自动释放
-        m_resource.reset();
-    }
-};
-
-// ❌ 不推荐 - 手动管理
-class MyPlugin : public IPlugin {
-public:
-    void on_unload() override {
-        delete m_resource;  // 容易忘记
-    }
-};
-```
-
-### 4. API 版本兼容性
-
-```cpp
-// ✅ 推荐 - 声明支持的 API 版本
-PluginInfo get_info() const override {
-    return PluginInfo{
-        .api_version = "1.0.0"  // 明确版本
-    };
-}
-
-// ✅ 推荐 - 版本比较
-bool is_api_compatible(const std::string& current) const {
-    // 支持语义版本比较
-    return api_version == current || is_backward_compatible(current);
-}
-```
-
-### 5. 日志记录
-
-```cpp
-// ✅ 推荐 - 使用统一的日志系统
-Result<void, std::string> on_load() override {
-    LOG_INFO("MyPlugin: Loading...");
-
-    try {
-        // 初始化逻辑
-        LOG_INFO("MyPlugin: Loaded successfully");
         return Result::ok();
-    } catch (const std::exception& e) {
-        LOG_ERROR("MyPlugin: Failed to load - {}", e.what());
-        return Result::err(e.what());
     }
-}
-```
 
-## 插件系统 API 参考
-
-### PluginManager
-
-```cpp
-class PluginManager {
-public:
-    // 单例访问
-    static PluginManager& instance();
-
-    // 添加插件
-    Result<void, std::string> add_builtin(std::unique_ptr<IPlugin> plugin);
-    Result<void, std::string> load_from_file(const std::filesystem::path& path);
-    Result<size_t, std::string> load_from_directory(const std::filesystem::path& directory);
-
-    // 卸载插件
-    bool unload(const std::string& name);
-
-    // 启用/禁用
-    Result<void, std::string> enable(const std::string& name);
-    Result<void, std::string> disable(const std::string& name);
-
-    // 重载
-    Result<void, std::string> reload(const std::string& name);
-
-    // 查询
-    IPlugin* get_plugin(const std::string& name);
-    std::vector<PluginInfo> get_all_plugins_info() const;
-    Result<PluginState, std::string> get_plugin_state(const std::string& name) const;
-
-    // 清空
-    void clear();
+    void on_unload() override {
+        LOG_INFO("Goodbye, World!");
+        // m_eventToken 自动取消订阅（RAII）
+    }
 };
 ```
 
-### IPlugin
+---
 
-```cpp
-class IPlugin {
-public:
-    virtual ~IPlugin() = default;
+## 🔗 相关资源
 
-    // 必须实现
-    virtual PluginInfo get_info() const = 0;
+### API 文档
 
-    // 可选实现
-    virtual Result<void, std::string> on_load();
-    virtual void on_unload();
-    virtual void on_enable();
-    virtual void on_disable();
-};
-```
+- **[插件系统 API](../dearts-dev/references/plugin_system_api.md)** - 完整的 Plugin API 参考
+- **[ConfigManager API](../dearts-dev/references/config_manager_api.md)** - 配置管理 API
+- **[EventBus API](../dearts-dev/references/event_system.md)** - 事件系统 API
 
-## 插件调试
+### 示例代码
 
-### 查看已加载插件
+- **[内置插件](../plugins/builtin/)** - BuiltinPlugin 示例
+- **[Toast 通知插件](../plugins/toast_notification/)** - 实用插件示例
+- **[命令面板插件](../plugins/command_palette/)** - 复杂插件示例
 
-```cpp
-// 获取所有插件信息
-auto plugins = PluginManager::instance().get_all_plugins_info();
+### 社区
 
-ImGui::Begin("Plugins");
-for (const auto& plugin : plugins) {
-    ImGui::Text("Name: {}", plugin.name);
-    ImGui::Text("Author: {}", plugin.author);
-    ImGui::Text("Version: {}", plugin.version);
-    ImGui::Text("API: {}", plugin.api_version);
-    ImGui::Separator();
-}
-ImGui::End();
-```
+- **[GitHub Issues](https://github.com/ygsheep/DearTs/issues)** - 报告问题
+- **[GitHub Discussions](https://github.com/ygsheep/DearTs/discussions)** - 社区讨论
 
-### 查看插件状态
+---
 
-```cpp
-auto state = PluginManager::instance().get_plugin_state("MyPlugin");
-if (state.isOk()) {
-    auto s = state.unwrap();
-    switch (s) {
-        case PluginState::Unloaded:   /* ... */ break;
-        case PluginState::Loaded:     /* ... */ break;
-        case PluginState::Enabled:    /* ... */ break;
-        case PluginState::Disabled:   /* ... */ break;
-        case PluginState::Error:      /* ... */ break;
-    }
-}
-```
+<div align="center">
 
-## 插件开发检查清单
+**开始创建你的插件吧！** 🚀
 
-- [ ] 实现 `get_info()` 返回完整的 PluginInfo
-- [ ] 实现 `on_load()` 返回 Result 类型
-- [ ] 实现 `on_unload()` 清理资源
-- [ ] 使用 RAII 管理资源生命周期
-- [ ] 使用 `LOG_*` 宏记录日志
-- [ ] 使用 Result 类型进行错误处理
-- [ ] 注册命令、工具、视图时使用前缀避免冲突
-- [ ] API 版本号与框架兼容
-- [ ] 线程安全（如需要）
+[⬆ 返回顶部](#dearts-framework---插件开发指南)
 
-## 参考资源
-
-- **源码**: `core/plugin/plugin.h`, `core/plugin/plugin.cpp`
-- **模板**: `assets/plugin_template.cpp`
-- **示例**: ImHex 插件 (`.demo/ImHex/plugins/`)
-- **文档**: `dearts-dev/references/plugin_system.md`
+</div>

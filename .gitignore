@@ -1,10 +1,10 @@
 # other
 .demo/
-dearts-dev/
 .claude-skills/
 __pycache__/
 tmp/
 build-Release/
+imgui.ini
 
 # CMake build directories
 build/
