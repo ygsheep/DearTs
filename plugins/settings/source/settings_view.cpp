@@ -24,6 +24,8 @@ SettingsView::SettingsView()
     , m_theme_widget(std::make_unique<ThemeSettingsWidget>()) {
 }
 
+SettingsView::~SettingsView() = default;
+
 void SettingsView::draw_content() {
     // 顶部工具栏
     if (ImGui::Button("刷新")) {
