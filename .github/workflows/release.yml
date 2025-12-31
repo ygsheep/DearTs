@@ -87,6 +87,10 @@ jobs:
           if (Test-Path "third_party/freetype/Release/freetype.dll") {
             copy third_party/freetype/Release/freetype.dll release\
           }
+          # 复制 resources 文件夹
+          if (Test-Path "${{ matrix.binary_dir }}/resources") {
+            Copy-Item -Path "${{ matrix.binary_dir }}/resources" -Destination "release\resources" -Recurse
+          }
 
       - name: Prepare Release Directory (Unix)
         if: runner.os != 'Windows'
@@ -95,6 +99,10 @@ jobs:
           cp ${{ matrix.binary_dir }}/${{ matrix.binary_name }} release/
           # 复制共享库文件
           find ${{ matrix.binary_dir }} -name "*.so" -o -name "*.dylib" | xargs -I {} cp {} release/ || true
+          # 复制 resources 文件夹
+          if [ -d "${{ matrix.binary_dir }}/resources" ]; then
+            cp -r ${{ matrix.binary_dir }}/resources release/
+          fi
 
       - name: Create ZIP Archive (Windows)
         if: runner.os == 'Windows'
