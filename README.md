@@ -2,726 +2,570 @@
 
 <div align="center">
 
-**基于 SDL3 的现代 C++20 应用程序生命周期管理框架**
+<img src="resources/icon.png" alt="DearTs Icon" width="128" height="128"/>
+
+**基于 SDL3 + ImGui 的现代 C++20 应用程序框架，采用 ImHex 风格的插件架构**
 
 [![C++20](https://img.shields.io/badge/C++-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![SDL3](https://img.shields.io/badge/SDL-3-green.svg)](https://wiki.libsdl.org/SDL3/)
 [![License](https://img.shields.io/badge/license-MIT-purple.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-109%20passed-brightgreen.svg)](tests/)
 
-[快速开始](#-快速开始) • [架构说明](#-架构设计) • [API文档](#-application-类详解) • [开发指南](#-开发指南)
+[功能特性](#-核心特性) • [快速开始](#-快速开始) • [架构设计](#-架构设计) • [插件开发](#-插件开发) • [API 文档](#-api-文档)
 
 </div>
 
-## 📖 项目简介
+---
 
-DearTs 是一个轻量级、模块化的 C++ 应用程序开发框架，专注于提供清晰的应用程序生命周期管理和现代化开发体验。框架采用**源码集成**的设计理念，核心模块直接编译到可执行文件中，避免了传统链接库的复杂性。
+## 📋 项目目的
 
-### ✨ 核心特性
+### 🎯 我们要解决什么问题？
 
-#### 🎯 应用程序管理
-- **完整生命周期管理** - 状态机驱动的初始化、运行、暂停、关闭流程
-- **智能帧率控制** - 支持 VSync 和目标帧率，自动 FPS 统计
-- **优雅退出机制** - 安全的资源清理和状态转换
+DearTs Framework 的诞生是为了解决现代 C++ GUI 应用开发中的以下痛点：
 
-#### 🚀 现代化架构
-- **C++20** - 使用 Concepts、Ranges、std::format 等现代特性
-- **类型安全事件系统** - 基于 EventBus 的发布-订阅模式，支持异步事件
-- **模块化设计** - 清晰的模块边界，易于扩展和维护
+#### ❌ 传统 C++ 应用开发的问题
 
-#### 🎨 用户界面
-- **ImGui 集成** - 完整的 SDL3 + ImGui 集成层
-- **多视图系统** - 参考 ImHex 的停靠窗口管理，支持多种视图类型
-- **主题支持** - 可定制的 UI 主题和样式
+1. **繁琐的应用生命周期管理**
+   - 手动管理 SDL/ImGui 初始化顺序
+   - 资源清理容易遗漏导致内存泄漏
+   - 状态转换逻辑混乱
 
-#### 🔧 开发工具
-- **异步日志系统** - 基于 liblogger 的高性能日志，支持重复过滤
-- **配置管理** - 灵活的配置文件管理和持久化
-- **插件系统** - 支持动态插件加载（预留接口）
+2. **缺乏统一的插件架构**
+   - 功能耦合严重，难以扩展
+   - 插件加载和管理复杂
+   - 模块间通信困难
 
-## 📁 项目结构
+3. **类型安全事件系统的缺失**
+   - 依赖不安全的函数指针
+   - 事件订阅/取消管理复杂
+   - 容易产生内存泄漏和悬空指针
 
-```
-DearTs/
-├── core/                              # 核心源代码（直接编译，非链接库）
-│   ├── app/                          # 应用程序生命周期管理
-│   │   ├── application.h             # 应用程序基类
-│   │   └── application.cpp           # 应用程序实现
-│   ├── event/                        # 类型安全的事件系统
-│   │   ├── event_bus.h               # 事件总线（发布-订阅）
-│   │   └── events.h                  # 内置事件定义
-│   ├── ui/                           # 用户界面系统
-│   │   ├── imgui_layer.h             # SDL3 + ImGui 集成层
-│   │   ├── view.h                    # 视图系统
-│   │   └── view_manager.h            # 多视图管理器
-│   ├── config/                       # 配置管理
-│   │   └── config_manager.h          # 配置文件管理器
-│   └── plugin/                       # 插件系统（预留接口）
-├── lib/                              # 外部依赖库
-│   └── liblogger/                    # 异步日志库
-├── third_party/                      # 第三方依赖
-│   ├── SDL/                          # SDL3 - 跨平台多媒体库
-│   ├── imgui/                        # ImGui - 立即模式 GUI
-│   ├── freetype/                     # FreeType - 字体渲染
-│   ├── SDL_image/                    # 图像加载库（可选）
-│   ├── SDL_mixer/                    # 音频播放库（可选）
-│   └── SDL_ttf/                      # TrueType 字体库（可选）
-├── main/gui/                         # GUI 测试程序
-│   ├── main.cpp                      # 生命周期测试示例
-│   └── CMakeLists.txt                # 编译配置
-├── examples/                         # 示例代码
-├── docs/                             # 项目文档
-│   └── 代码规范.md
-├── CMakeLists.txt                    # 根构建配置
-└── README.md                         # 本文件
-```
+4. **配置管理混乱**
+   - 缺乏统一的配置管理
+   - JSON 序列化/反序列化繁琐
+   - 配置验证和类型转换不安全
 
-### 🏗️ 架构设计理念
+5. **测试基础设施不完善**
+   - UI 自动化测试困难
+   - 缺乏完整的单元测试框架
+   - 测试覆盖率低
 
-**core 不是链接库！** 这是 DearTs 的核心设计理念：
+### ✅ DearTs 的解决方案
+
+**DearTs Framework** 提供了一个完整的应用程序生命周期管理和插件系统，让开发者专注于业务逻辑而非基础设施：
+
+- **🎯 完整的应用生命周期管理** - 清晰的状态机，自动化资源管理
+- **🔌 ImHex 风格的插件系统** - 类型安全的插件接口，Content Registry 集中管理
+- **📡 类型安全的事件总线** - 基于 C++20 的 EventBus，RAII 自动管理订阅
+- **⚙️ 强大的配置管理** - 类型安全的 ConfigManager，JSON 持久化
+- **🧪 完善的测试框架** - Google Test + ImGui Test Engine，109+ 测试用例
+- **🎨 现代化 UI 系统** - SDL3 + ImGui v1.92，可停靠视图，主题系统
+
+---
+
+## ✨ 核心特性
+
+### 🏗️ 应用程序生命周期
 
 ```
-传统方式（复杂）:
-core/ → 编译成 libdearts_core.a → 链接到可执行文件
-
-DearTs 方式（简洁）:
-core/ → 作为源代码 → 直接编译到可执行文件
+Uninitialized → Initializing → Running → Stopping → Stopped
+                      ↑                            ↓
+                      └────────── Paused ──────────┘
 ```
 
-**优势**：
-- ✅ 简化构建流程，无需中间库
-- ✅ 更好的编译器优化机会
-- ✅ 减少链接复杂度
-- ✅ 更容易调试和热重载
+**特性**：
+- ✅ 状态机驱动的生命周期
+- ✅ 自动资源管理（RAII）
+- ✅ 优雅退出机制
+- ✅ FPS 统计和性能监控
 
-## 🏛️ 架构设计
-
-### 应用程序生命周期
-
-```
-┌─────────────┐     ┌──────────────┐     ┌─────────┐
-│UNINITIALIZED│ ──> │ INITIALIZING │ ──> │ RUNNING │
-└─────────────┘     └──────────────┘     └────┬────┘
-                                                │
-                    ┌──────────────┐           │
-                    │   STOPPED    │ <─────────┘
-                    └──────────────┘
-                           ▲
-                           │
-                    ┌──────────────┐
-                    │  STOPPING    │
-                    └──────────────┘
-```
-
-### 核心组件交互
-
-```
-┌─────────────────────────────────────────┐
-│           Application                   │
-│  ┌─────────────────────────────────┐   │
-│  │    EventBus (事件总线)          │   │
-│  │  ┌─────────┐  ┌─────────────┐  │   │
-│  │  │ UI Layer│  │Input Manager│  │   │
-│  │  └─────────┘  └─────────────┘  │   │
-│  └─────────────────────────────────┘   │
-│  ┌─────────────────────────────────┐   │
-│  │   View Manager (视图管理)       │   │
-│  └─────────────────────────────────┘   │
-└─────────────────────────────────────────┘
-         │                    │
-         ▼                    ▼
-    ┌─────────┐         ┌─────────┐
-    │ SDL3    │         │ ImGui   │
-    └─────────┘         └─────────┘
-```
-
-### 生命周期回调
+### 🔌 ImHex 风格的插件系统
 
 ```cpp
-class MyApp : public Application {
-protected:
-    // 初始化阶段 - 资源加载和设置
-    bool on_init() override {
-        LOG_INFO("初始化应用程序");
-        return true;  // 返回 false 将终止启动
+class MyPlugin : public IPlugin {
+    PluginInfo get_info() const override {
+        return PluginInfo{
+            .name = "MyPlugin",
+            .version = "1.0.0"
+        };
     }
 
-    // 每帧更新 - 游戏逻辑
-    void on_update(double delta_time) override {
-        // delta_time: 距离上一帧的时间（秒）
-    }
+    Result<void, std::string> on_load() override {
+        // 注册命令
+        ContentRegistry::Commands::register_handler("myplugin.action", ...);
 
-    // 渲染阶段 - 绘制画面
-    void on_render() override {
-        // SDL3 渲染命令
-    }
+        // 注册视图
+        ContentRegistry::Views::add<MyView>();
 
-    // 事件处理 - 用户输入和系统事件
-    void on_event(const SDL_Event& event) override {
-        // 处理 SDL 事件
-    }
+        // 注册工具
+        ContentRegistry::Tools::add("My Tool", ...);
 
-    // 关闭阶段 - 资源清理
-    void on_shutdown() override {
-        LOG_INFO("清理资源");
+        return Result::ok();
     }
 };
 ```
+
+**特性**：
+- ✅ 清晰的插件生命周期 (load → enable → disable → unload)
+- ✅ Content Registry 集中管理命令/视图/工具/设置
+- ✅ 类型安全的 Result<T, E> 错误处理
+- ✅ 插件间事件通信
+
+### 📡 类型安全的事件总线
+
+```cpp
+// 定义事件
+struct DataModifiedEvent {
+    size_t offset;
+    size_t size;
+};
+
+// 订阅事件（RAII 自动取消订阅）
+EventBus::Token token = EventBus::instance().subscribe<DataModifiedEvent>(
+    [](const DataModifiedEvent& e) {
+        LOG_INFO("Data modified: {} bytes at offset {}", e.size, e.offset);
+    }
+);
+
+// 发布事件
+EventBus::instance().publish(DataModifiedEvent{0, 1024});
+```
+
+**特性**：
+- ✅ 编译时类型检查
+- ✅ RAII 自动管理订阅生命周期
+- ✅ 支持多播和事件链
+- ✅ 线程安全
+
+### ⚙️ 配置管理
+
+```cpp
+// 使用 ConfigScope 自动添加前缀
+ConfigScope config("myplugin");
+
+// 类型安全的 get/set
+config.set("enabled", true);
+bool enabled = config.get_or<bool>("enabled", false);
+
+// JSON 持久化
+ConfigManager::instance().save_to_file("config.json");
+```
+
+**特性**：
+- ✅ 类型安全的配置访问
+- ✅ ConfigScope RAII 自动前缀
+- ✅ JSON 导入/导出
+- ✅ 配置验证和元数据
+
+### 🧪 完整的测试框架
+
+```
+tests/
+├── unit/          # 单元测试 (42 个测试)
+│   ├── ConfigManager
+│   ├── EventBus
+│   ├── PluginManager
+│   └── TaskManager
+├── integration/   # 集成测试 (22 个测试)
+└── ui/            # UI 自动化测试 (45 个测试)
+```
+
+**特性**：
+- ✅ Google Test (单元测试 + 集成测试)
+- ✅ ImGui Test Engine (UI 自动化测试)
+- ✅ 109 个测试用例，全部通过
+- ✅ 代码覆盖率 80%+
+
+---
+
+## 📦 依赖管理
+
+DearTs 使用 **Git Submodules** 管理第三方依赖，确保版本可控和更新便捷。
+
+### 🎮 SDL 家族 (4个)
+
+| 库名 | 用途 | URL |
+|------|------|-----|
+| SDL3 | 跨平台多媒体核心 | [libsdl-org/SDL](https://github.com/libsdl-org/SDL) |
+| SDL_image | 图像加载（PNG, JPG 等） | [libsdl-org/SDL_image](https://github.com/libsdl-org/SDL_image) |
+| SDL_mixer | 音频播放 | [libsdl-org/SDL_mixer](https://github.com/libsdl-org/SDL_mixer) |
+| SDL_ttf | TrueType 字体渲染 | [libsdl-org/SDL_ttf](https://github.com/libsdl-org/SDL_ttf) |
+
+### 🎨 GUI 生态系统 (7个)
+
+| 库名 | 用途 | URL |
+|------|------|-----|
+| imgui | 立即模式 GUI 框架 | [ocornut/imgui](https://github.com/ocornut/imgui) |
+| freetype | 字体光栅化引擎 | [freetype/freetype](https://gitlab.freedesktop.org/freetype/freetype.git) |
+| implot | 绘图和图表库 | [epezent/implot](https://github.com/epezent/implot.git) |
+| imgui_markdown | Markdown 渲染支持 | [juliettef/imgui_markdown](https://github.com/juliettef/imgui_markdown.git) |
+| imgui-node-editor | 节点编辑器 | [thedmd/imgui-node-editor](https://github.com/thedmd/imgui-node-editor.git) |
+| imgui_test_engine | UI 自动化测试引擎 | [ocornut/imgui_test_engine](https://github.com/ocornut/imgui_test_engine.git) |
+| lunasvg | SVG 字体支持 | [sammycage/lunasvg](https://github.com/sammycage/lunasvg.git) |
+
+### 🧪 测试框架 (1个)
+
+| 库名 | 用途 | URL |
+|------|------|-----|
+| googletest | 单元测试框架 | [google/googletest](https://github.com/google/googletest.git) |
+
+### 📦 工具库 (3个)
+
+| 库名 | 用途 | URL |
+|------|------|-----|
+| json | 现代 JSON 库 | [nlohmann/json](https://github.com/nlohmann/json.git) |
+| cppjieba | C++ 中文分词 | [yanyiwu/cppjieba](https://github.com/yanyiwu/cppjieba.git) |
+| llama.cpp | LLM 推理引擎 | [ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp.git) |
+
+---
 
 ## 🚀 快速开始
 
 ### 前置要求
 
-- **C++20 编译器**：GCC 11+ / Clang 13+ / MSVC 2022+
-- **CMake 3.20+**
-- **操作系统**：Windows 10+ / Linux / macOS 10.15+
+- **编译器**: MSVC 2022+ / GCC 11+ / Clang 13+
+- **CMake**: 3.20+
+- **操作系统**: Windows 10+ / Linux / macOS 10.15+
 
-### 构建步骤
+### 克隆和构建
 
 ```bash
 # 1. 克隆仓库（包含子模块）
-git clone --recursive https://github.com/your-org/dearts.git
+git clone --recursive https://github.com/ygsheep/DearTs.git
 cd DearTs
 
-# 2. 配置项目
+# 如果忘记 --recursive，手动初始化子模块
+git submodule update --init --recursive
+
+# 2. 配置项目（Release 模式）
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 
 # 3. 构建
 cmake --build build --config Release
 
-# 4. 运行测试程序
-./build/bin/deartsdl_gui      # Linux/macOS
-# 或
-build\bin\deartsdl_gui.exe    # Windows
+# 4. 运行
+./build/bin/DearTsApp.exe        # Windows
+./build/bin/DearTsApp            # Linux/macOS
 ```
 
-### 构建流程详解
-
-DearTs 采用三阶段构建流程：
-
-```cmake
-# 阶段 1: 编译第三方库为静态库
-├─ SDL3          → SDL3-static.lib
-├─ ImGui         → ImGui.lib
-├─ FreeType      → libfreetype.a
-└─ liblogger     → logger.lib
-
-# 阶段 2: core 源代码直接参与可执行文件编译
-add_executable(deartsdl_gui
-    main.cpp                                    # 主程序
-    ${CMAKE_SOURCE_DIR}/core/app/application.cpp # core 源码
-    ${CMAKE_SOURCE_DIR}/core/event/event_bus.cpp
-    # ... 更多 core 源文件
-)
-
-# 阶段 3: 链接第三方静态库
-target_link_libraries(deartsdl_gui PRIVATE
-    SDL3-static    # SDL3 静态库
-    ImGui          # ImGui 静态库
-    logger         # 日志库
-)
-```
-
-### 基本使用示例
-
-创建一个最小化的 DearTs 应用程序：
-
-```cpp
-#include "core/app/application.h"
-#include <SDL3/SDL.h>
-
-using namespace DearTs;
-using namespace DearTs::Core::App;
-
-class MyApp : public Application {
-protected:
-    bool on_init() override {
-        // 初始化资源
-        LOG_INFO("应用程序初始化中...");
-        SDL_SetRenderDrawColor(m_renderer, 50, 50, 50, 255);
-        return true;  // 返回 false 将终止启动
-    }
-
-    void on_update(double delta_time) override {
-        // 每帧更新逻辑
-        // delta_time: 距离上一帧的时间（秒）
-    }
-
-    void on_render() override {
-        // 渲染逻辑
-        SDL_RenderClear(m_renderer);
-        // 添加你的绘制代码
-        SDL_RenderPresent(m_renderer);
-    }
-
-    void on_event(const SDL_Event& event) override {
-        // 事件处理
-        if (event.type == SDL_EVENT_KEY_DOWN &&
-            event.key.key == SDLK_ESCAPE) {
-            request_exit(0);  // 按 ESC 退出
-        }
-    }
-
-    void on_shutdown() override {
-        // 清理资源
-        LOG_INFO("应用程序关闭");
-    }
-};
-
-int main() {
-    // 配置应用程序
-    ApplicationConfig config;
-    config.name = "My DearTs App";
-    config.version = "1.0.0";
-    config.window_width = 1280;
-    config.window_height = 720;
-    config.enable_vsync = true;
-
-    // 创建并运行应用程序
-    auto app = std::make_unique<MyApp>();
-    if (!app->initialize(config)) {
-        return -1;
-    }
-
-    return app->run();
-}
-```
-
-### 预期输出
-
-运行测试程序后，你应该看到：
-- ✅ 1280x720 的窗口
-- ✅ 灰色背景（RGB: 50, 50, 50）
-- ✅ 控制台输出日志信息
-- ✅ 按 **ESC** 退出程序
-- ✅ 按 **SPACE** 显示 FPS 统计
-
-## 📚 API 文档
-
-### ApplicationConfig 结构体
-
-应用程序配置选项，在初始化时传递给 Application。
-
-```cpp
-struct ApplicationConfig {
-    std::string name;           // 应用程序名称（显示在窗口标题）
-    std::string version;        // 版本号
-    int window_width;           // 窗口宽度（像素）
-    int window_height;          // 窗口高度（像素）
-    bool enable_vsync;          // 启用垂直同步（默认: true）
-    bool enable_imgui;          // 启用 ImGui 支持（预留，默认: false）
-};
-```
-
-### Application 公共方法
-
-| 方法 | 说明 | 返回值 |
-|------|------|--------|
-| `initialize(config)` | 初始化应用程序，创建窗口和渲染器 | `bool` - 成功返回 true |
-| `run()` | 启动主循环，阻塞直到程序退出 | `int` - 退出代码 |
-| `shutdown()` | 手动关闭应用程序 | `void` |
-| `request_exit(code)` | 请求优雅退出，完成当前帧后关闭 | `void` |
-| `get_state()` | 获取当前应用状态 | `ApplicationState` |
-| `get_config()` | 获取应用程序配置（只读） | `const ApplicationConfig&` |
-
-### Application 状态枚举
-
-```cpp
-enum class ApplicationState {
-    Uninitialized,   // 未初始化
-    Initializing,    // 初始化中
-    Running,         // 运行中
-    Paused,          // 已暂停（失去焦点）
-    Stopping,        // 停止中
-    Stopped          // 已停止
-};
-```
-
-### Application 保护成员
-
-派生类可访问的成员变量：
-
-```cpp
-protected:
-    // 配置和状态
-    ApplicationConfig m_config;      // 应用程序配置
-    ApplicationState  m_state;       // 当前状态
-
-    // SDL 资源
-    SDL_Window*   m_window;          // SDL 窗口（由基类管理）
-    SDL_Renderer* m_renderer;        // SDL 渲染器（由基类管理）
-
-    // 时间和性能统计
-    double m_delta_time;             // 上一帧到当前帧的时间（秒）
-    double m_current_fps;            // 当前 FPS（每秒更新）
-    double m_average_fps;            // 平均 FPS（移动平均）
-    uint64_t m_frame_count;          // 总帧数统计
-
-    // ImGui（如果启用）
-    ImGuiContext* m_imgui_context;   // ImGui 上下文
-```
-
-### EventBus 事件系统
-
-DearTs 提供类型安全的事件总线，支持模块间通信。
-
-```cpp
-#include "core/event/event_bus.h"
-
-// 1. 定义事件
-struct MyEvent {
-    int value;
-    std::string message;
-};
-
-// 2. 订阅事件
-auto guard = EventBus::subscribe<MyEvent>([](const MyEvent& e) {
-    LOG_INFO("收到事件: {}", e.message);
-});
-
-// 3. 发布事件（同步）
-EventBus::publish(MyEvent{42, "Hello"});
-
-// 4. 发布事件（异步）
-EventBus::publish_async(MyEvent{100, "World"});
-
-// guard 离开作用域时自动取消订阅
-```
-
-**特性**：
-- ✅ **类型安全** - 编译时类型检查
-- ✅ **RAII 管理** - EventGuard 自动管理订阅生命周期
-- ✅ **线程安全** - 支持多线程发布和订阅
-- ✅ **异步支持** - 不阻塞主线程的事件处理
-
-## 📖 开发指南
-
-### 代码规范
-
-项目严格遵循 `docs/代码规范.md`，确保代码一致性和可维护性。
-
-#### 命名约定
-
-| 类型 | 约定 | 示例 |
-|------|------|------|
-| 类名 | PascalCase | `Application`, `EventBus` |
-| 函数名 | snake_case | `on_init()`, `get_config()` |
-| 成员变量 | snake_case + `m_` 前缀 | `m_window`, `m_delta_time` |
-| 常量 | UPPER_CASE | `MAX_FPS`, `DEFAULT_WIDTH` |
-| 命名空间 | PascalCase | `DearTs::Core::App` |
-
-#### 代码风格
-
-- **缩进**：4 空格（不使用 Tab）
-- **括号**：K&R 风格，左括号不换行
-- **行长度**：不超过 120 字符
-- **空格**：操作符周围加空格（`a = b + c`）
-- **注释**：使用 `//` 进行单行注释，`/* */` 进行多行注释
-
-#### 头文件保护
-
-```cpp
-#pragma once  // 首选 #pragma once
-
-// 或使用传统 include guard（如果需要跨平台兼容）
-#ifndef DEARTS_CORE_APP_APPLICATION_H
-#define DEARTS_CORE_APP_APPLICATION_H
-// ...
-#endif
-```
-
-### 扩展 core 模块
-
-由于 core 是源代码目录，添加新模块非常简单。
-
-#### 步骤 1：创建新模块
+### 运行测试
 
 ```bash
-# 在 core/ 下创建新模块目录
-mkdir core/input
-touch core/input/input_manager.h
-touch core/input/input_manager.cpp
+# 运行所有测试
+ctest --test-dir build --verbose
+
+# 或直接运行测试可执行文件
+./build/bin/dearts_unit_tests        # 单元测试
+./build/bin/dearts_integration_tests # 集成测试
+./build/bin/dearts_ui_tests          # UI 自动化测试
 ```
 
-#### 步骤 2：更新 CMakeLists.txt
+---
 
-编辑 `main/gui/CMakeLists.txt`，添加新模块源文件：
+## 🏗️ 架构设计
 
-```cmake
-set(CORE_SOURCES
-    ${CMAKE_SOURCE_DIR}/core/app/application.cpp
-    ${CMAKE_SOURCE_DIR}/core/event/event_bus.cpp
-    ${CMAKE_SOURCE_DIR}/core/input/input_manager.cpp  # 新增
-    ${CMAKE_SOURCE_DIR}/core/input/input_manager.h    # 新增
-)
+### 核心设计原则
 
-add_executable(deartsdl_gui
-    main.cpp
-    ${CORE_SOURCES}
-)
+1. **插件优先** - 所有功能通过插件扩展，核心保持最小化
+2. **事件驱动** - 组件间通过 EventBus 解耦通信
+3. **类型安全** - Result<T, E> 替代异常，编译时类型检查
+4. **RAII** - 自动资源管理（EventBus::Token, ConfigScope, Task 智能指针）
+5. **现代 C++20** - Concepts, Ranges, Coroutines, std::format
+
+### 系统架构
+
+```
+DearTs Application
+├── Core Systems                (核心系统)
+│   ├── Plugin System           (插件管理器)
+│   ├── EventBus                (类型安全事件总线)
+│   ├── Content Registry        (命令/视图/工具/设置注册表)
+│   ├── ConfigManager           (配置管理器)
+│   ├── TaskManager             (异步任务管理器)
+│   └── Logger                  (异步日志系统)
+│
+├── UI Layer                    (UI 层)
+│   ├── View System             (可停靠窗口视图)
+│   ├── TitleBar                (自定义工具栏)
+│   ├── CommandPalette          (命令面板)
+│   └── Theme Manager           (主题管理)
+│
+└── Plugin Ecosystem            (插件生态)
+    ├── Builtin Plugin          (内置插件)
+    ├── Toast Notification      (通知插件)
+    ├── Command Palette         (命令面板插件)
+    └── Custom Plugins          (用户自定义插件)
 ```
 
-#### 步骤 3：在代码中使用
+### 插件生命周期
+
+```
+Unloaded
+    ↓ add_builtin() / load_from_file()
+Loaded
+    ↓ enable()
+Enabled
+    ↓ disable()
+Loaded
+    ↓ unload()
+Unloaded
+```
+
+### 数据流
+
+```
+User Action
+    ↓
+ContentRegistry::Commands::invoke()
+    ↓
+EventBus::publish(Event)
+    ↓
+Plugin Event Handlers (subscribed via EventBus::Token)
+    ↓
+UI Updates / Background Tasks
+```
+
+---
+
+## 🔌 插件开发
+
+### 最小化插件示例
 
 ```cpp
-#include "input/input_manager.h"  // 直接包含
+// my_plugin.hpp
+#pragma once
+#include "core/plugin/plugin.h"
 
-class MyApp : public Application {
-protected:
-    void on_update(double delta_time) override {
-        auto& input = InputManager::get_instance();
-        if (input.is_key_pressed(SDLK_SPACE)) {
-            LOG_INFO("空格键被按下");
+class MyPlugin : public IPlugin {
+public:
+    PluginInfo get_info() const override {
+        return PluginInfo{
+            .name = "MyPlugin",
+            .author = "Your Name",
+            .description = "My awesome plugin",
+            .version = "1.0.0",
+            .api_version = "1.0.0"
+        };
+    }
+
+    Result<void, std::string> on_load() override {
+        // 注册命令
+        ContentRegistry::Commands::register_handler(
+            "myplugin.hello",
+            "Say Hello",
+            []() { LOG_INFO("Hello from MyPlugin!"); },
+            nullptr,
+            "Ctrl+Shift+H"
+        );
+
+        // 注册视图
+        ContentRegistry::Views::add<MyView>();
+
+        return Result::ok();
+    }
+
+    void on_unload() override {
+        // 清理（RAII 自动处理大部分）
+    }
+};
+```
+
+### 创建自定义视图
+
+```cpp
+// my_view.hpp
+#pragma once
+#include "core/ui/view.h"
+
+class MyView : public View {
+public:
+    std::string getName() const override {
+        return "My View";
+    }
+
+    void draw_content() override {
+        ImGui::Text("Hello from my view!");
+
+        if (ImGui::Button("Click me")) {
+            LOG_INFO("Button clicked!");
         }
     }
 };
 ```
 
-### 添加新的测试程序
-
-创建独立的测试程序来验证特定功能。
-
-```bash
-# 创建新测试目录
-mkdir examples/event_demo
-touch examples/event_demo/main.cpp
-touch examples/event_demo/CMakeLists.txt
-```
-
-`examples/event_demo/CMakeLists.txt`:
-
-```cmake
-add_executable(event_demo
-    main.cpp
-    ${CMAKE_SOURCE_DIR}/core/app/application.cpp
-    ${CMAKE_SOURCE_DIR}/core/event/event_bus.cpp
-)
-
-target_link_libraries(event_demo PRIVATE
-    SDL3-static
-    logger
-)
-```
-
-### 性能优化建议
-
-#### 1. 帧率控制
+### 使用配置管理
 
 ```cpp
-// 启用 VSync（推荐，防止画面撕裂）
-config.enable_vsync = true;
+class MyPlugin : public IPlugin {
+private:
+    ConfigScope m_config{"myplugin"};  // 自动前缀 "myplugin."
 
-// 禁用 VSync（用于性能测试）
-config.enable_vsync = false;
-```
+public:
+    Result<void, std::string> on_load() override {
+        // 读取配置
+        bool enabled = m_config.get_or<bool>("enabled", true);
+        int interval = m_config.get_or<int>("interval", 60);
 
-#### 2. 事件处理
+        LOG_INFO("Plugin enabled: {}, interval: {}", enabled, interval);
 
-```cpp
-// 使用异步事件避免阻塞主循环
-EventBus::publish_async(HeavyEvent{data});
+        // 保存配置
+        m_config.set("last_run", std::time(nullptr));
+        ConfigManager::instance().save_to_file("config.json");
 
-// 在 on_update() 中批量处理事件
-void on_update(double delta_time) override {
-    process_event_queue();
-}
-```
-
-#### 3. 日志优化
-
-```cpp
-// 使用格式化日志（性能优于字符串拼接）
-LOG_INFO("FPS: {:.2f}, Frame: {}", m_current_fps, m_frame_count);
-
-// 避免在热循环中使用高频日志
-// 错误：
-for (int i = 0; i < 1000000; ++i) {
-    LOG_DEBUG("Processing item: {}", i);  // 性能杀手
-}
-
-// 正确：
-LOG_DEBUG("开始处理 {} 个项目", total_items);
-for (int i = 0; i < 1000000; ++i) {
-    // 处理逻辑
-}
-LOG_DEBUG("完成处理，用时 {:.2f}s", elapsed_time);
-```
-
-### 调试技巧
-
-#### 1. 启用详细日志
-
-```cpp
-// 在 main.cpp 中设置日志级别
-Logger::get_instance().set_log_level(LogLevel::Debug);
-```
-
-#### 2. FPS 监控
-
-```cpp
-void on_update(double delta_time) override {
-    static double timer = 0.0;
-    timer += delta_time;
-
-    if (timer >= 1.0) {  // 每秒输出一次
-        LOG_INFO("FPS: {:.2f} (平均: {:.2f})",
-                 m_current_fps, m_average_fps);
-        timer = 0.0;
+        return Result::ok();
     }
-}
+};
 ```
 
-#### 3. 内存泄漏检测（Linux/macOS）
-
-```bash
-# 使用 Valgrind 检测内存泄漏
-valgrind --leak-check=full ./build/bin/deartsdl_gui
-```
-
-#### 4. 性能分析
+### 事件订阅
 
 ```cpp
-// 使用 SDL3 的高性能计时器
-Uint64 start = SDL_GetTicks();
-// ... 执行操作 ...
-Uint64 elapsed = SDL_GetTicks() - start;
-LOG_INFO("操作耗时: {} ms", elapsed);
+class MyPlugin : public IPlugin {
+private:
+    EventBus::Token m_eventToken;  // RAII 自动取消订阅
+
+public:
+    Result<void, std::string> on_load() override {
+        // 订阅事件
+        m_eventToken = EventBus::instance().subscribe<ApplicationReadyEvent>(
+            [this](const ApplicationReadyEvent&) {
+                LOG_INFO("Application is ready!");
+                // 初始化插件
+            }
+        );
+
+        return Result::ok();
+    }
+
+    void on_unload() override {
+        // m_eventToken 自动取消订阅（RAII）
+    }
+};
 ```
 
-## 🧪 测试程序
+---
 
-### 主测试程序 (main/gui/main.cpp)
-
-完整的应用程序生命周期测试，涵盖以下功能：
-
-| 功能 | 描述 |
-|------|------|
-| ✅ 初始化测试 | SDL3 窗口和渲染器创建 |
-| ✅ 运行循环测试 | 主循环和帧率控制 |
-| ✅ 事件处理测试 | 键盘输入响应 |
-| ✅ 关闭流程测试 | 优雅退出和资源清理 |
-| ✅ FPS 统计 | 实时帧率和平均帧率显示 |
-| ✅ 生命周期验证 | 状态转换验证 |
-
-### 快捷键
-
-| 按键 | 功能 |
-|------|------|
-| `ESC` | 退出应用程序 |
-| `SPACE` | 在控制台显示 FPS 统计信息 |
-
-### 示例输出
+## 📁 项目结构
 
 ```
-[INFO] 正在初始化应用程序...
-[INFO] SDL3 初始化成功
-[INFO] 窗口创建成功: 1280x720
-[INFO] 渲染器创建成功
-[INFO] 应用程序启动成功
-[INFO] FPS: 60.00 (平均: 59.87)
-[INFO] 应用程序正在关闭...
-[INFO] 退出代码: 0
+DearTs/
+├── core/                              # 核心系统（源码直接编译）
+│   ├── plugin/                        # 插件系统
+│   │   ├── plugin.h                   # IPlugin 接口
+│   │   └── plugin_manager.h           # PluginManager
+│   ├── events/                        # 事件系统
+│   │   └── event_bus.h                # EventBus
+│   ├── content/                       # Content Registry
+│   │   ├── commands.h                 # 命令注册
+│   │   ├── views.h                    # 视图注册
+│   │   ├── tools.h                    # 工具注册
+│   │   └── registry.h                 # 统一注册表
+│   ├── config/                        # 配置管理
+│   │   └── config_manager.h           # ConfigManager
+│   ├── tasks/                         # 任务管理
+│   │   └── task_manager.h             # TaskManager
+│   └── ui/                            # UI 系统
+│       ├── view.h                     # View 基类
+│       ├── title_bar.h                # TitleBar
+│       └── layout_manager.h           # 布局管理
+│
+├── plugins/                           # 插件实现
+│   ├── builtin/                       # 内置插件
+│   ├── toast_notification/            # 通知插件
+│   └── command_palette/               # 命令面板插件
+│
+├── tests/                             # 测试套件
+│   ├── unit/                          # 单元测试 (42)
+│   ├── integration/                   # 集成测试 (22)
+│   └── ui/                            # UI 自动化测试 (45)
+│
+├── lib/                               # 内部库
+│   └── liblogger/                     # 异步日志库
+│
+├── third_party/                       # Git Submodules (15个)
+│   ├── SDL/                           # SDL3
+│   ├── imgui/                         # ImGui
+│   ├── googletest/                    # Google Test
+│   └── ...                            # 更多依赖
+│
+├── main/gui/                          # 主应用程序
+│   └── main.cpp
+│
+├── docs/                              # 用户文档
+├── dearts-dev/                        # 开发者文档
+│   └── references/                    # API 参考手册
+│       ├── plugin_system_api.md
+│       ├── config_manager_api.md
+│       ├── task_manager_api.md
+│       └── logger_api.md
+│
+└── CMakeLists.txt                     # 构建配置
 ```
+
+---
+
+## 📊 测试覆盖
+
+| 组件 | 覆盖率 | 测试数量 |
+|------|--------|----------|
+| ConfigManager | 90%+ | 7 |
+| EventBus | 85%+ | 10 |
+| PluginManager | 80%+ | 8 |
+| TaskManager | 85%+ | 17 |
+| Result<T,E> | 90%+ | 5 |
+| UI 组件 | 关键路径 | 45 |
+| **总计** | **80%+** | **109** |
+
+---
 
 ## 🚧 开发路线图
 
-### 已完成 ✅ (v1.0.0)
+### ✅ 已完成 (v0.1.0)
 
-- [x] Application 生命周期管理系统
-- [x] SDL3 窗口和渲染器管理
-- [x] 类型安全的事件系统（EventBus）
-- [x] 智能帧率控制和 VSync 支持
-- [x] 实时 FPS 统计和性能监控
-- [x] 异步日志系统集成
-- [x] **core 作为源代码直接编译（非链接库）**
-- [x] ImGui 集成层
-- [x] 多视图管理系统
+- [x] 插件系统 (IPlugin, PluginManager)
+- [x] 类型安全事件总线 (EventBus)
+- [x] Content Registry (命令/视图/工具/设置)
+- [x] 配置管理 (ConfigManager, ConfigScope)
+- [x] 任务管理 (TaskManager, async tasks)
+- [x] 测试基础设施 (Google Test + ImGui Test Engine)
+- [x] 109 个测试用例
 
-### 计划中 🚧
+### 🚧 进行中 (v0.2.0)
 
-#### v1.1.0（输入系统）
-- [ ] InputManager - 统一输入管理
-- [ ] 键盘状态追踪
-- [ ] 鼠标状态管理
-- [ ] 手柄支持
-- [ ] 输入映射和绑定
+- [ ] 完善文档和示例
+- [ ] 更多内置插件
+- [ ] 性能优化
+- [ ] CI/CD 集成
 
-#### v1.2.0（渲染系统）
-- [ ] RenderModule - 渲染抽象层
-- [ ] 纹理管理器
-- [ ] 精灵渲染系统
-- [ ] 文本渲染优化
-- [ ] 着色器管理
+### 📅 计划中 (v0.3.0+)
 
-#### v1.3.0（资源管理）
-- [ ] ResourceManager - 资源加载和缓存
-- [ ] 异步资源加载
-- [ ] 热重载支持
-- [ ] 资源打包系统
+- [ ] 多语言支持
+- [ ] 主题系统增强
+- [ ] 插件市场
+- [ ] 远程插件加载
 
-#### v2.0.0（高级功能）
-- [ ] 多窗口支持
-- [ ] 音频系统（基于 SDL_mixer）
-- [ ] 物理引擎集成
-- [ ] 网络层
-- [ ] 脚本系统（Lua/Python）
-- [ ] 编辑器工具
+---
 
-### 长期愿景 🌟
+## 📚 文档
 
-- 跨平台移动端支持（iOS/Android）
-- WebAssembly 支持
-- VR/AR 支持
-- 完整的编辑器
-- 可视化调试工具
+### 用户文档
 
-## 🔗 相关资源
+- [插件开发指南](docs/plugin_system_guide.md)
+- [API 参考手册](dearts-dev/references/)
 
-### 官方文档
+### 开发者文档
 
-- [SDL3 官方文档](https://wiki.libsdl.org/SDL3/)
-- [ImGui 文档](https://github.com/ocornut/imgui)
-- [C++20 参考](https://en.cppreference.com/w/cpp/20)
-- [CMake 文档](https://cmake.org/documentation/)
+- [插件系统 API](dearts-dev/references/plugin_system_api.md) (1038 行)
+- [配置管理 API](dearts-dev/references/config_manager_api.md) (676 行)
+- [任务管理 API](dearts-dev/references/task_manager_api.md) (917 行)
+- [日志系统 API](dearts-dev/references/logger_api.md) (727 行)
 
-### 社区
+### 测试文档
 
-- [GitHub Issues](https://github.com/your-org/dearts/issues) - 报告问题和请求功能
-- [GitHub Discussions](https://github.com/your-org/dearts/discussions) - 社区讨论
-- [Discord 服务器](https://discord.gg/your-server) - 实时聊天（如有）
+- [测试使用指南](tests/README.md)
+- [测试计划](tests/TESTING_PLAN.md)
 
-### 参考项目
-
-- [ImHex](https://github.com/WerWolv/ImHex) - 强大的十六进制编辑器（视图系统灵感来源）
-- [SDL3 Game](https://github.com/libsdl-org/SDL/) - SDL3 官方示例
-- [Oryol](https://github.com/floooh/oryol) - 跨平台游戏框架
-
-## 📄 许可证
-
-本项目采用 **MIT 许可证**。
-
-```
-MIT License
-
-Copyright (c) 2024 DearTs Contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+---
 
 ## 🤝 贡献指南
 
@@ -735,27 +579,36 @@ SOFTWARE.
 4. **推送到分支** (`git push origin feature/AmazingFeature`)
 5. **提交 Pull Request**
 
-### 贡献要求
+### 代码规范
 
-- ✅ 遵循项目的 [代码规范](docs/代码规范.md)
-- ✅ 编写清晰的提交信息
+- ✅ 遵循 C++20 标准
+- ✅ 使用 Result<T, E> 而非异常
+- ✅ 使用 RAII 管理资源
 - ✅ 添加必要的测试和文档
-- ✅ 确保代码通过所有现有测试
-- ✅ 保持提交历史清晰
+- ✅ 确保所有测试通过
 
-### 代码审查流程
+---
 
-所有 Pull Request 需要至少一位维护者审查通过后才能合并。审查重点：
-- 代码质量和规范性
-- 功能正确性和完整性
-- 性能影响评估
-- 文档和注释的完整性
+## 📄 许可证
+
+本项目采用 **MIT 许可证**。详见 [LICENSE](LICENSE) 文件。
+
+---
+
+## 🙏 致谢
+
+DearTs Framework 的设计灵感来自以下优秀项目：
+
+- **[ImHex](https://github.com/WerWolv/ImHex)** - 强大的十六进制编辑器，插件系统和 Content Registry 设计灵感
+- **[SDL3](https://github.com/libsdl-org/SDL)** - 跨平台多媒体库
+- **[ImGui](https://github.com/ocornut/imgui)** - 立即模式 GUI 框架
+- **[Oryol](https://github.com/floooh/oryol)** - 跨平台游戏框架
 
 ---
 
 <div align="center">
 
-**用 ❤️ 打造的 C++ SDL3 应用程序框架**
+**用 ❤️ 打造的现代 C++20 应用程序框架**
 
 [⬆ 返回顶部](#dearts-framework)
 
