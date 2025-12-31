@@ -48,8 +48,7 @@ target_sources(demo_imhex_style PRIVATE
 
 # 链接库
 target_link_libraries(demo_imhex_style PRIVATE
-        imgui
-        imgui_sdl3
+        imgui_full
         SDL3-static
         deartsdl_logger
         freetype

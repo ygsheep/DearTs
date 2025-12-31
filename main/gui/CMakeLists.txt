@@ -103,18 +103,13 @@ target_sources(${PROJECT_NAME} PRIVATE
 
 # 链接库
 target_link_libraries(${PROJECT_NAME} PRIVATE
-        imgui
-        imgui_sdl3
+        imgui_full
         implot
         SDL3-static
         deartsdl_logger
         freetype
         lunasvg::lunasvg
 )
-        # ImGui Test Engine (needed when IMGUI_ENABLE_TEST_ENGINE is defined)
-        if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
-            target_link_libraries(${PROJECT_NAME} PRIVATE imgui_test_engine)
-        endif()
 
 # Windows 特定设置
 if(WIN32)

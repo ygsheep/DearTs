@@ -120,6 +120,14 @@ if(EXISTS ${IMGUI_DIR})
     )
     target_link_libraries(imgui_sdl3 PRIVATE imgui)
 
+    # Create an alias library that includes ImGui + Test Engine (if available)
+    # This ensures all targets get the Test Engine linkage when needed
+    add_library(imgui_full INTERFACE)
+    target_link_libraries(imgui_full INTERFACE imgui imgui_sdl3)
+    if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+        target_link_libraries(imgui_full INTERFACE imgui_test_engine)
+    endif()
+
     # Setup ImPlot
     set(IMPLOT_DIR ${CMAKE_SOURCE_DIR}/third_party/implot)
     if(EXISTS ${IMPLOT_DIR})
