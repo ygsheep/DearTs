@@ -56,7 +56,8 @@ jobs:
             libudev-dev \
             libpulse-dev \
             libsndio-dev \
-            libxss-dev
+            libxss-dev \
+            libxtst-dev
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
