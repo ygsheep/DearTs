@@ -13,11 +13,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            artifact: DearTs-linux-x86_64
-            binary_dir: build/bin
-            binary_name: DearTsApp
-            zip_command: zip
+          # 暂时禁用 Linux 构建 - 依赖安装问题
+          # - os: ubuntu-latest
+          #   artifact: DearTs-linux-x86_64
+          #   binary_dir: build/bin
+          #   binary_name: DearTsApp
+          #   zip_command: zip
           - os: windows-latest
             artifact: DearTs-windows-x86_64
             binary_dir: build/bin/Release
