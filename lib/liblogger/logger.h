@@ -334,12 +334,12 @@ inline Logger& get_logger() noexcept {
 #define LOG_FATAL_STR(msg) ::DearTs::get_logger().fatal(msg)
 
 // 格式化日志（使用 std::format）
-#define LOG_TRACE(fmt, ...) ::DearTs::get_logger().trace(std::format(fmt, __VA_ARGS__))
-#define LOG_DEBUG(fmt, ...) ::DearTs::get_logger().debug(std::format(fmt, __VA_ARGS__))
-#define LOG_INFO(fmt, ...)  ::DearTs::get_logger().info(std::format(fmt, __VA_ARGS__))
-#define LOG_WARN(fmt, ...)  ::DearTs::get_logger().warn(std::format(fmt, __VA_ARGS__))
-#define LOG_ERROR(fmt, ...) ::DearTs::get_logger().error(std::format(fmt, __VA_ARGS__))
-#define LOG_FATAL(fmt, ...) ::DearTs::get_logger().fatal(std::format(fmt, __VA_ARGS__))
+#define LOG_TRACE(fmt, ...) ::DearTs::get_logger().trace(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define LOG_DEBUG(fmt, ...) ::DearTs::get_logger().debug(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define LOG_INFO(fmt, ...)  ::DearTs::get_logger().info(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define LOG_WARN(fmt, ...)  ::DearTs::get_logger().warn(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define LOG_ERROR(fmt, ...) ::DearTs::get_logger().error(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define LOG_FATAL(fmt, ...) ::DearTs::get_logger().fatal(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
 
 // 向后兼容宏
 #define DEARTS_LOGGER() ::DearTs::get_logger()

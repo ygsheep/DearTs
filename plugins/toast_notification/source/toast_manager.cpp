@@ -6,6 +6,7 @@
 #include "toast_manager.hpp"
 #include "core/ui/icon_font.hpp"
 #include <algorithm>
+#include <cmath>
 #include <imgui.h>
 
 namespace DearTs::Plugins::Toast {
