@@ -135,11 +135,35 @@ jobs:
       - name: Display Structure
         run: ls -R artifacts
 
+      - name: Delete Existing Release and Tag
+        run: |
+          # 删除现有的 release（如果存在）
+          gh release delete ${{ github.ref_name }} --yes || true
+          # 删除现有的 tag（如果存在）
+          git push origin :refs/tags/${{ github.ref_name }} || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*/*.zip
           draft: false
           prerelease: false
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            DearTs Framework ${{ github.ref_name }}
+
+            核心功能:
+            - SDL3 + ImGui 现代应用框架
+            - ImHex 风格的插件系统
+            - 类型安全的事件总线 (EventBus)
+            - 内容注册表 (Content Registry)
+            - 配置管理器 (ConfigManager)
+            - 任务管理器 (TaskManager)
+            - 异步日志系统
+
+            平台支持: Windows x86_64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
