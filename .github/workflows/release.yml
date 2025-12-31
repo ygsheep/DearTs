@@ -14,39 +14,81 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: DearTsd-linux-x86_64
-            binary: build/DearTsd
+            artifact: DearTs-linux-x86_64
+            binary_dir: build/bin
+            binary_name: DearTsApp
+            zip_command: zip
           - os: macos-latest
-            artifact: DearTsd-macos-x86_64
-            binary: build/DearTsd
+            artifact: DearTs-macos-x86_64
+            binary_dir: build/bin
+            binary_name: DearTsApp
+            zip_command: zip
           - os: windows-latest
-            artifact: DearTsd-windows-x86_64.exe
-            binary: build/Release/DearTsd.exe
+            artifact: DearTs-windows-x86_64
+            binary_dir: build/bin/Release
+            binary_name: DearTsApp.exe
+            zip_command: 7z
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      - name: Configure CMake
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Configure CMake (Unix)
+        if: runner.os != 'Windows'
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
         run: cmake --build build --config Release
 
-      - name: Rename Binary (Unix)
-        if: runner.os != 'Windows'
-        run: mv ${{ matrix.binary }} ${{ matrix.artifact }}
-
-      - name: Rename Binary (Windows)
+      - name: Prepare Release Directory (Windows)
         if: runner.os == 'Windows'
-        run: move ${{ matrix.binary }} ${{ matrix.artifact }}
+        shell: pwsh
+        run: |
+          mkdir release
+          copy ${{ matrix.binary_dir }}/${{ matrix.binary_name }} release\
+          # 复制所有依赖的 DLL 文件
+          copy ${{ matrix.binary_dir }}/*.dll release\ -ErrorAction SilentlyContinue
+          # 复制 SDL3 DLL
+          if (Test-Path "third_party/SDL/Release/SDL3.dll") {
+            copy third_party/SDL/Release/SDL3.dll release\
+          }
+          # 复制 FreeType DLL
+          if (Test-Path "third_party/freetype/Release/freetype.dll") {
+            copy third_party/freetype/Release/freetype.dll release\
+          }
+
+      - name: Prepare Release Directory (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir release
+          cp ${{ matrix.binary_dir }}/${{ matrix.binary_name }} release/
+          # 复制共享库文件
+          find ${{ matrix.binary_dir }} -name "*.so" -o -name "*.dylib" | xargs -I {} cp {} release/ || true
+
+      - name: Create ZIP Archive (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd release
+          7z a ../${{ matrix.artifact }}.zip *
+
+      - name: Create ZIP Archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cd release
+          zip -r ../${{ matrix.artifact }}.zip *
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.zip
 
   release:
     needs: build
@@ -58,9 +100,14 @@ jobs:
         with:
           path: artifacts
 
+      - name: Display Structure
+        run: ls -R artifacts
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*/*
+          files: artifacts/*/*.zip
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
