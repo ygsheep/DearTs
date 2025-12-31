@@ -17,12 +17,12 @@ jobs:
           # - os: ubuntu-latest
           #   artifact: DearTs-linux-x86_64
           #   binary_dir: build/bin
-          #   binary_name: DearTsApp
+          #   binary_name: DearTs
           #   zip_command: zip
           - os: windows-latest
             artifact: DearTs-windows-x86_64
             binary_dir: build/bin/Release
-            binary_name: DearTsApp.exe
+            binary_name: DearTs.exe
             zip_command: 7z
 
     runs-on: ${{ matrix.os }}
