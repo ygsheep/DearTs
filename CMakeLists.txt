@@ -6,6 +6,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# MSVC: Enable /Zc:preprocessor for __VA_OPT__ support (C++20)
+if(MSVC)
+    add_compile_options(/Zc:preprocessor)
+endif()
+
 # Options
 option(BUILD_UI_TESTS "Build UI tests with ImGui Test Engine" OFF)
 option(ENABLE_IMGUI_TEST_ENGINE "Enable ImGui Test Engine hooks in ImGui" ${BUILD_UI_TESTS})
@@ -45,7 +50,7 @@ add_subdirectory(third_party/SDL)
 add_library(SDL3_image-static STATIC IMPORTED)
 set_target_properties(SDL3_image-static PROPERTIES
     IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/x64/SDL3_image.lib"
-    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/SDL_image/include"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/SDL_image/include/SDL3_image"
 )
 
 add_subdirectory(third_party/freetype)
