@@ -77,6 +77,29 @@ bool DearTsApplication::on_init() {
         m_show_about_window = !m_show_about_window;
     }, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
 
+    // 9. 设置背景和角色渲染器
+    LOG_INFO("Loading background and character renderers...");
+
+    // 加载人物角色（从 resources/images 目录加载菲比图片）
+    std::vector<std::string> character_frames = {
+        "0-菲比.png",
+        "1-菲比.png",
+        "2-菲比.png",
+        "3-菲比.png"
+    };
+
+    auto& character_renderer = Core::UI::CharacterRenderer::instance();
+    if (character_renderer.load_character_frames(character_frames)) {
+        character_renderer.set_enabled(true);
+        character_renderer.set_position(Core::UI::CharacterPosition::BottomRight);
+        character_renderer.set_scale(0.5f);
+        character_renderer.set_animation_mode(Core::UI::AnimationMode::FrameLoop);
+        character_renderer.set_frame_interval(1.0f);  // 每秒切换一帧
+        LOG_INFO("Character loaded successfully: {} frames", character_renderer.get_frame_count());
+    } else {
+        LOG_WARN("Failed to load character frames");
+    }
+
     LOG_INFO("DearTsApplication initialized successfully");
     return true;
 }
@@ -89,6 +112,9 @@ void DearTsApplication::on_update(double delta_time) {
 
     // 更新 ToastManager
     DearTs::Plugins::Toast::ToastManager::instance().update(static_cast<float>(delta_time));
+
+    // 更新角色动画
+    Core::UI::CharacterRenderer::instance().update(delta_time);
 
     // 更新逻辑
     static double total_time = 0.0;
@@ -110,35 +136,42 @@ void DearTsApplication::on_render() {
         SDL_RenderClear(m_renderer);
     }
 
-    // 2. ImGui NewFrame
+    // 2. 渲染背景（在 ImGui 之前）
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    Core::UI::BackgroundRenderer::instance().render(viewport->Size);
+
+    // 3. ImGui NewFrame
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    // 3. 处理快捷键（CommandPalette快捷键由插件系统处理）
+    // 4. 处理快捷键（CommandPalette快捷键由插件系统处理）
     Core::UI::ShortcutManager::instance().handleShortcuts();
 
-    // 4. 渲染自定义标题栏（返回标题栏高度）
+    // 5. 渲染自定义标题栏（返回标题栏高度）
     float title_bar_height = render_title_bar();
 
-    // 5. 创建和渲染 DockSpace
+    // 6. 创建和渲染 DockSpace
     render_dock_space(title_bar_height);
 
-    // 6. 渲染所有视图
+    // 7. 渲染所有视图
     render_views();
 
-    // 7. 渲染其他组件
+    // 8. 渲染其他组件
     // render_menu_bar(); // 菜单已在 render_title_bar() 中绘制
     render_main_window();
     render_tool_windows();
 
-    // 8. 渲染 Toast 通知
+    // 9. 渲染 Toast 通知
     DearTs::Plugins::Toast::ToastManager::instance().render();
 
-    // 9. 渲染 ImGui
+    // 10. 渲染角色（在 ImGui 之后，确保在最上层）
+    Core::UI::CharacterRenderer::instance().render();
+
+    // 11. 渲染 ImGui
     ImGui::Render();
     ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_renderer);
 
-    // 10. 多视口支持
+    // 12. 多视口支持
     if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();

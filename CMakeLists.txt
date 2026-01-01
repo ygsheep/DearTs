@@ -37,6 +37,7 @@ set(JSON_CI OFF CACHE BOOL "Enable CI build targets" FORCE)
 set(JSON_MultipleHeaders ON CACHE BOOL "Use multi-header version" FORCE)
 
 add_subdirectory(third_party/SDL)
+add_subdirectory(third_party/SDL_image)
 add_subdirectory(third_party/freetype)
 add_subdirectory(third_party/lunasvg)
 add_subdirectory(third_party/json)

@@ -96,6 +96,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/core/ui/shortcut_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/task_widget.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/icon_font.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/background_renderer.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/character_renderer.cpp
     ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/app/application.cpp
     ${CMAKE_SOURCE_DIR}/core/utils/file_dialog.cpp
@@ -106,6 +108,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         imgui_full
         implot
         SDL3-static
+        SDL3_image
         deartsdl_logger
         freetype
         lunasvg::lunasvg
