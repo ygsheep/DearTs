@@ -57,20 +57,6 @@ void SettingsView::draw_content() {
     }
 
     ImGui::SameLine();
-
-    // 重新加载按钮
-    if (ImGui::Button("重新加载")) {
-        reload_config();
-    }
-
-    ImGui::SameLine();
-
-    // 重置默认按钮
-    if (ImGui::Button("重置默认")) {
-        ImGui::OpenPopup("确认重置");
-    }
-
-    ImGui::SameLine();
     ImGui::Text("配置文件: config.json");
 
     ImGui::Separator();
@@ -97,25 +83,6 @@ void SettingsView::draw_content() {
     draw_config_panel();
 
     ImGui::EndChild();
-
-    // 确认重置对话框
-    if (ImGui::BeginPopupModal("确认重置", &m_show_confirm_reset, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("确定要将所有配置重置为默认值吗？");
-        ImGui::Text("此操作不可撤销。");
-
-        ImGui::Spacing();
-
-        if (ImGui::Button("确定", ImVec2(120, 0))) {
-            reset_to_defaults();
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("取消", ImVec2(120, 0))) {
-            ImGui::CloseCurrentPopup();
-        }
-
-        ImGui::EndPopup();
-    }
 }
 
 void SettingsView::draw_sidebar() {

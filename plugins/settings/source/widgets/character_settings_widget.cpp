@@ -210,7 +210,7 @@ void CharacterSettingsWidget::render_animation_settings() {
     float interval = static_cast<float>(config.get_or<double>("character.frame_interval", 0.5));
     ImGui::Text("帧间隔: %.1f 秒", interval);
 
-    if (ImGui::SliderFloat("##FrameInterval", &interval, 0.1f, 5.0f, "%.1f")) {
+    if (ImGui::SliderFloat("##FrameInterval", &interval, 0.01F, 30.0F, "%.2f")) {
         character_renderer.set_frame_interval(interval);
         config.set("character.frame_interval", static_cast<double>(interval));
         mark_modified("character.frame_interval");
