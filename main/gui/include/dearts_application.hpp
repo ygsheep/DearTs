@@ -132,6 +132,11 @@ private:
     void setup_views();
 
     /**
+     * @brief 从 ConfigManager 加载角色配置
+     */
+    void load_character_config();
+
+    /**
      * @brief 渲染菜单栏
      */
     void render_menu_bar();

@@ -24,11 +24,17 @@ bool CharacterRenderer::load_character_frames(const std::vector<std::string>& im
     // 清空旧帧
     release_frames();
 
+    // 检查 renderer
+    if (!m_renderer) {
+        LOG_ERROR("Renderer not set. Call set_renderer() first.");
+        return false;
+    }
+
     // 加载新帧
     for (const auto& path : image_paths) {
         CharacterFrame frame;
         frame.image_path = path;
-        frame.texture = load_texture(path);
+        frame.texture = load_texture(m_renderer, path);
 
         if (!frame.texture) {
             LOG_ERROR("Failed to load character frame: {}", path);
@@ -37,8 +43,8 @@ bool CharacterRenderer::load_character_frames(const std::vector<std::string>& im
             return false;
         }
 
-        // 查询纹理大小
-        if (SDL_QueryTexture(frame.texture, nullptr, nullptr, &frame.width, &frame.height) != 0) {
+        // 查询纹理大小（SDL3 API）
+        if (!SDL_GetTextureSize(frame.texture, &frame.width, &frame.height)) {
             LOG_ERROR("Failed to query texture size: {}", SDL_GetError());
             release_frames();
             m_enabled = false;
@@ -115,7 +121,7 @@ void CharacterRenderer::update(double delta_time) {
 }
 
 void CharacterRenderer::render() {
-    if (!m_enabled || m_frames.empty()) {
+    if (!m_enabled || m_frames.empty() || !m_renderer) {
         return;
     }
 
@@ -125,32 +131,24 @@ void CharacterRenderer::render() {
 
     const auto& frame = m_frames[m_current_frame];
     if (!frame.texture) {
+        LOG_ERROR("Frame texture is null for frame {}", m_current_frame);
         return;
     }
 
     // 获取当前视口大小
     ImGuiViewport* viewport = ImGui::GetMainViewport();
+    if (!viewport) {
+        LOG_ERROR("ImGui::GetMainViewport() returned null");
+        return;
+    }
     ImVec2 viewport_size = viewport->Size;
 
     // 计算渲染位置
     ImVec2 texture_size(
-        static_cast<float>(frame.width) * m_scale,
-        static_cast<float>(frame.height) * m_scale
+        frame.width * m_scale,
+        frame.height * m_scale
     );
     ImVec2 pos = calculate_render_position(viewport_size, texture_size);
-
-    // 获取 SDL renderer
-    SDL_Window* window = SDL_GetRenderWindow(SDL_GetVideoDevice(), 0);
-    if (!window) {
-        LOG_WARN("No SDL window found for character rendering");
-        return;
-    }
-
-    SDL_Renderer* renderer = SDL_GetRenderer(window);
-    if (!renderer) {
-        LOG_WARN("No SDL renderer found for character rendering");
-        return;
-    }
 
     // 设置透明度和混合颜色
     SDL_SetTextureAlphaMod(frame.texture, static_cast<uint8_t>(m_opacity * 255.0f));
@@ -163,7 +161,22 @@ void CharacterRenderer::render() {
     dst_rect.w = texture_size.x;
     dst_rect.h = texture_size.y;
 
-    SDL_RenderTexture(renderer, frame.texture, nullptr, &dst_rect);
+    // 调试日志（只记录一次）
+    static bool debug_logged = false;
+    if (!debug_logged) {
+        LOG_INFO("Character rendering: pos=({:.1f}, {:.1f}), size=({:.1f}, {:.1f}), scale={:.2f}",
+                 pos.x, pos.y, texture_size.x, texture_size.y, m_scale);
+        debug_logged = true;
+    }
+
+    // SDL3_RenderTexture 可能返回 bool，检查错误
+    if (!SDL_RenderTexture(m_renderer, frame.texture, nullptr, &dst_rect)) {
+        // 渲染失败，记录错误但不崩溃
+        const char* error = SDL_GetError();
+        if (error && *error) {
+            LOG_ERROR("SDL_RenderTexture failed: {}", error);
+        }
+    }
 }
 
 void CharacterRenderer::clear() {
@@ -173,7 +186,7 @@ void CharacterRenderer::clear() {
     LOG_INFO("Character cleared");
 }
 
-SDL_Texture* CharacterRenderer::load_texture(const std::string& image_path) {
+SDL_Texture* CharacterRenderer::load_texture(SDL_Renderer* renderer, const std::string& image_path) {
     // 构建完整路径
     std::string full_path;
     if (std::filesystem::path(image_path).is_absolute()) {
@@ -182,24 +195,11 @@ SDL_Texture* CharacterRenderer::load_texture(const std::string& image_path) {
         full_path = "resources/images/" + image_path;
     }
 
-    // 获取当前窗口
-    SDL_Window* window = SDL_GetRenderWindow(SDL_GetVideoDevice(), 0);
-    if (!window) {
-        LOG_ERROR("No SDL window found");
-        return nullptr;
-    }
-
-    // 获取 renderer（SDL3 使用 SDL_GetRenderer）
-    SDL_Renderer* renderer = SDL_GetRenderer(window);
-    if (!renderer) {
-        LOG_ERROR("No SDL renderer found");
-        return nullptr;
-    }
-
     // 使用 SDL_image 加载图片
     SDL_Texture* texture = IMG_LoadTexture(renderer, full_path.c_str());
     if (!texture) {
-        const char* error = IMG_GetError();
+        // SDL3_image uses SDL's error system
+        const char* error = SDL_GetError();
         LOG_ERROR("IMG_LoadTexture failed: {}", error ? error : "Unknown error");
         return nullptr;
     }

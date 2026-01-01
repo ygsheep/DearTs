@@ -6,6 +6,7 @@
 #include "views/settings_view.hpp"
 #include "toast_settings_widget.hpp"
 #include "widgets/theme_settings_widget.hpp"
+#include "widgets/character_settings_widget.hpp"
 #include "core/config/config_manager.h"
 #include "core/ui/theme_manager.h"
 #include "core/ui/icon_font.hpp"
@@ -21,7 +22,8 @@ using DearTs::Core::ContentRegistry::UnlocalizedString;
 SettingsView::SettingsView()
     : ViewWindow(UnlocalizedString("设置"), ICON_SETTINGS)
     , m_toast_widget(std::make_unique<ToastSettingsWidget>())
-    , m_theme_widget(std::make_unique<ThemeSettingsWidget>()) {
+    , m_theme_widget(std::make_unique<ThemeSettingsWidget>())
+    , m_character_widget(std::make_unique<CharacterSettingsWidget>()) {
 }
 
 SettingsView::~SettingsView() = default;
@@ -127,6 +129,7 @@ void SettingsView::draw_sidebar() {
         ConfigCategory::Logger,
         ConfigCategory::Window,
         ConfigCategory::Theme,
+        ConfigCategory::Character,
         ConfigCategory::Toast,
         ConfigCategory::Shortcuts,
         ConfigCategory::Advanced,
@@ -161,6 +164,9 @@ void SettingsView::draw_config_panel() {
             break;
         case ConfigCategory::Theme:
             draw_theme_settings();
+            break;
+        case ConfigCategory::Character:
+            draw_character_settings();
             break;
         case ConfigCategory::Toast:
             draw_toast_settings();
@@ -292,6 +298,11 @@ void SettingsView::draw_theme_settings() {
     m_theme_widget->render();
 }
 
+void SettingsView::draw_character_settings() {
+    // 使用 CharacterSettingsWidget 组件渲染
+    m_character_widget->render();
+}
+
 void SettingsView::draw_toast_settings() {
     // 使用 ToastSettingsWidget 组件渲染
     m_toast_widget->render();
@@ -316,6 +327,14 @@ void SettingsView::save_config() {
     // 合并 ThemeSettingsWidget 的修改列表
     const auto& theme_modified = m_theme_widget->get_modified_keys();
     for (const auto& key : theme_modified) {
+        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), key) == m_modified_keys.end()) {
+            m_modified_keys.push_back(key);
+        }
+    }
+
+    // 合并 CharacterSettingsWidget 的修改列表
+    const auto& character_modified = m_character_widget->get_modified_keys();
+    for (const auto& key : character_modified) {
         if (std::find(m_modified_keys.begin(), m_modified_keys.end(), key) == m_modified_keys.end()) {
             m_modified_keys.push_back(key);
         }
@@ -367,6 +386,7 @@ void SettingsView::save_config() {
         m_modified_keys.clear();
         m_toast_widget->clear_modified_keys();  // 清空 toast widget 的修改记录
         m_theme_widget->clear_modified_keys();  // 清空 theme widget 的修改记录
+        m_character_widget->clear_modified_keys();  // 清空 character widget 的修改记录
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "保存成功！");
     }
 }
@@ -407,6 +427,7 @@ const char* SettingsView::get_category_name(ConfigCategory category) const {
         case ConfigCategory::Logger:    return "日志";
         case ConfigCategory::Window:    return "窗口";
         case ConfigCategory::Theme:     return "主题";
+        case ConfigCategory::Character: return "角色";
         case ConfigCategory::Toast:     return "气泡消息";
         case ConfigCategory::Shortcuts: return "快捷键";
         case ConfigCategory::Advanced:  return "高级";

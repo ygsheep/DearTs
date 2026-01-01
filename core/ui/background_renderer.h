@@ -127,10 +127,11 @@ private:
 
     /**
      * @brief 从文件加载纹理
+     * @param renderer SDL 渲染器
      * @param image_path 图片路径
      * @return 纹理指针，失败返回 nullptr
      */
-    SDL_Texture* load_texture(const std::string& image_path);
+    SDL_Texture* load_texture(SDL_Renderer* renderer, const std::string& image_path);
 
     /**
      * @brief 释放纹理资源
@@ -155,8 +156,8 @@ private:
     ImVec4 m_tint_color = ImVec4(1, 1, 1, 1); ///< 混合颜色
 
     SDL_Texture* m_texture = nullptr;          ///< 背景纹理
-    int m_texture_width = 0;                   ///< 纹理宽度
-    int m_texture_height = 0;                  ///< 纹理高度
+    float m_texture_width = 0.0f;              ///< 纹理宽度（SDL3 使用 float）
+    float m_texture_height = 0.0f;             ///< 纹理高度（SDL3 使用 float）
 
     SDL_Renderer* m_renderer = nullptr;        ///< SDL 渲染器（需要在渲染时设置）
 };

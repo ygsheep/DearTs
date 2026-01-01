@@ -49,11 +49,11 @@ void CharacterManager::unregister_character(const std::string& id) {
         m_characters.erase(it, m_characters.end());
 
         // 如果删除的是活动角色，切换到第一个角色
-        if (m_active_character && m_active_character->id == id) {
+        if (!m_active_character_id.empty() && m_active_character_id == id) {
             if (!m_characters.empty()) {
                 set_active_character(m_characters[0].id);
             } else {
-                m_active_character = nullptr;
+                m_active_character_id.clear();
                 notify_character_changed();
             }
         }
@@ -82,8 +82,8 @@ bool CharacterManager::set_active_character(const std::string& id) {
         return false;
     }
 
-    if (m_active_character != character) {
-        m_active_character = character;
+    if (m_active_character_id != id) {
+        m_active_character_id = id;
         LOG_INFO("Active character changed to: {} ({})", character->name, character->id);
         notify_character_changed();
     }
@@ -92,10 +92,7 @@ bool CharacterManager::set_active_character(const std::string& id) {
 }
 
 std::string CharacterManager::get_active_character_id() const {
-    if (m_active_character) {
-        return m_active_character->id;
-    }
-    return "";
+    return m_active_character_id;
 }
 
 void CharacterManager::set_character_enabled(const std::string& id, bool enabled) {
@@ -105,7 +102,7 @@ void CharacterManager::set_character_enabled(const std::string& id, bool enabled
             LOG_INFO("Character '{}' {}", id, enabled ? "enabled" : "disabled");
 
             // 如果禁用的是当前活动角色，切换到其他角色
-            if (!enabled && m_active_character && m_active_character->id == id) {
+            if (!enabled && !m_active_character_id.empty() && m_active_character_id == id) {
                 // 查找第一个启用的角色
                 for (const auto& c : m_characters) {
                     if (c.enabled) {
@@ -131,7 +128,7 @@ void CharacterManager::load_default_characters() {
             .image_path = "0-菲比.png",
             .frame_paths = {},
             .type = CharacterType::Single,
-            .scale = 0.5f,
+            .scale = 0.8f,
             .opacity = 1.0f
         },
         {
@@ -140,7 +137,7 @@ void CharacterManager::load_default_characters() {
             .image_path = "1-菲比.png",
             .frame_paths = {},
             .type = CharacterType::Single,
-            .scale = 0.5f,
+            .scale = 0.8f,
             .opacity = 1.0f
         },
         {
@@ -149,7 +146,7 @@ void CharacterManager::load_default_characters() {
             .image_path = "2-菲比.png",
             .frame_paths = {},
             .type = CharacterType::Single,
-            .scale = 0.5f,
+            .scale = 0.8f,
             .opacity = 1.0f
         },
         {
@@ -158,7 +155,7 @@ void CharacterManager::load_default_characters() {
             .image_path = "3-菲比.png",
             .frame_paths = {},
             .type = CharacterType::Single,
-            .scale = 0.5f,
+            .scale = 0.8f,
             .opacity = 1.0f
         },
         // 可选：注册一个动画模式的角色
@@ -168,7 +165,7 @@ void CharacterManager::load_default_characters() {
             .image_path = "",
             .frame_paths = {"0-菲比.png", "1-菲比.png", "2-菲比.png", "3-菲比.png"},
             .type = CharacterType::Animated,
-            .scale = 0.5f,
+            .scale = 0.8f,
             .opacity = 1.0f,
             .frame_interval = 1.0f
         }
@@ -182,8 +179,9 @@ void CharacterManager::load_default_characters() {
 }
 
 void CharacterManager::notify_character_changed() {
+    const CharacterInfo* active_char = get_active_character();
     for (auto& callback : m_character_changed_callbacks) {
-        callback(m_active_character);
+        callback(active_char);
     }
 }
 

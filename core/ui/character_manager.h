@@ -33,9 +33,9 @@ struct CharacterInfo {
     std::string image_path;      ///< 图片路径（Single 模式）
     std::vector<std::string> frame_paths;  ///< 动画帧路径（Animated 模式）
     CharacterType type;          ///< 角色类型
-    float scale = 0.5f;          ///< 缩放比例
-    float opacity = 1.0f;        ///< 透明度
-    float frame_interval = 1.0f; ///< 帧间隔（Animated 模式）
+    float scale = 0.5F;          ///< 缩放比例
+    float opacity = 1.0F;        ///< 透明度
+    float frame_interval = 1.0F; ///< 帧间隔（Animated 模式）
     bool enabled = true;         ///< 是否启用
 };
 
@@ -103,7 +103,15 @@ public:
      * @brief 获取当前活动角色
      */
     [[nodiscard]] const CharacterInfo* get_active_character() const {
-        return m_active_character;
+        if (m_active_character_id.empty()) {
+            return nullptr;
+        }
+        for (const auto& ch : m_characters) {
+            if (ch.id == m_active_character_id) {
+                return &ch;
+            }
+        }
+        return nullptr;
     }
 
     /**
@@ -146,7 +154,7 @@ private:
 
 private:
     std::vector<CharacterInfo> m_characters;                     ///< 角色列表
-    const CharacterInfo* m_active_character = nullptr;           ///< 当前活动角色
+    std::string m_active_character_id;                           ///< 当前活动角色 ID
     std::vector<std::function<void(const CharacterInfo*)>> m_character_changed_callbacks;  ///< 角色变更回调
 };
 

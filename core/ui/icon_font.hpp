@@ -116,7 +116,7 @@ private:
 #define ICON_CANCEL         "\xee\x97\x8d"  // ICON_MS_CANCEL
 #define ICON_WARNING        "\xee\x8d\x86"  // ICON_MS_WARNING
 #define ICON_ERROR          "\xee\x94\x9b"  // ICON_MS_ERROR
-#define ICON_INFO           "\xee\x8d\x8e"  // ICON_MS_INFO
+#define ICON_INFO           "\xee\xa2\x8e"  // ICON_MS_INFO
 #define ICON_SUCCESS        "\xee\x97\x8a"  // ICON_MS_CHECK (使用 CHECK)
 
 // 视图

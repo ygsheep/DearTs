@@ -49,8 +49,8 @@ enum class AnimationMode {
 struct CharacterFrame {
     std::string image_path;    ///< 图片路径
     SDL_Texture* texture = nullptr;  ///< 纹理
-    int width = 0;              ///< 宽度
-    int height = 0;             ///< 高度
+    float width = 0.0f;        ///< 宽度（SDL3 使用 float）
+    float height = 0.0f;       ///< 高度（SDL3 使用 float）
     float duration = 1.0f;      ///< 显示时长（秒）
 };
 
@@ -199,7 +199,7 @@ public:
     /**
      * @brief 获取帧总数
      */
-    [[nodiscard]] size_t get_frame_count() const { return m_frames.size(); }
+    [[nodiscard]] constexpr size_t get_frame_count() const { return m_frames.size(); }
 
 private:
     CharacterRenderer();
@@ -211,10 +211,11 @@ private:
 
     /**
      * @brief 从文件加载纹理
+     * @param renderer SDL 渲染器
      * @param image_path 图片路径
      * @return 纹理指针，失败返回 nullptr
      */
-    SDL_Texture* load_texture(const std::string& image_path);
+    SDL_Texture* load_texture(SDL_Renderer* renderer, const std::string& image_path);
 
     /**
      * @brief 释放所有帧的纹理资源
@@ -248,7 +249,7 @@ private:
     float m_frame_interval = 1.0f;               ///< 帧切换间隔（秒）
     float m_frame_timer = 0.0f;                  ///< 帧计时器
     size_t m_current_frame = 0;                  ///< 当前帧索引
-    bool m_ping_pong_direction = 1;              ///< 往复播放方向（1=正向，-1=反向）
+    int m_ping_pong_direction = 1;               ///< 往复播放方向（1=正向，-1=反向）
 
     SDL_Renderer* m_renderer = nullptr;          ///< SDL 渲染器
     std::vector<CharacterFrame> m_frames;        ///< 角色帧列表

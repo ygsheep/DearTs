@@ -14,6 +14,7 @@
 namespace DearTs::Plugins::Settings {
 class ToastSettingsWidget;
 class ThemeSettingsWidget;
+class CharacterSettingsWidget;
 }
 
 namespace DearTs::Plugins::Settings {
@@ -26,6 +27,7 @@ enum class ConfigCategory {
     Logger,         ///< 日志设置
     Window,         ///< 窗口设置
     Theme,          ///< 主题设置
+    Character,      ///< 角色设置
     Shortcuts,      ///< 快捷键设置
     Toast,          ///< 气泡消息设置
     Advanced,       ///< 高级设置
@@ -101,6 +103,11 @@ private:
     void draw_theme_settings();
 
     /**
+     * @brief 绘制角色设置
+     */
+    void draw_character_settings();
+
+    /**
      * @brief 绘制气泡消息设置
      */
     void draw_toast_settings();
@@ -156,6 +163,7 @@ private:
     // 设置组件
     std::unique_ptr<ToastSettingsWidget> m_toast_widget;    ///< Toast 设置组件
     std::unique_ptr<ThemeSettingsWidget> m_theme_widget;    ///< 主题设置组件
+    std::unique_ptr<CharacterSettingsWidget> m_character_widget;  ///< 角色设置组件
 };
 
 } // namespace DearTs::Plugins::Settings

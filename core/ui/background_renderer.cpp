@@ -46,8 +46,8 @@ bool BackgroundRenderer::load_background(const std::string& image_path) {
         return false;
     }
 
-    // 查询纹理大小
-    if (SDL_QueryTexture(m_texture, nullptr, nullptr, &m_texture_width, &m_texture_height) != 0) {
+    // 查询纹理大小（SDL3 API）
+    if (!SDL_GetTextureSize(m_texture, &m_texture_width, &m_texture_height)) {
         LOG_ERROR("Failed to query texture size: {}", SDL_GetError());
         release_texture();
         m_enabled = false;
@@ -60,14 +60,14 @@ bool BackgroundRenderer::load_background(const std::string& image_path) {
 }
 
 void BackgroundRenderer::render(SDL_Renderer* renderer, const ImVec2& viewport_size) {
-    if (!m_enabled || !m_texture) {
+    if (!m_enabled || !m_texture || !renderer) {
         return;
     }
 
     // 计算渲染区域
     ImVec4 render_rect = calculate_render_rect(
         viewport_size,
-        ImVec2(static_cast<float>(m_texture_width), static_cast<float>(m_texture_height))
+        ImVec2(m_texture_width, m_texture_height)
     );
 
     SDL_FRect dst_rect;
@@ -95,14 +95,26 @@ void BackgroundRenderer::render(SDL_Renderer* renderer, const ImVec2& viewport_s
                 SDL_FRect tile_rect;
                 tile_rect.x = x;
                 tile_rect.y = y;
-                tile_rect.w = static_cast<float>(m_texture_width);
-                tile_rect.h = static_cast<float>(m_texture_height);
-                SDL_RenderTexture(renderer, m_texture, nullptr, &tile_rect);
+                tile_rect.w = m_texture_width;
+                tile_rect.h = m_texture_height;
+                if (!SDL_RenderTexture(renderer, m_texture, nullptr, &tile_rect)) {
+                    // 渲染失败，记录错误
+                    const char* error = SDL_GetError();
+                    if (error && *error) {
+                        LOG_ERROR("SDL_RenderTexture (tile) failed: {}", error);
+                    }
+                }
             }
         }
     } else {
         // 其他模式：单次渲染
-        SDL_RenderTexture(renderer, m_texture, nullptr, &dst_rect);
+        if (!SDL_RenderTexture(renderer, m_texture, nullptr, &dst_rect)) {
+            // 渲染失败，记录错误
+            const char* error = SDL_GetError();
+            if (error && *error) {
+                LOG_ERROR("SDL_RenderTexture failed: {}", error);
+            }
+        }
     }
 }
 
@@ -116,7 +128,8 @@ SDL_Texture* BackgroundRenderer::load_texture(SDL_Renderer* renderer, const std:
     // 使用 SDL_image 加载图片
     SDL_Texture* texture = IMG_LoadTexture(renderer, image_path.c_str());
     if (!texture) {
-        const char* error = IMG_GetError();
+        // SDL3_image uses SDL's error system
+        const char* error = SDL_GetError();
         LOG_ERROR("IMG_LoadTexture failed: {}", error ? error : "Unknown error");
         return nullptr;
     }
