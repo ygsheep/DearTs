@@ -129,8 +129,8 @@ void CharacterSettingsWidget::render_position_selection() {
     auto& config = Core::Config::ConfigManager::instance();
     auto& character_renderer = Core::UI::CharacterRenderer::instance();
 
-    // 从 config 读取位置，默认为右下角 (3)
-    int position_index = config.get_or<int>("character.position", 3);
+    // 从 config 读取位置，默认为右下角 (0)
+    int position_index = config.get_or<int>("character.position", 0);
 
     constexpr const char* const position_names[] = {"右下角", "左下角", "右上角", "左上角", "居中"};
     ImGui::Text("角色位置:");

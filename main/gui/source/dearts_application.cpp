@@ -166,7 +166,7 @@ void DearTsApplication::load_character_config() {
     }
 
     // 加载并应用角色配置（覆盖上面设置的默认值）
-    int position_index = config.get_or<int>("character.position", 3);
+    int position_index = config.get_or<int>("character.position", 0);
     character_renderer.set_position(static_cast<Core::UI::CharacterPosition>(position_index));
 
     float scale = static_cast<float>(config.get_or<double>("character.scale", 0.5));

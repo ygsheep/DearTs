@@ -16,28 +16,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# 添加自定义 CMake 模块路径
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-
-# 关键修复：禁用预编译头（必须在添加 SDL 子目录之前设置）
-# 设置全局 CMAKE_DISABLE_PRECOMPILE_HEADERS 禁用所有 PCH
-set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON CACHE BOOL "Disable all precompiled headers" FORCE)
-
 # Add SDL3 as subdirectory
 set(SDL_BUILD_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
 set(SDL_BUILD_EXAMPLES OFF CACHE BOOL "Build SDL examples" FORCE)
-set(SDL_DISABLE_INSTALL ON CACHE BOOL "Disable SDL installation" FORCE)
-set(SDL_SHARED OFF CACHE BOOL "Build SDL as shared library" FORCE)
+set(SDL_DISABLE_INSTALL OFF CACHE BOOL "Disable SDL installation" FORCE)
+set(SDL_SHARED ON CACHE BOOL "Build SDL as shared library" FORCE)
 set(SDL_STATIC ON CACHE BOOL "Build SDL as static library" FORCE)
-set(SDL sdl3-static)  # 设置 SDL 目标名称
-# 关键修复：设置 SDL_REVISION 避免 git 调用，防止 CMake 无限重新配置
-set(SDL_REVISION "SDL-3.3.7-prerelease" CACHE STRING "SDL revision (skip git)" FORCE)
-# 同样修复 SDL_image
-set(SDLIMAGE_REVISION "SDL3_image-3.3.0" CACHE STRING "SDL_image revision (skip git)" FORCE)
-
-# 重要：设置 SDL3 的安装目录，让 SDL_image 能找到它
-set(CMAKE_INSTALL_FULL_LIBDIR ${CMAKE_BINARY_DIR}/lib CACHE PATH "")
-set(CMAKE_INSTALL_FULL_INCLUDEDIR ${CMAKE_BINARY_DIR}/include CACHE PATH "")
+set(SDL_INSTALL_CMAKEDIR_ARCH_INDEPENDENT ON CACHE BOOL "Install CMake files arch-independent" FORCE)
+set(SDL_INSTALL_TESTS OFF CACHE BOOL "Install test binaries" FORCE)
+set(SDL_INSTALL_EXAMPLES OFF CACHE BOOL "Install example binaries" FORCE)
 
 # Add FreeType as subdirectory
 set(FT_DISABLE_BROTLI ON CACHE BOOL "Disable Brotli support" FORCE)
@@ -54,98 +41,19 @@ set(JSON_MultipleHeaders ON CACHE BOOL "Use multi-header version" FORCE)
 
 add_subdirectory(third_party/SDL)
 
-# 验证 SDL3 目标已创建
-if(TARGET SDL3::Headers AND TARGET SDL3::SDL3)
-    message(STATUS "SDL3 targets found: SDL3::Headers and SDL3::SDL3")
-else()
-    message(FATAL_ERROR "SDL3 targets not found. Check SDL3 configuration.")
-endif()
+# 使用预编译的 SDL_image 库（third_party/SDL_image 已编译）
+add_library(SDL3_image-static STATIC IMPORTED)
+set_target_properties(SDL3_image-static PROPERTIES
+    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/x64/SDL3_image.lib"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/SDL_image/include"
+)
 
-# 添加 SDL_image（它需要找到 SDL3）
-# 关键：在添加 SDL_image 之前设置所有必要的变量
-# 确保 SDL_image 只构建静态库
-
-# 1. 设置全局 BUILD_SHARED_LIBS 为 OFF
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
-
-# 2. 设置 SDL_image 特定选项
-set(SDLIMAGE_BUILD_SHARED_LIBS OFF CACHE BOOL "Build SDL3_image as shared library" FORCE)
-set(SDLIMAGE_STATIC ON CACHE BOOL "Build SDL3_image as static library" FORCE)
-set(SDLIMAGE_TESTS OFF CACHE BOOL "Build SDL3_image tests" FORCE)
-# 关键修复：禁用 SDL_image 的 git revision 检测
-set(SDLIMAGE_INSTALL_MAN OFF CACHE BOOL "Install SDL_image man pages (requires git)" FORCE)
-
-# 3. 关键：由于 SDL_image 会检查是否为根项目，让它认为自己是子目录
-set(SDLIMAGE_ROOTPROJECT OFF CACHE BOOL "SDL3_image is root project" FORCE)
-
-# 4. 强制 SDL3_FOUND 为 TRUE，跳过 find_package
-set(SDL3_FOUND TRUE CACHE BOOL "SDL3 found" FORCE)
-set(SDL3_VERSION "3.3.0" CACHE STRING "SDL3 version" FORCE)
-
-# 5. 禁用需要外部依赖的高级图像格式
-set(SDLIMAGE_AVIF OFF CACHE BOOL "Use AVIF" FORCE)
-set(SDLIMAGE_JXL OFF CACHE BOOL "Use JXL" FORCE)
-set(SDLIMAGE_WEBP OFF CACHE BOOL "Use WebP" FORCE)
-set(SDLIMAGE_TIF OFF CACHE BOOL "Use TIFF" FORCE)
-set(SDLIMAGE_DAV1D OFF CACHE BOOL "Use dav1d" FORCE)
-set(SDLIMAGE_VENDORED OFF CACHE BOOL "Use vendored libraries" FORCE)
-
-# 6. 重要：设置 SDL 为静态，确保 SDL_image 使用正确的 SDL3 目标
-set(SDL_STATIC ON CACHE BOOL "SDL is static" FORCE)
-
-add_subdirectory(third_party/SDL_image)
 add_subdirectory(third_party/freetype)
 add_subdirectory(third_party/lunasvg)
 add_subdirectory(third_party/json)
 
 # Add DearTs Logger library
 add_subdirectory(lib/liblogger)
-
-# ========================================
-# 预编译头（PCH）配置 - 加速编译
-# ========================================
-option(ENABLE_PCH "Enable precompiled headers for faster compilation" OFF)
-
-if(ENABLE_PCH AND NOT CMAKE_VERSION VERSION_LESS "3.16")
-    message(STATUS "Precompiled headers: ENABLED")
-
-    # 创建预编译头目标
-    add_library(dearts_pch STATIC)
-    target_include_directories(dearts_pch PUBLIC
-        ${CMAKE_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/core
-        ${CMAKE_SOURCE_DIR}/lib
-        ${CMAKE_SOURCE_DIR}/third_party/SDL/include
-        ${CMAKE_SOURCE_DIR}/third_party/freetype/include
-        ${CMAKE_SOURCE_DIR}/third_party/lunasvg/include
-        ${CMAKE_SOURCE_DIR}/third_party/json/include
-        ${CMAKE_SOURCE_DIR}/third_party/imgui
-    )
-
-    # 预编译头源文件（在下一步创建）
-    target_sources(dearts_pch PRIVATE "${CMAKE_SOURCE_DIR}/core/pch.cpp")
-
-    if(MSVC)
-        target_compile_options(dearts_pch PRIVATE /Yu"pch.hpp")
-        target_compile_definitions(dearts_pch PRIVATE _CRT_SECURE_NO_WARNINGS)
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(dearts_pch PRIVATE -include pch.hpp)
-    endif()
-
-    # 创建预编译头库的别名，方便其他目标链接
-    add_library(pch_interface INTERFACE)
-    target_link_libraries(pch_interface INTERFACE dearts_pch)
-
-    if(MSVC)
-        target_compile_options(pch_interface INTERFACE /FI"pch.hpp" /Yu"pch.hpp")
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(pch_interface INTERFACE -include pch.hpp)
-    endif()
-else()
-    message(STATUS "Precompiled headers: DISABLED")
-    # 创建空接口，避免代码中需要判断
-    add_library(pch_interface INTERFACE)
-endif()
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR})
@@ -188,6 +96,8 @@ if(EXISTS ${IMGUI_DIR})
         ${CMAKE_SOURCE_DIR}/third_party/lunasvg/include
         ${CMAKE_SOURCE_DIR}/core/config  # ImGui user config
     )
+    # Link FreeType and LunaSVG (required for imgui_freetype.cpp)
+    target_link_libraries(imgui PUBLIC freetype lunasvg::lunasvg)
     # Add Test Engine include path if available (for imgui_te_imconfig.h)
     if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
         target_include_directories(imgui PUBLIC
@@ -231,12 +141,14 @@ if(EXISTS ${IMGUI_DIR})
     )
     target_link_libraries(imgui_sdl3 PRIVATE imgui)
 
-    # Create an alias library that includes ImGui + Test Engine (if available)
+    # Create an alias library that includes ImGui + Test Engine (if enabled)
     # This ensures all targets get the Test Engine linkage when needed
     add_library(imgui_full INTERFACE)
     target_link_libraries(imgui_full INTERFACE imgui imgui_sdl3)
-    if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
-        target_link_libraries(imgui_full INTERFACE imgui_test_engine)
+    if(ENABLE_IMGUI_TEST_ENGINE)
+        if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+            target_link_libraries(imgui_full INTERFACE imgui_test_engine)
+        endif()
     endif()
 
     # Setup ImPlot
@@ -268,37 +180,35 @@ else()
 endif()
 
 # Setup ImGui Test Engine (compatible with ImGui v1.92.5)
-set(IMGUI_TEST_ENGINE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
-if(EXISTS ${IMGUI_TEST_ENGINE_DIR})
-    message(STATUS "Using ImGui Test Engine from third_party directory")
+# Only build if explicitly enabled
+if(ENABLE_IMGUI_TEST_ENGINE)
+    set(IMGUI_TEST_ENGINE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+    if(EXISTS ${IMGUI_TEST_ENGINE_DIR})
+        message(STATUS "Using ImGui Test Engine from third_party directory")
 
-    # ImGui Test Engine sources (显式列表避免 CMake 无限重新配置)
-    set(IMGUI_TEST_ENGINE_SOURCES
-        ${IMGUI_TEST_ENGINE_DIR}/imgui_capture_tool.cpp
-        ${IMGUI_TEST_ENGINE_DIR}/imgui_te_context.cpp
-        ${IMGUI_TEST_ENGINE_DIR}/imgui_te_coroutine.cpp
-        ${IMGUI_TEST_ENGINE_DIR}/imgui_te_engine.cpp
-        ${IMGUI_TEST_ENGINE_DIR}/imgui_te_exporters.cpp
-        ${IMGUI_TEST_ENGINE_DIR}/imgui_te_perftool.cpp
-        ${IMGUI_TEST_ENGINE_DIR}/imgui_te_ui.cpp
-        ${IMGUI_TEST_ENGINE_DIR}/imgui_te_utils.cpp
-    )
+        # ImGui Test Engine sources
+        file(GLOB IMGUI_TEST_ENGINE_SOURCES
+            ${IMGUI_TEST_ENGINE_DIR}/*.cpp
+        )
 
-    # Create ImGui Test Engine library
-    add_library(imgui_test_engine STATIC ${IMGUI_TEST_ENGINE_SOURCES})
-    target_include_directories(imgui_test_engine PUBLIC
-        ${IMGUI_TEST_ENGINE_DIR}
-        ${IMGUI_DIR}
-        ${CMAKE_SOURCE_DIR}/third_party/imgui
-    )
-    target_link_libraries(imgui_test_engine PUBLIC imgui)
-    target_compile_definitions(imgui_test_engine PUBLIC
-        IMGUI_TEST_ENGINE_ENABLE
-        IMGUI_TEST_ENGINE_ENABLE_COROUTINE_STDTHREAD_IMPL
-    )
-    message(STATUS "ImGui Test Engine: Static library (v1.92.5 compatible)")
+        # Create ImGui Test Engine library
+        add_library(imgui_test_engine STATIC ${IMGUI_TEST_ENGINE_SOURCES})
+        target_include_directories(imgui_test_engine PUBLIC
+            ${IMGUI_TEST_ENGINE_DIR}
+            ${IMGUI_DIR}
+            ${CMAKE_SOURCE_DIR}/third_party/imgui
+        )
+        target_link_libraries(imgui_test_engine PUBLIC imgui)
+        target_compile_definitions(imgui_test_engine PUBLIC
+            IMGUI_TEST_ENGINE_ENABLE
+            IMGUI_TEST_ENGINE_ENABLE_COROUTINE_STDTHREAD_IMPL
+        )
+        message(STATUS "ImGui Test Engine: Static library (v1.92.5 compatible)")
+    else()
+        message(WARNING "ImGui Test Engine requested but not found!")
+    endif()
 else()
-    message(WARNING "ImGui Test Engine not found!")
+    message(STATUS "ImGui Test Engine: Disabled (use -DENABLE_IMGUI_TEST_ENGINE=ON to enable)")
 endif()
 
 # Add GUI test application

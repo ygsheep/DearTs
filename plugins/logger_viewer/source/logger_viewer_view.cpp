@@ -1062,7 +1062,8 @@ void LoggerViewerView::draw_timeline_chart() {
 
         // 只在合理间隔显示标签
         if (i % 5 == 0 || i == num_buckets - 1) {
-            std::tm* tm = std::localtime(reinterpret_cast<std::time_t*>(&x_data[i]));
+            std::time_t timestamp = static_cast<std::time_t>(x_data[i]);
+            std::tm* tm = std::localtime(&timestamp);
             char buffer[32];
             std::strftime(buffer, sizeof(buffer), "%H:%M", tm);
             x_labels.push_back(buffer);

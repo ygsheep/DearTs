@@ -72,7 +72,7 @@ const CharacterInfo* CharacterManager::get_character(const std::string& id) cons
 
 bool CharacterManager::set_active_character(const std::string& id) {
     const CharacterInfo* character = get_character(id);
-    if (!character) {
+    if (character == nullptr) {
         LOG_WARN("Character '{}' not found", id);
         return false;
     }
@@ -121,7 +121,7 @@ void CharacterManager::load_default_characters() {
     LOG_INFO("Loading default characters...");
 
     // 注册四个菲比角色（独立图片模式）
-    std::vector<CharacterInfo> default_characters = {
+    const std::vector<CharacterInfo> default_characters = {
         {
             .id = "feibi_0",
             .name = "菲比 - 造型 1",
@@ -178,7 +178,7 @@ void CharacterManager::load_default_characters() {
     LOG_INFO("Loaded {} default characters", default_characters.size());
 }
 
-void CharacterManager::notify_character_changed() {
+void CharacterManager::notify_character_changed() const {
     const CharacterInfo* active_char = get_active_character();
     for (auto& callback : m_character_changed_callbacks) {
         callback(active_char);

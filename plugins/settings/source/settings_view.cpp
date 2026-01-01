@@ -263,7 +263,7 @@ void SettingsView::draw_logger_settings() {
     ImGui::Spacing();
 
     // 日志文件路径
-    std::string log_path = config.get_or<std::string>("logger.file_path", "logs/deartsdl_gui.log");
+    std::string log_path = config.get_or<std::string>("logger.file_path", "logs/app.log");
     char path_buffer[256];
     strncpy(path_buffer, log_path.c_str(), sizeof(path_buffer));
     path_buffer[sizeof(path_buffer) - 1] = '\0';

@@ -109,10 +109,9 @@ target_sources(${PROJECT_NAME} PRIVATE
 
 # 链接库
 target_link_libraries(${PROJECT_NAME} PRIVATE
-        pch_interface        # 预编译头 - 加速编译
         imgui_full
         implot
-        SDL3-static
+        SDL3-shared
         SDL3_image-static
         deartsdl_logger
         freetype
@@ -157,6 +156,10 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${RESOURCE_SOURCE_DIR}/icon.ico
         ${CMAKE_BINARY_DIR}/bin/icon.ico
+    # 复制 SDL3_image.dll（根据架构选择）
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/$<IF:$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>,x64,x86>/SDL3_image.dll
+        ${CMAKE_BINARY_DIR}/bin/SDL3_image.dll
     COMMENT "Copying resources to output directory (if changed)"
 )
 

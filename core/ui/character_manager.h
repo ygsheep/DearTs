@@ -150,7 +150,7 @@ private:
     /**
      * @brief 触发角色变更回调
      */
-    void notify_character_changed();
+    void notify_character_changed() const;
 
 private:
     std::vector<CharacterInfo> m_characters;                     ///< 角色列表

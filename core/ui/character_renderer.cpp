@@ -7,6 +7,7 @@
 #include "liblogger/logger.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
+#include <algorithm>
 #include <filesystem>
 #include <algorithm>
 
@@ -25,7 +26,7 @@ bool CharacterRenderer::load_character_frames(const std::vector<std::string>& im
     release_frames();
 
     // 检查 renderer
-    if (!m_renderer) {
+    if (m_renderer == nullptr) {
         LOG_ERROR("Renderer not set. Call set_renderer() first.");
         return false;
     }
@@ -36,7 +37,7 @@ bool CharacterRenderer::load_character_frames(const std::vector<std::string>& im
         frame.image_path = path;
         frame.texture = load_texture(m_renderer, path);
 
-        if (!frame.texture) {
+        if (frame.texture == nullptr) {
             LOG_ERROR("Failed to load character frame: {}", path);
             release_frames();
             m_enabled = false;
@@ -102,7 +103,7 @@ bool CharacterRenderer::load_character_from_directory(
     }
 
     // 按文件名排序（确保 0-菲比.png 在 1-菲比.png 前面）
-    std::sort(image_paths.begin(), image_paths.end());
+    std::ranges::sort(image_paths);
 
     if (image_paths.empty()) {
         LOG_ERROR("No character images found in: {}", full_dir);
@@ -121,7 +122,7 @@ void CharacterRenderer::update(double delta_time) {
 }
 
 void CharacterRenderer::render() {
-    if (!m_enabled || m_frames.empty() || !m_renderer) {
+    if (!m_enabled || m_frames.empty() || (m_renderer == nullptr)) {
         return;
     }
 
@@ -137,7 +138,7 @@ void CharacterRenderer::render() {
 
     // 获取当前视口大小
     ImGuiViewport* viewport = ImGui::GetMainViewport();
-    if (!viewport) {
+    if (viewport == nullptr) {
         LOG_ERROR("ImGui::GetMainViewport() returned null");
         return;
     }
@@ -173,7 +174,7 @@ void CharacterRenderer::render() {
     if (!SDL_RenderTexture(m_renderer, frame.texture, nullptr, &dst_rect)) {
         // 渲染失败，记录错误但不崩溃
         const char* error = SDL_GetError();
-        if (error && *error) {
+        if ((error != nullptr) && (*error != 0)) {
             LOG_ERROR("SDL_RenderTexture failed: {}", error);
         }
     }
@@ -197,7 +198,7 @@ SDL_Texture* CharacterRenderer::load_texture(SDL_Renderer* renderer, const std::
 
     // 使用 SDL_image 加载图片
     SDL_Texture* texture = IMG_LoadTexture(renderer, full_path.c_str());
-    if (!texture) {
+    if (texture == nullptr) {
         // SDL3_image uses SDL's error system
         const char* error = SDL_GetError();
         LOG_ERROR("IMG_LoadTexture failed: {}", error ? error : "Unknown error");
