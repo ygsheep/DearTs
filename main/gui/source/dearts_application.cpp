@@ -57,7 +57,7 @@ bool DearTsApplication::on_init() {
     Core::UI::WindowControls::set_current_window(m_window);
 
     // 添加标题栏按钮
-    m_title_bar.add_button("⚙", "设置", [this]() {
+    m_title_bar.add_button(ICON_SETTINGS, "设置", [&]() {
         LOG_INFO("Settings button clicked");
         // 切换设置窗口
         auto* settings_view = Core::ContentRegistry::Views::get_by_name(
@@ -72,13 +72,117 @@ bool DearTsApplication::on_init() {
         }
     }, ImVec4(0.3f, 0.6f, 0.9f, 1.0f));
 
-    m_title_bar.add_button("ℹ", "关于", [this]() {
+    m_title_bar.add_button(ICON_INFO, "关于", [&]() {
         LOG_INFO("About button clicked");
         m_show_about_window = !m_show_about_window;
     }, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
 
+    // 9. 设置背景和角色渲染器
+    LOG_INFO("Loading background and character renderers...");
+
+    // 设置 renderer 到渲染器单例
+    Core::UI::BackgroundRenderer::instance().set_renderer(m_renderer);
+    Core::UI::CharacterRenderer::instance().set_renderer(m_renderer);
+
+    // 从 ConfigManager 加载角色配置
+    load_character_config();
+
     LOG_INFO("DearTsApplication initialized successfully");
     return true;
+}
+
+void DearTsApplication::load_character_config() {
+    auto& config = Core::Config::ConfigManager::instance();
+    auto& character_renderer = Core::UI::CharacterRenderer::instance();
+    auto& character_manager = Core::UI::CharacterManager::instance();
+
+    // 加载默认角色列表
+    character_manager.load_default_characters();
+    const auto& characters = character_manager.get_characters();
+
+    if (characters.empty()) {
+        LOG_WARN("No characters loaded");
+        return;
+    }
+
+    // 尝试从 config 加载活动角色 ID
+    auto active_id_result = config.get<std::string>("character.active_id");
+    bool character_loaded = false;
+
+    if (active_id_result.isOk()) {
+        std::string active_id = active_id_result.unwrap();
+        if (!active_id.empty() && character_manager.set_active_character(active_id)) {
+            const Core::UI::CharacterInfo* character = character_manager.get_active_character();
+            if (character) {
+                // 释放旧角色
+                character_renderer.clear();
+
+                // 加载保存的角色
+                if (character->type == Core::UI::CharacterType::Single) {
+                    std::vector<std::string> paths = {character->image_path};
+                    if (character_renderer.load_character_frames(paths)) {
+                        character_renderer.set_enabled(true);
+                        LOG_INFO("Loaded character from config: {} (Single)", character->name);
+                        character_loaded = true;
+                    }
+                } else if (character->type == Core::UI::CharacterType::Animated) {
+                    if (character_renderer.load_character_frames(character->frame_paths)) {
+                        character_renderer.set_enabled(true);
+                        LOG_INFO("Loaded character from config: {} (Animated)", character->name);
+                        character_loaded = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 如果没有加载到角色（首次运行或配置无效），加载第一个角色作为默认
+    if (!character_loaded) {
+        const auto& first_character = characters[0];
+        character_manager.set_active_character(first_character.id);
+        character_renderer.clear();
+
+        if (first_character.type == Core::UI::CharacterType::Single) {
+            std::vector<std::string> paths = {first_character.image_path};
+            if (character_renderer.load_character_frames(paths)) {
+                character_renderer.set_enabled(true);
+                character_renderer.set_position(Core::UI::CharacterPosition::BottomRight);
+                character_renderer.set_scale(first_character.scale);
+                character_renderer.set_opacity(first_character.opacity);
+                character_renderer.set_animation_mode(Core::UI::AnimationMode::None);
+                LOG_INFO("Loaded default character: {} (Single)", first_character.name);
+            }
+        } else if (first_character.type == Core::UI::CharacterType::Animated) {
+            if (character_renderer.load_character_frames(first_character.frame_paths)) {
+                character_renderer.set_enabled(true);
+                character_renderer.set_position(Core::UI::CharacterPosition::BottomRight);
+                character_renderer.set_scale(first_character.scale);
+                character_renderer.set_opacity(first_character.opacity);
+                character_renderer.set_animation_mode(Core::UI::AnimationMode::FrameLoop);
+                character_renderer.set_frame_interval(first_character.frame_interval);
+                LOG_INFO("Loaded default character: {} (Animated)", first_character.name);
+            }
+        }
+    }
+
+    // 加载并应用角色配置（覆盖上面设置的默认值）
+    int position_index = config.get_or<int>("character.position", 0);
+    character_renderer.set_position(static_cast<Core::UI::CharacterPosition>(position_index));
+
+    float scale = static_cast<float>(config.get_or<double>("character.scale", 0.5));
+    character_renderer.set_scale(scale);
+
+    float opacity = static_cast<float>(config.get_or<double>("character.opacity", 0.3));
+    character_renderer.set_opacity(opacity);
+
+    int animation_mode = config.get_or<int>("character.animation_mode", 1);
+    character_renderer.set_animation_mode(static_cast<Core::UI::AnimationMode>(animation_mode));
+
+    float frame_interval = static_cast<float>(config.get_or<double>("character.frame_interval", 0.5));
+    character_renderer.set_frame_interval(frame_interval);
+
+    LOG_INFO("Character settings loaded from config: scale={:.2f}, opacity={:.2f}, position={}",
+             scale, opacity, position_index);
 }
 
 void DearTsApplication::on_update(double delta_time) {
@@ -89,6 +193,9 @@ void DearTsApplication::on_update(double delta_time) {
 
     // 更新 ToastManager
     DearTs::Plugins::Toast::ToastManager::instance().update(static_cast<float>(delta_time));
+
+    // 更新角色动画
+    Core::UI::CharacterRenderer::instance().update(delta_time);
 
     // 更新逻辑
     static double total_time = 0.0;
@@ -110,35 +217,42 @@ void DearTsApplication::on_render() {
         SDL_RenderClear(m_renderer);
     }
 
-    // 2. ImGui NewFrame
+    // 2. 渲染背景（在 ImGui 之前）
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    Core::UI::BackgroundRenderer::instance().render(m_renderer, viewport->Size);
+
+    // 3. ImGui NewFrame
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    // 3. 处理快捷键（CommandPalette快捷键由插件系统处理）
+    // 4. 处理快捷键（CommandPalette快捷键由插件系统处理）
     Core::UI::ShortcutManager::instance().handleShortcuts();
 
-    // 4. 渲染自定义标题栏（返回标题栏高度）
+    // 5. 渲染自定义标题栏（返回标题栏高度）
     float title_bar_height = render_title_bar();
 
-    // 5. 创建和渲染 DockSpace
+    // 6. 创建和渲染 DockSpace
     render_dock_space(title_bar_height);
 
-    // 6. 渲染所有视图
+    // 7. 渲染所有视图
     render_views();
 
-    // 7. 渲染其他组件
+    // 8. 渲染其他组件
     // render_menu_bar(); // 菜单已在 render_title_bar() 中绘制
     render_main_window();
     render_tool_windows();
 
-    // 8. 渲染 Toast 通知
+    // 9. 渲染 Toast 通知
     DearTs::Plugins::Toast::ToastManager::instance().render();
 
-    // 9. 渲染 ImGui
+    // 10. 渲染 ImGui
     ImGui::Render();
     ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_renderer);
 
-    // 10. 多视口支持
+    // 11. 渲染角色（在 ImGui 之后，确保在最上层）
+    Core::UI::CharacterRenderer::instance().render();
+
+    // 12. 多视口支持
     if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
@@ -810,7 +924,7 @@ float DearTsApplication::render_title_bar() {
             m_show_about_window = !m_show_about_window;
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("关于");
+            // ImGui::SetTooltip("关于");
         }
 
         // 最小化按钮
@@ -821,7 +935,7 @@ float DearTsApplication::render_title_bar() {
             }
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("最小化");
+            // ImGui::SetTooltip("最小化");
         }
 
         // 最大化/还原按钮
@@ -841,7 +955,7 @@ float DearTsApplication::render_title_bar() {
             }
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip(m_is_maximized ? "向下还原" : "最大化");
+            // ImGui::SetTooltip(m_is_maximized ? "恢復" : "最大化");
         }
 
         // 关闭按钮
@@ -850,7 +964,7 @@ float DearTsApplication::render_title_bar() {
             this->request_exit(0);
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("关闭");
+            // ImGui::SetTooltip("关闭");
         }
 
         // 恢复原来的字体

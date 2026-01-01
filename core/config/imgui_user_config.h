@@ -15,9 +15,13 @@
 #pragma once
 
 //---- Enable Test Engine / Automation features.
-// Note: Test Engine is controlled by CMake option ENABLE_IMGUI_TEST_ENGINE
-// Do not manually include imgui_te_imconfig.h here
-// The CMakeLists.txt handles this correctly based on build options
+// Note: imgui_te_imconfig.h is only available when building with Test Engine
+// The include path is added by CMake when BUILD_UI_TESTS=ON
+// IMPORTANT: Only include if ENABLE_IMGUI_TEST_ENGINE is defined
+// This prevents linking errors when Test Engine library is not built
+#if defined(ENABLE_IMGUI_TEST_ENGINE) && !defined(IMGUI_ENABLE_TEST_ENGINE)
+#include "imgui_te_imconfig.h"
+#endif
 
 //---- Define assertion handler. Defaults to calling assert().
 // - If your macro uses multiple statements, make sure is enclosed in a 'do { .. } while (0)' block so it can be used as a single statement.

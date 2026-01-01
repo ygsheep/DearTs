@@ -75,8 +75,8 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
             }
         }
 
-        if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("%s", btn.tooltip);
+        if (ImGui::IsItemHovered() && (btn.tooltip != nullptr)) {
+            ImGui::SetTooltip(btn.tooltip);
         }
 
         ImGui::PopStyleVar();

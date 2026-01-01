@@ -16,11 +16,13 @@ add_executable(${PROJECT_NAME}
     ${CMAKE_SOURCE_DIR}/plugins/settings/include/settings_plugin.hpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/include/views/settings_view.hpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/theme_settings_widget.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/character_settings_widget.hpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_plugin.cpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_view.cpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/toast_settings_widget.cpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/toast_settings_widget.hpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/theme_settings_widget.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/character_settings_widget.cpp
     # LoggerViewer 插件
     ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/logger_viewer_plugin.hpp
     ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/views/logger_viewer_view.hpp
@@ -68,6 +70,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/include
     ${CMAKE_SOURCE_DIR}/third_party/SDL/include
+    ${CMAKE_SOURCE_DIR}/third_party/SDL_image/include
     ${CMAKE_SOURCE_DIR}/third_party/freetype/include
     ${CMAKE_SOURCE_DIR}/third_party/imgui
     ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
@@ -96,6 +99,9 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/core/ui/shortcut_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/task_widget.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/icon_font.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/background_renderer.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/character_renderer.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/character_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/app/application.cpp
     ${CMAKE_SOURCE_DIR}/core/utils/file_dialog.cpp
@@ -105,7 +111,8 @@ target_sources(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
         imgui_full
         implot
-        SDL3-static
+        SDL3-shared
+        SDL3_image-static
         deartsdl_logger
         freetype
         lunasvg::lunasvg
@@ -132,19 +139,28 @@ endif()
 set(RESOURCE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
 set(RESOURCE_DEST_DIR ${CMAKE_BINARY_DIR}/bin/resources)
 
-# 复制所有资源文件到输出目录
+# 复制所有资源文件到输出目录（仅在文件真正变化时复制）
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    # 创建 resources 目录
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}
-    # 复制字体文件
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    # 使用 copy_if_different 避免不必要的时间戳更新
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/fonts
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/images
+    # 复制字体文件（仅在变化时）
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         ${RESOURCE_SOURCE_DIR}/fonts
         ${RESOURCE_DEST_DIR}/fonts
-    # 复制图标文件
-    COMMAND ${CMAKE_COMMAND} -E copy
+    # 复制图片文件（仅在变化时）
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        ${RESOURCE_SOURCE_DIR}/images
+        ${RESOURCE_DEST_DIR}/images
+    # 复制图标文件（仅在变化时）
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${RESOURCE_SOURCE_DIR}/icon.ico
         ${CMAKE_BINARY_DIR}/bin/icon.ico
-    COMMENT "Copying resources to output directory"
+    # 复制 SDL3_image.dll（根据架构选择）
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/$<IF:$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>,x64,x86>/SDL3_image.dll
+        ${CMAKE_BINARY_DIR}/bin/SDL3_image.dll
+    COMMENT "Copying resources to output directory (if changed)"
 )
 
 # 显示资源目录信息

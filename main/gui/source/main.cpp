@@ -51,14 +51,14 @@ void init_logger() {
 
     config.register_meta("logger.file_path", {
         .description = "Log file path (relative to executable or absolute)",
-        .default_value = std::string("logs/deartsdl_gui.log"),
+        .default_value = std::string("logs/app.log"),
         .is_required = false
     });
 
     // 从配置加载日志设置（现在配置已经加载了）
     int log_level = config.get_or<int>("logger.level", 1);  // DEBUG
     bool file_enabled = config.get_or<bool>("logger.file_enabled", true);
-    std::string log_file_path = config.get_or<std::string>("logger.file_path", "logs/deartsdl_gui.log");
+    std::string log_file_path = config.get_or<std::string>("logger.file_path", "logs/app.log");
 
     // 设置日志级别
     logger.set_level(static_cast<LogLevel>(log_level));

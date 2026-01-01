@@ -19,9 +19,12 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # Add SDL3 as subdirectory
 set(SDL_BUILD_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
 set(SDL_BUILD_EXAMPLES OFF CACHE BOOL "Build SDL examples" FORCE)
-set(SDL_DISABLE_INSTALL ON CACHE BOOL "Disable SDL installation" FORCE)
-set(SDL_SHARED OFF CACHE BOOL "Build SDL as shared library" FORCE)
+set(SDL_DISABLE_INSTALL OFF CACHE BOOL "Disable SDL installation" FORCE)
+set(SDL_SHARED ON CACHE BOOL "Build SDL as shared library" FORCE)
 set(SDL_STATIC ON CACHE BOOL "Build SDL as static library" FORCE)
+set(SDL_INSTALL_CMAKEDIR_ARCH_INDEPENDENT ON CACHE BOOL "Install CMake files arch-independent" FORCE)
+set(SDL_INSTALL_TESTS OFF CACHE BOOL "Install test binaries" FORCE)
+set(SDL_INSTALL_EXAMPLES OFF CACHE BOOL "Install example binaries" FORCE)
 
 # Add FreeType as subdirectory
 set(FT_DISABLE_BROTLI ON CACHE BOOL "Disable Brotli support" FORCE)
@@ -37,6 +40,14 @@ set(JSON_CI OFF CACHE BOOL "Enable CI build targets" FORCE)
 set(JSON_MultipleHeaders ON CACHE BOOL "Use multi-header version" FORCE)
 
 add_subdirectory(third_party/SDL)
+
+# 使用预编译的 SDL_image 库（third_party/SDL_image 已编译）
+add_library(SDL3_image-static STATIC IMPORTED)
+set_target_properties(SDL3_image-static PROPERTIES
+    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/x64/SDL3_image.lib"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/SDL_image/include"
+)
+
 add_subdirectory(third_party/freetype)
 add_subdirectory(third_party/lunasvg)
 add_subdirectory(third_party/json)

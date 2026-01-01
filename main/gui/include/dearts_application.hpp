@@ -16,6 +16,9 @@
 #include "core/ui/view_manager.h"
 #include "core/ui/icon_font.hpp"
 #include "core/ui/task_widget.h"
+#include "core/ui/background_renderer.h"
+#include "core/ui/character_renderer.h"
+#include "core/ui/character_manager.h"
 #include "core/tasks/task_manager.h"
 #include "core/plugin/plugin.h"
 #include "core/config/config_manager.h"
@@ -127,6 +130,11 @@ private:
      * @brief 设置视图
      */
     void setup_views();
+
+    /**
+     * @brief 从 ConfigManager 加载角色配置
+     */
+    void load_character_config();
 
     /**
      * @brief 渲染菜单栏
