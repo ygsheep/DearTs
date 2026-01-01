@@ -11,6 +11,15 @@ set(LIVE2D_SDK_DIR ${CMAKE_SOURCE_DIR}/third_party/Live2D)
 set(LIVE2D_CORE_DIR ${LIVE2D_SDK_DIR}/Core)
 set(LIVE2D_FRAMEWORK_DIR ${LIVE2D_SDK_DIR}/Framework)
 
+# GLEW directories (for Live2D SDK OpenGL support)
+set(GLEW_DIR ${CMAKE_SOURCE_DIR}/third_party/glew)
+
+# Add GLEW as subdirectory to build from source
+# Build static library to avoid DLL dependencies
+set(BUILD_UTILS OFF CACHE BOOL "Build GLEW utilities" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared GLEW library" FORCE)
+add_subdirectory(${GLEW_DIR}/build/cmake ${CMAKE_BINARY_DIR}/glew)
+
 # Platform-specific Live2D Core library
 if(WIN32)
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -63,22 +72,23 @@ file(GLOB_RECURSE LIVE2D_FRAMEWORK_SOURCES
 list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*D3D.*")
 list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*Metal.*")
 list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*Vulkan.*")
-# Exclude OpenGL renderer (we will implement our own)
-list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*OpenGL.*")
-list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*OpenGLES.*")
+# Note: Keep OpenGL ES2 renderer - it works with desktop OpenGL via GLEW
 
 # Plugin source files
 set(PLUGIN_SOURCES
     source/live2d_plugin.cpp
     source/live2d_model_instance.cpp
+    source/live2d_model_manager.cpp
     renderer/live2d_renderer_gl.cpp
     renderer/sdl_texture_uploader.cpp
+    ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
 )
 
 # Plugin header files
 set(PLUGIN_HEADERS
     include/live2d_plugin.hpp
     include/live2d_model_instance.hpp
+    include/live2d_model_manager.hpp
     renderer/ilive2d_renderer.hpp
     renderer/live2d_renderer_gl.hpp
     renderer/sdl_texture_uploader.hpp
@@ -98,8 +108,10 @@ target_include_directories(${PROJECT_NAME}
         ${CMAKE_SOURCE_DIR}/lib/liblogger/include
         ${CMAKE_SOURCE_DIR}/third_party/imgui
         ${CMAKE_SOURCE_DIR}/third_party/SDL/include
+        ${CMAKE_SOURCE_DIR}/third_party/SDL_image/include
         ${LIVE2D_CORE_DIR}/include
         ${LIVE2D_FRAMEWORK_DIR}/src
+        ${GLEW_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/renderer
 )
@@ -108,7 +120,9 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         SDL3::SDL3-shared
+        SDL3_image-static
         deartsdl_logger
+        glew_s
 )
 
 # Link Live2D Core library
@@ -145,6 +159,8 @@ if(WIN32)
         BUILDING_DLL
         _USE_MATH_DEFINES
         _CRT_SECURE_NO_WARNINGS
+        # 防止 Windows RPC 头文件定义 private/public/protected 宏
+        RPC_NO_WINDOWS_H
     )
 
     # Enable C++20 __VA_OPT__ support
@@ -161,6 +177,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     # Live2D Framework config
     CSM_TARGET_WIN_GL=1
+    # GLEW static library
+    GLEW_STATIC
     # Add other platform-specific defines as needed
 )
 

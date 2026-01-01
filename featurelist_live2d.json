@@ -14,13 +14,13 @@
         "CMake 能够找到 Live2D 头文件",
         "CMake 能够链接 Live2D Core Framework 库"
       ],
-      "implementation_status": "pending",
-      "test_status": "pending",
-      "git_commit": null,
+      "implementation_status": "completed",
+      "test_status": "passed",
+      "git_commit": "a303b2e",
       "estimated_hours": 2.0,
-      "actual_hours": null,
+      "actual_hours": 2.0,
       "dependencies": [],
-      "notes": "需要从 Live2D 官网下载，注意许可证限制"
+      "notes": "SDK 已配置到 third_party/Live2D/"
     },
     {
       "id": "phase1-02",
@@ -34,33 +34,32 @@
         "Linux: 正确链接 OpenGL::GL",
         "编译 Live2D 插件目标成功"
       ],
-      "implementation_status": "pending",
-      "test_status": "pending",
-      "git_commit": null,
+      "implementation_status": "completed",
+      "test_status": "passed",
+      "git_commit": "ef2227b",
       "estimated_hours": 3.0,
-      "actual_hours": null,
+      "actual_hours": 4.0,
       "dependencies": ["phase1-01"],
-      "notes": "参考现有插件的 CMake 配置"
+      "notes": "CMake 配置完成，GLEW 集成完成"
     },
     {
       "id": "phase1-03",
       "phase": 1,
       "title": "创建 ILive2DRenderer 抽象接口",
       "priority": "P0",
-      "desc": "在 core/ui/live2d_renderer.h 中定义抽象渲染器接口和工厂类",
+      "desc": "在 renderer/ilive2d_renderer.hpp 中定义抽象渲染器接口",
       "test_cases": [
         "ILive2DRenderer 接口定义完整",
         "包含所有必需的虚函数",
-        "Live2DRendererFactory 工厂类定义正确",
         "代码编译通过"
       ],
-      "implementation_status": "pending",
-      "test_status": "pending",
-      "git_commit": null,
+      "implementation_status": "completed",
+      "test_status": "passed",
+      "git_commit": "ef2227b",
       "estimated_hours": 1.0,
-      "actual_hours": null,
+      "actual_hours": 1.0,
       "dependencies": [],
-      "notes": "接口设计参考实施计划文档"
+      "notes": "接口设计完成"
     },
     {
       "id": "phase1-04",
@@ -74,13 +73,13 @@
         "FBO 像素格式为 GL_RGBA8",
         "OpenGL 资源正确释放（无内存泄漏）"
       ],
-      "implementation_status": "pending",
-      "test_status": "pending",
-      "git_commit": null,
+      "implementation_status": "completed",
+      "test_status": "passed",
+      "git_commit": "ef2227b",
       "estimated_hours": 6.0,
-      "actual_hours": null,
+      "actual_hours": 6.0,
       "dependencies": ["phase1-02", "phase1-03"],
-      "notes": "核心技术难点，需要仔细处理 OpenGL 状态"
+      "notes": "Live2DRendererGL 实现完成"
     },
     {
       "id": "phase1-05",
@@ -94,13 +93,13 @@
         "SDL_RenderTexture 能够正确渲染纹理",
         "渲染结果无色差或扭曲"
       ],
-      "implementation_status": "pending",
-      "test_status": "pending",
-      "git_commit": null,
+      "implementation_status": "completed",
+      "test_status": "passed",
+      "git_commit": "ef2227b",
       "estimated_hours": 5.0,
-      "actual_hours": null,
+      "actual_hours": 5.0,
       "dependencies": ["phase1-04"],
-      "notes": "性能关键路径，后续会添加 PBO 优化"
+      "notes": "SDLTextureUploader 实现完成"
     },
     {
       "id": "phase1-06",
@@ -114,13 +113,13 @@
         "成功加载模型纹理",
         "模型加载失败时返回错误信息"
       ],
-      "implementation_status": "pending",
-      "test_status": "pending",
+      "implementation_status": "completed",
+      "test_status": "in_progress",
       "git_commit": null,
       "estimated_hours": 8.0,
-      "actual_hours": null,
+      "actual_hours": 10.0,
       "dependencies": ["phase1-04"],
-      "notes": "使用 Live2D 官方 Haru 示例模型测试"
+      "notes": "Live2DModelInstance 继承 CubismUserModel 实现"
     },
     {
       "id": "phase1-07",
@@ -134,13 +133,13 @@
         "插件成功禁用（on_disable）",
         "插件成功卸载（on_unload）"
       ],
-      "implementation_status": "pending",
-      "test_status": "pending",
+      "implementation_status": "completed",
+      "test_status": "in_progress",
       "git_commit": null,
       "estimated_hours": 4.0,
-      "actual_hours": null,
+      "actual_hours": 4.0,
       "dependencies": ["phase1-03", "phase1-06"],
-      "notes": "参考插件系统 API 文档"
+      "notes": "Live2DPlugin 实现完成"
     },
     {
       "id": "phase1-08",
@@ -175,13 +174,13 @@
         "成功切换活动模型",
         "模型 ID 冲突时返回错误"
       ],
-      "implementation_status": "pending",
-      "test_status": "pending",
+      "implementation_status": "completed",
+      "test_status": "in_progress",
       "git_commit": null,
       "estimated_hours": 6.0,
-      "actual_hours": null,
+      "actual_hours": 7.0,
       "dependencies": ["phase1-06"],
-      "notes": "单例模式，线程安全"
+      "notes": "Live2DModelManager 单例实现完成"
     },
     {
       "id": "phase2-02",
@@ -215,13 +214,13 @@
         "跳过无效目录",
         "返回扫描到的模型数量"
       ],
-      "implementation_status": "pending",
-      "test_status": "pending",
+      "implementation_status": "completed",
+      "test_status": "in_progress",
       "git_commit": null,
       "estimated_hours": 4.0,
-      "actual_hours": null,
+      "actual_hours": 4.0,
       "dependencies": ["phase2-01"],
-      "notes": "递归扫描子目录"
+      "notes": "scan_directory() 方法实现完成"
     },
     {
       "id": "phase2-04",
@@ -810,8 +809,10 @@
   ],
   "statistics": {
     "total_features": 38,
-    "completed_features": 0,
-    "passed_tests": 0,
-    "total_estimated_hours": 186.0
+    "completed_features": 9,
+    "passed_tests": 5,
+    "total_estimated_hours": 186.0,
+    "total_actual_hours": 43.0,
+    "progress_percentage": 23.7
   }
 }

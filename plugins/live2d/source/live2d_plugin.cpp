@@ -4,7 +4,14 @@
  */
 
 #include "live2d_plugin.hpp"
-#include "core/content/registry.h"
+#include <SDL3/SDL_opengl.h>
+
+// 取消 Windows 宏定义，避免与 logger 冲突
+#ifdef ERROR
+#undef ERROR
+#endif
+
+#include "core/content/commands.h"
 #include "core/event/event_bus.h"
 #include "core/config/config_manager.h"
 #include "liblogger/logger.h"
@@ -35,11 +42,11 @@ Result<void, std::string> Live2DPlugin::on_load() {
     m_config.use_fbo = config.get_or<bool>("use_fbo", false);
     m_config.fbo_downsample = config.get_or<int>("fbo_downsample", 1);
     m_config.auto_play_idle_motion = config.get_or<bool>("auto_play_idle_motion", true);
-    m_config.model_scale = config.get_or<float>("model_scale", 1.0f);
+    m_config.model_scale = static_cast<float>(config.get_or<double>("model_scale", 1.0));
 
     // 初始化渲染器
     auto result = initialize_renderer();
-    if (result.is_err()) {
+    if (result.isErr()) {
         return result;
     }
 
@@ -107,7 +114,7 @@ Result<void, std::string> Live2DPlugin::load_model(
 
     // 加载模型
     auto result = model->load_from_directory(model_dir);
-    if (result.is_err()) {
+    if (result.isErr()) {
         return result;
     }
 
@@ -231,8 +238,8 @@ Result<void, std::string> Live2DPlugin::initialize_renderer() {
 
     // 初始化渲染器
     auto result = m_renderer->initialize(config);
-    if (result.is_err()) {
-        LOG_ERROR("Live2DPlugin: Failed to initialize renderer: {}", result.err());
+    if (result.isErr()) {
+        LOG_ERROR("Live2DPlugin: Failed to initialize renderer: {}", result.error());
         return result;
     }
 
@@ -242,8 +249,8 @@ Result<void, std::string> Live2DPlugin::initialize_renderer() {
     // TODO: 配置 PBO（Phase 5）
 
     result = m_texture_uploader->initialize(upload_config);
-    if (result.is_err()) {
-        LOG_WARN("Live2DPlugin: Failed to initialize texture uploader: {}", result.err());
+    if (result.isErr()) {
+        LOG_WARN("Live2DPlugin: Failed to initialize texture uploader: {}", result.error());
         // 非致命错误，继续
     }
 
@@ -288,10 +295,41 @@ void Live2DPlugin::scan_models_directory() {
     LOG_INFO("Live2DPlugin: Scanning models directory: {}",
              m_config.models_directory);
 
-    // TODO: 扫描模型目录并自动加载模型
-    // 1. 遍历 models_directory
-    // 2. 查找包含 model.json 的子目录
-    // 3. 自动加载模型
+    // 使用 Live2DModelManager 扫描目录
+    auto& manager = Live2DModelManager::instance();
+
+    // 扫描模型目录（递归）
+    auto result = manager.scan_directory(m_config.models_directory, true);
+    if (result.isErr()) {
+        LOG_ERROR("Live2DPlugin: Failed to scan models directory: {}", result.error());
+        return;
+    }
+
+    LOG_INFO("Live2DPlugin: Found {} models", result.unwrap());
+
+    // 获取所有已注册的模型
+    auto registered_models = manager.get_registered_models();
+
+    // 自动加载所有找到的模型
+    for (const auto& model_id : registered_models) {
+        LOG_INFO("Live2DPlugin: Loading model '{}'", model_id);
+
+        auto load_result = manager.load_model(model_id);
+        if (load_result.isErr()) {
+            LOG_WARN("Live2DPlugin: Failed to load model '{}': {}",
+                     model_id, load_result.error());
+        } else {
+            LOG_INFO("Live2DPlugin: Model '{}' loaded successfully", model_id);
+        }
+    }
+
+    // 设置第一个模型为活动模型
+    if (!registered_models.empty()) {
+        auto set_result = manager.set_active_model(registered_models[0]);
+        if (set_result.isOk()) {
+            LOG_INFO("Live2DPlugin: Active model set to '{}'", registered_models[0]);
+        }
+    }
 
     LOG_DEBUG("Live2DPlugin: Model directory scan complete");
 }

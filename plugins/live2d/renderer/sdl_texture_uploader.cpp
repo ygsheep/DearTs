@@ -4,8 +4,16 @@
  */
 
 #include "sdl_texture_uploader.hpp"
-#include "liblogger/logger.h"
+// GLEW 必须在任何其他 OpenGL 头之前包含
+#include <GL/glew.h>
 #include <SDL3/SDL_opengl.h>
+
+// 取消 Windows 宏定义，避免与 logger 冲突
+#ifdef ERROR
+#undef ERROR
+#endif
+
+#include "liblogger/logger.h"
 #include <chrono>
 
 namespace DearTs::Plugins::Live2D {
@@ -35,7 +43,7 @@ Result<void, std::string> SDLTextureUploader::initialize(const TextureUploadConf
     // 如果启用 PBO，初始化 PBO
     if (config.use_pbo) {
         auto result = initialize_pbo();
-        if (result.is_err()) {
+        if (result.isErr()) {
             LOG_WARN("SDLTextureUploader: Failed to initialize PBO, falling back to synchronous upload");
             m_config.use_pbo = false;
         }
@@ -82,8 +90,8 @@ SDL_Texture* SDLTextureUploader::upload_texture(
     // 从 OpenGL 读取纹理数据
     std::vector<uint8_t> texture_data;
     auto result = read_gl_texture(gl_texture_id, width, height, texture_data);
-    if (result.is_err()) {
-        LOG_ERROR("SDLTextureUploader: Failed to read GL texture: {}", result.err());
+    if (result.isErr()) {
+        LOG_ERROR("SDLTextureUploader: Failed to read GL texture: {}", result.error());
         return nullptr;
     }
 
@@ -140,7 +148,7 @@ Result<void, std::string> SDLTextureUploader::update_texture(
     // 从 OpenGL 读取纹理数据
     std::vector<uint8_t> texture_data;
     auto result = read_gl_texture(gl_texture_id, width, height, texture_data);
-    if (result.is_err()) {
+    if (result.isErr()) {
         return result;
     }
 

@@ -4,15 +4,105 @@
  */
 
 #include "live2d_renderer_gl.hpp"
-// Live2D SDK headers will be included later when needed
-// #include "CubismFramework.hpp"         // Live2D SDK
-// #include "CubismModel.hpp"             // Live2D SDK
-#include "liblogger/logger.h"
+// GLEW 必须在任何其他 OpenGL 头之前包含
+#include <GL/glew.h>
 #include <SDL3/SDL_opengl.h>
+
+// 取消 Windows 宏定义，避免与 logger 冲突
+#ifdef ERROR
+#undef ERROR
+#endif
+
+// Live2D SDK headers
+#include <Live2DCubismCoreWrapper.hpp>
+#include <CubismFramework.hpp>
+#include <ICubismAllocator.hpp>
+#include <CubismModelSettingJson.hpp>
+#include <Model/CubismUserModel.hpp>
+#include <Rendering/CubismRenderer.hpp>
+
+#include "liblogger/logger.h"
 #include <nlohmann/json.hpp>
 #include <chrono>
 
+// 使用 Live2D 命名空间简写
+using namespace Live2D::Cubism::Framework;
+
 namespace DearTs::Plugins::Live2D {
+
+// ============================================================================
+// Live2D Allocator 实现
+// ============================================================================
+
+/**
+ * @brief Live2D SDK 内存分配器
+ */
+class Live2DAllocator : public ICubismAllocator {
+public:
+    void* Allocate(const csmSizeType size) override {
+        return malloc(size);
+    }
+
+    void Deallocate(void* memory) override {
+        free(memory);
+    }
+
+    void* AllocateAligned(const csmSizeType size, const csmUint32 alignment) override {
+        // Windows 使用 _aligned_malloc，其他平台使用 aligned_alloc
+#ifdef _WIN32
+        return _aligned_malloc(size, alignment);
+#else
+        return aligned_alloc(alignment, size);
+#endif
+    }
+
+    void DeallocateAligned(void* alignedMemory) override {
+#ifdef _WIN32
+        _aligned_free(alignedMemory);
+#else
+        free(alignedMemory);
+#endif
+    }
+};
+
+// ============================================================================
+// Live2D 日志回调
+// ============================================================================
+
+/**
+ * @brief Live2D SDK 日志回调函数（适配器，匹配 csmLogFunction 签名）
+ */
+static void Live2DLogPrintAdapter(const char* message) {
+    // 默认使用 Info 级别
+    LOG_INFO("Live2D SDK: {}", message);
+}
+
+/**
+ * @brief Live2D SDK 日志回调函数（带级别）
+ */
+static void Live2DLogPrint(const int level, const char* message) {
+    switch (level) {
+        case CubismFramework::Option::LogLevel_Verbose:
+        case CubismFramework::Option::LogLevel_Debug:
+            LOG_DEBUG("Live2D SDK: {}", message);
+            break;
+        case CubismFramework::Option::LogLevel_Info:
+            LOG_INFO("Live2D SDK: {}", message);
+            break;
+        case CubismFramework::Option::LogLevel_Warning:
+            LOG_WARN("Live2D SDK: {}", message);
+            break;
+        case CubismFramework::Option::LogLevel_Error:
+            LOG_ERROR("Live2D SDK: {}", message);
+            break;
+        default:
+            LOG_INFO("Live2D SDK: {}", message);
+            break;
+    }
+}
+
+// 全局分配器实例
+static Live2DAllocator s_allocator;
 
 // ============================================================================
 // 构造函数和析构函数
@@ -45,13 +135,13 @@ Result<void, std::string> Live2DRendererGL::initialize(const RendererConfig& con
 
     // 初始化 Live2D Framework
     auto result = initialize_cubism_framework();
-    if (result.is_err()) {
+    if (result.isErr()) {
         return result;
     }
 
     // 初始化 OpenGL
     result = initialize_opengl();
-    if (result.is_err()) {
+    if (result.isErr()) {
         cleanup_cubism_framework();
         return result;
     }
@@ -59,7 +149,7 @@ Result<void, std::string> Live2DRendererGL::initialize(const RendererConfig& con
     // 如果需要 FBO
     if (m_config.use_fbo) {
         result = create_fbo();
-        if (result.is_err()) {
+        if (result.isErr()) {
             LOG_WARN("Live2DRendererGL: Failed to create FBO, continuing without it");
             m_config.use_fbo = false;
         }
@@ -207,12 +297,25 @@ Result<void, std::string> Live2DRendererGL::initialize_cubism_framework() {
 
     LOG_INFO("Live2DRendererGL: Initializing Cubism Framework");
 
-    // TODO: 初始化 Live2D Cubism Framework
-    // 这需要配置 allocator、日志回调等
-    // CubismFramework::StartUp();
+    // 初始化 Live2D Cubism Framework
+    CubismFramework::Option options;
+
+    // 设置日志函数
+    options.LogFunction = Live2DLogPrintAdapter;
+
+    // 设置日志级别
+    options.LoggingLevel = CubismFramework::Option::LogLevel_Info;
+
+    // 启动 Live2D Framework
+    if (!CubismFramework::StartUp(&s_allocator, &options)) {
+        return Result<void, std::string>::err("Failed to start up Live2D Cubism Framework");
+    }
+
+    // 初始化 Framework
+    CubismFramework::Initialize();
 
     m_cubism_initialized = true;
-    LOG_INFO("Live2DRendererGL: Cubism Framework initialized");
+    LOG_INFO("Live2DRendererGL: Cubism Framework initialized successfully");
 
     return Result<void, std::string>::ok();
 }
@@ -224,8 +327,8 @@ void Live2DRendererGL::cleanup_cubism_framework() {
 
     LOG_INFO("Live2DRendererGL: Cleaning up Cubism Framework");
 
-    // TODO: 清理 Live2D Cubism Framework
-    // CubismFramework::Dispose();
+    // 清理 Live2D Cubism Framework
+    Csm::CubismFramework::Dispose();
 
     m_cubism_initialized = false;
     LOG_INFO("Live2DRendererGL: Cubism Framework cleaned up");
@@ -237,6 +340,21 @@ void Live2DRendererGL::cleanup_cubism_framework() {
 
 Result<void, std::string> Live2DRendererGL::initialize_opengl() {
     LOG_INFO("Live2DRendererGL: Initializing OpenGL state");
+
+    // 初始化 GLEW
+    GLenum err = glewInit();
+    if (err != GLEW_OK) {
+        std::string error_msg = "Failed to initialize GLEW: ";
+        error_msg += reinterpret_cast<const char*>(glewGetErrorString(err));
+        LOG_ERROR("Live2DRendererGL: {}", error_msg);
+        return Result<void, std::string>::err(error_msg);
+    }
+
+    LOG_INFO("Live2DRendererGL: GLEW {} initialized", reinterpret_cast<const char*>(glewGetString(GLEW_VERSION)));
+
+    // 检查 OpenGL 版本
+    LOG_INFO("Live2DRendererGL: OpenGL version: {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)));
+    LOG_INFO("Live2DRendererGL: GLSL version: {}", reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION)));
 
     // 启用混合
     glEnable(GL_BLEND);

@@ -16,6 +16,9 @@
 
 namespace DearTs::Plugins::Live2D {
 
+// 导入 Result 类型到当前命名空间
+using DearTs::Core::Result;
+
 /**
  * @brief Live2D 渲染器状态
  */
@@ -69,7 +72,7 @@ public:
     /**
      * @brief 获取渲染器状态
      */
-    [[nodiscard]] virtual RendererState get_state() const = 0;
+    virtual RendererState get_state() const = 0;
 
     /**
      * @brief 开始渲染帧
@@ -93,12 +96,12 @@ public:
     /**
      * @brief 获取视口宽度
      */
-    [[nodiscard]] virtual int get_viewport_width() const = 0;
+    virtual int get_viewport_width() const = 0;
 
     /**
      * @brief 获取视口高度
      */
-    [[nodiscard]] virtual int get_viewport_height() const = 0;
+    virtual int get_viewport_height() const = 0;
 
     /**
      * @brief 设置清除颜色
@@ -113,12 +116,12 @@ public:
      * @brief 获取性能统计信息
      * @return JSON 格式的性能数据
      */
-    [[nodiscard]] virtual std::string get_profiling_data() const = 0;
+    virtual std::string get_profiling_data() const = 0;
 
     /**
      * @brief 检查渲染器是否可用
      */
-    [[nodiscard]] virtual bool is_valid() const = 0;
+    virtual bool is_valid() const = 0;
 };
 
 } // namespace DearTs::Plugins::Live2D

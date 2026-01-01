@@ -13,6 +13,9 @@
 #include <SDL3/SDL.h>
 #include <memory>
 
+// 前向声明 OpenGL 类型，避免包含 OpenGL 头文件
+typedef unsigned int GLuint;
+
 // Live2D SDK forward declarations
 namespace Live2D { namespace Cubism { namespace Framework {
     class CubismFramework;
@@ -20,6 +23,9 @@ namespace Live2D { namespace Cubism { namespace Framework {
 }}}
 
 namespace DearTs::Plugins::Live2D {
+
+// 导入 Result 类型到当前命名空间
+using DearTs::Core::Result;
 
 /**
  * @brief 性能统计信息
@@ -83,7 +89,7 @@ public:
     /**
      * @brief 获取渲染器状态
      */
-    [[nodiscard]] RendererState get_state() const override;
+    RendererState get_state() const override;
 
     /**
      * @brief 开始渲染帧
@@ -103,12 +109,12 @@ public:
     /**
      * @brief 获取视口宽度
      */
-    [[nodiscard]] int get_viewport_width() const override;
+    int get_viewport_width() const override;
 
     /**
      * @brief 获取视口高度
      */
-    [[nodiscard]] int get_viewport_height() const override;
+    int get_viewport_height() const override;
 
     /**
      * @brief 设置清除颜色
@@ -119,17 +125,17 @@ public:
      * @brief 获取性能统计信息
      * @return JSON 格式的性能数据
      */
-    [[nodiscard]] std::string get_profiling_data() const override;
+    std::string get_profiling_data() const override;
 
     /**
      * @brief 检查渲染器是否可用
      */
-    [[nodiscard]] bool is_valid() const override;
+    bool is_valid() const override;
 
     /**
      * @brief 获取性能统计信息（内部使用）
      */
-    [[nodiscard]] const PerformanceStats& get_stats() const { return m_stats; }
+    const PerformanceStats& get_stats() const { return m_stats; }
 
     /**
      * @brief 更新性能统计信息

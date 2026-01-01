@@ -11,15 +11,22 @@
 
 #include "core/plugin/plugin.h"
 #include "core/event/event_bus.h"
-#include "renderer/live2d_renderer_gl.hpp"
-#include "renderer/sdl_texture_uploader.hpp"
+#include "core/config/config_manager.h"
+#include "../renderer/live2d_renderer_gl.hpp"
+#include "../renderer/sdl_texture_uploader.hpp"
 #include "live2d_model_instance.hpp"
+#include "live2d_model_manager.hpp"
 #include <memory>
 #include <vector>
 #include <unordered_map>
 #include <filesystem>
 
 namespace DearTs::Plugins::Live2D {
+
+// 导入类型到当前命名空间
+using DearTs::Core::Result;
+using DearTs::Core::Plugin::PluginInfo;
+using DearTs::Core::Config::ConfigScope;
 
 /**
  * @brief Live2D 插件配置
@@ -67,7 +74,7 @@ public:
     /**
      * @brief 获取插件信息
      */
-    [[nodiscard]] PluginInfo get_info() const override;
+    PluginInfo get_info() const override;
 
     /**
      * @brief 插件加载时调用
@@ -115,12 +122,12 @@ public:
      * @param model_name 模型名称
      * @return 模型指针，失败返回 nullptr
      */
-    [[nodiscard]] Live2DModelInstance* get_model(const std::string& model_name);
+    Live2DModelInstance* get_model(const std::string& model_name);
 
     /**
      * @brief 获取所有模型名称
      */
-    [[nodiscard]] std::vector<std::string> get_model_names() const;
+    std::vector<std::string> get_model_names() const;
 
     /**
      * @brief 设置活动模型
@@ -131,17 +138,17 @@ public:
     /**
      * @brief 获取活动模型
      */
-    [[nodiscard]] Live2DModelInstance* get_active_model();
+    Live2DModelInstance* get_active_model();
 
     /**
      * @brief 获取渲染器
      */
-    [[nodiscard]] Live2DRendererGL* get_renderer() { return m_renderer.get(); }
+    Live2DRendererGL* get_renderer() { return m_renderer.get(); }
 
     /**
      * @brief 获取插件配置
      */
-    [[nodiscard]] const Live2DPluginConfig& get_config() const { return m_config; }
+    const Live2DPluginConfig& get_config() const { return m_config; }
 
     /**
      * @brief 更新插件（每帧调用）
@@ -190,7 +197,7 @@ private:
     std::string m_active_model_name;
 
     // 事件订阅（RAII 自动取消）
-    std::vector<DearTs::Core::Events::EventBus::Token> m_event_tokens;
+    std::vector<DearTs::Core::Event::EventToken> m_event_tokens;
 
     // 是否已启用
     bool m_enabled = false;

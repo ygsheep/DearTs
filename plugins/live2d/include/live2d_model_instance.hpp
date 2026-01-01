@@ -9,16 +9,24 @@
 
 #pragma once
 
+// 先包含 DearTs 核心头文件，避免宏污染
+#include "core/result.h"
 #include <string>
 #include <filesystem>
 #include <memory>
 
-namespace Live2D { namespace Cubism { namespace Framework {
-    class CubismUserModel;
-    class CubismModelSettingJson;
-}}}
+// 再包含 Live2D Framework 头文件
+#include <CubismFramework.hpp>
+#include <Model/CubismUserModel.hpp>
+#include <ICubismModelSetting.hpp>
+
+// Live2D Framework 命名空间别名
+namespace L2D = Live2D::Cubism::Framework;
 
 namespace DearTs::Plugins::Live2D {
+
+// 导入 Result 类型到当前命名空间
+using DearTs::Core::Result;
 
 /**
  * @brief 模型加载状态
@@ -49,17 +57,17 @@ struct ModelInfo {
  * @brief Live2D 模型实例
  *
  * @details
- * 封装 Live2D Cubism SDK 的模型对象。
+ * 封装 Live2D Cubism SDK 的模型对象，继承自 CubismUserModel。
  *
  * 关键功能：
- * - 从 model.json 加载模型
+ * - 从 .model3.json 加载模型（Cubism SDK 4.x 格式）
  * - 管理模型生命周期
  * - 更新和渲染模型
  * - 参数控制
  *
  * @note
  * - 模型目录结构：
- *   - model.json (模型配置)
+ *   - *.model3.json (模型配置，Cubism SDK 4.x 格式)
  *   - *.moc3 (模型数据)
  *   - *.png (纹理)
  *   - *.motion3.json (动作)
@@ -67,7 +75,7 @@ struct ModelInfo {
  *   - *.exp3.json (表情)
  * - 线程安全：单线程使用
  */
-class Live2DModelInstance {
+class Live2DModelInstance : public L2D::CubismUserModel {
 public:
     /**
      * @brief 构造函数
@@ -77,7 +85,7 @@ public:
     /**
      * @brief 析构函数
      */
-    ~Live2DModelInstance();
+    ~Live2DModelInstance() override;
 
     // 禁止拷贝和移动
     Live2DModelInstance(const Live2DModelInstance&) = delete;
@@ -87,17 +95,17 @@ public:
 
     /**
      * @brief 从目录加载模型
-     * @param model_dir 模型目录（包含 model.json）
+     * @param model_dir 模型目录（包含 .model3.json 文件）
      * @return 成功返回 void，失败返回错误信息
      */
     Result<void, std::string> load_from_directory(const std::filesystem::path& model_dir);
 
     /**
-     * @brief 从 model.json 加载模型
-     * @param model_json_path model.json 文件路径
+     * @brief 从 .model3.json 加载模型
+     * @param model3_json_path .model3.json 文件路径
      * @return 成功返回 void，失败返回错误信息
      */
-    Result<void, std::string> load_from_json(const std::filesystem::path& model_json_path);
+    Result<void, std::string> load_from_model3_json(const std::filesystem::path& model3_json_path);
 
     /**
      * @brief 卸载模型
@@ -118,28 +126,42 @@ public:
     /**
      * @brief 获取模型信息
      */
-    [[nodiscard]] const ModelInfo& get_info() const { return m_info; }
+    const ModelInfo& get_info() const { return m_info; }
 
     /**
      * @brief 获取加载状态
      */
-    [[nodiscard]] ModelLoadState get_load_state() const { return m_load_state; }
+    ModelLoadState get_load_state() const { return m_load_state; }
 
     /**
      * @brief 检查模型是否已加载
      */
-    [[nodiscard]] bool is_loaded() const { return m_load_state == ModelLoadState::Loaded; }
+    bool is_loaded() const { return m_load_state == ModelLoadState::Loaded; }
 
     /**
      * @brief 检查模型是否有效
      */
-    [[nodiscard]] bool is_valid() const;
+    bool is_valid() const;
 
     /**
      * @brief 获取原始 Cubism 模型对象（内部使用）
      */
-    [[nodiscard]] Live2D::Cubism::Framework::CubismUserModel* get_cubism_model() const {
-        return m_cubism_model.get();
+    L2D::CubismModel* get_cubism_model() const {
+        return GetModel();
+    }
+
+    /**
+     * @brief 获取模型设置（内部使用）
+     */
+    L2D::ICubismModelSetting* get_model_setting() const {
+        return _modelSetting;
+    }
+
+    /**
+     * @brief 获取模型目录（内部使用）
+     */
+    const std::filesystem::path& get_model_directory() const {
+        return m_model_directory;
     }
 
     // ========================================================================
@@ -158,7 +180,7 @@ public:
      * @param parameter_name 参数名称
      * @return 参数值，失败返回 0.0
      */
-    [[nodiscard]] float get_parameter(const std::string& parameter_name) const;
+    float get_parameter(const std::string& parameter_name) const;
 
     /**
      * @brief 添加模型参数值
@@ -183,33 +205,41 @@ public:
      * @param part_index 部位索引
      * @return 透明度
      */
-    [[nodiscard]] float get_part_opacity(int part_index) const;
+    float get_part_opacity(int part_index) const;
+
+protected:
+    /**
+     * @brief 创建文件缓冲区（CubismUserModel 虚方法）
+     * @param path 文件路径
+     * @param size 输出文件大小
+     * @return 文件缓冲区，失败返回 nullptr
+     */
+    L2D::csmByte* CreateBuffer(const L2D::csmChar* path, L2D::csmSizeInt* size);
+
+    /**
+     * @brief 释放文件缓冲区（CubismUserModel 虚方法）
+     * @param buffer 缓冲区
+     * @param path 文件路径（可选）
+     */
+    void DeleteBuffer(L2D::csmByte* buffer, const L2D::csmChar* path = "");
 
 private:
     /**
+     * @brief 从 ICubismModelSetting 设置模型
+     * @param setting 模型设置
+     */
+    Result<void, std::string> setup_model(L2D::ICubismModelSetting* setting);
+
+    /**
      * @brief 加载模型纹理
-     * @param texture_path 纹理路径
-     * @param texture_index 纹理索引
      */
-    Result<void, std::string> load_texture(
-        const std::filesystem::path& texture_path,
-        int texture_index
-    );
+    Result<void, std::string> setup_textures();
 
     /**
-     * @brief 加载动作文件
+     * @brief 预加载动作组
+     * @param group 动作组名称
      */
-    void load_motions();
-
-    /**
-     * @brief 加载物理文件
-     */
-    void load_physics();
-
-    /**
-     * @brief 加载表情文件
-     */
-    void load_expressions();
+    void preload_motion_group(const L2D::csmChar* group);
 
     /**
      * @brief 设置模型信息
@@ -217,8 +247,11 @@ private:
     void setup_model_info();
 
 private:
-    std::unique_ptr<Live2D::Cubism::Framework::CubismUserModel> m_cubism_model;
-    std::unique_ptr<Live2D::Cubism::Framework::CubismModelSettingJson> m_model_setting;
+    // 模型设置
+    L2D::ICubismModelSetting* _modelSetting = nullptr;
+    std::filesystem::path m_model_directory;
+
+    // 模型加载状态
     ModelLoadState m_load_state = ModelLoadState::Unloaded;
     ModelInfo m_info;
     std::string m_last_error;

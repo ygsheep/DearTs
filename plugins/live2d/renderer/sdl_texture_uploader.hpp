@@ -15,7 +15,13 @@
 #include <memory>
 #include <vector>
 
+// 前向声明 OpenGL 类型，避免包含 OpenGL 头文件
+typedef unsigned int GLuint;
+
 namespace DearTs::Plugins::Live2D {
+
+// 导入 Result 类型到当前命名空间
+using DearTs::Core::Result;
 
 /**
  * @brief 纹理上传配置
@@ -91,7 +97,7 @@ public:
      * @param renderer SDL 渲染器
      * @return SDL 纹理指针，失败返回 nullptr
      */
-    [[nodiscard]] SDL_Texture* upload_texture(
+    SDL_Texture* upload_texture(
         GLuint gl_texture_id,
         int width,
         int height,
@@ -116,7 +122,7 @@ public:
     /**
      * @brief 获取统计信息
      */
-    [[nodiscard]] const TextureUploadStats& get_stats() const { return m_stats; }
+    const TextureUploadStats& get_stats() const { return m_stats; }
 
     /**
      * @brief 重置统计信息
@@ -126,7 +132,7 @@ public:
     /**
      * @brief 检查上传器是否可用
      */
-    [[nodiscard]] bool is_valid() const { return m_initialized; }
+    bool is_valid() const { return m_initialized; }
 
 private:
     /**
