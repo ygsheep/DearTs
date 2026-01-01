@@ -146,7 +146,7 @@ void CharacterRenderer::render() {
         return;
     }
 
-    SDL_Renderer* renderer = SDL_GetCurrentRenderWindowRenderer(window);
+    SDL_Renderer* renderer = SDL_GetRenderer(window);
     if (!renderer) {
         LOG_WARN("No SDL renderer found for character rendering");
         return;
@@ -182,14 +182,15 @@ SDL_Texture* CharacterRenderer::load_texture(const std::string& image_path) {
         full_path = "resources/images/" + image_path;
     }
 
-    // 获取 SDL renderer
+    // 获取当前窗口
     SDL_Window* window = SDL_GetRenderWindow(SDL_GetVideoDevice(), 0);
     if (!window) {
         LOG_ERROR("No SDL window found");
         return nullptr;
     }
 
-    SDL_Renderer* renderer = SDL_GetCurrentRenderWindowRenderer(window);
+    // 获取 renderer（SDL3 使用 SDL_GetRenderer）
+    SDL_Renderer* renderer = SDL_GetRenderer(window);
     if (!renderer) {
         LOG_ERROR("No SDL renderer found");
         return nullptr;
@@ -198,7 +199,8 @@ SDL_Texture* CharacterRenderer::load_texture(const std::string& image_path) {
     // 使用 SDL_image 加载图片
     SDL_Texture* texture = IMG_LoadTexture(renderer, full_path.c_str());
     if (!texture) {
-        LOG_ERROR("IMG_LoadTexture failed: {}", IMG_GetError());
+        const char* error = IMG_GetError();
+        LOG_ERROR("IMG_LoadTexture failed: {}", error ? error : "Unknown error");
         return nullptr;
     }
 

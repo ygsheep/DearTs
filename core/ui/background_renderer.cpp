@@ -32,8 +32,14 @@ bool BackgroundRenderer::load_background(const std::string& image_path) {
         full_path = "resources/images/" + image_path;
     }
 
-    // 加载新纹理
-    m_texture = load_texture(full_path);
+    // 加载新纹理（需要 m_renderer 已设置）
+    if (!m_renderer) {
+        LOG_ERROR("Renderer not set. Call set_renderer() first.");
+        m_enabled = false;
+        return false;
+    }
+
+    m_texture = load_texture(m_renderer, full_path);
     if (!m_texture) {
         LOG_ERROR("Failed to load background image: {}", full_path);
         m_enabled = false;
@@ -53,22 +59,8 @@ bool BackgroundRenderer::load_background(const std::string& image_path) {
     return true;
 }
 
-void BackgroundRenderer::render(const ImVec2& viewport_size) {
+void BackgroundRenderer::render(SDL_Renderer* renderer, const ImVec2& viewport_size) {
     if (!m_enabled || !m_texture) {
-        return;
-    }
-
-    // 需要从外部获取 renderer（通过 Application 类传入）
-    // 这里暂时先获取当前的 renderer
-    SDL_Window* window = SDL_GetRenderWindow(SDL_GetVideoDevice(), 0);
-    if (!window) {
-        LOG_WARN("No SDL window found for background rendering");
-        return;
-    }
-
-    SDL_Renderer* renderer = SDL_GetCurrentRenderWindowRenderer(window);
-    if (!renderer) {
-        LOG_WARN("No SDL renderer found for background rendering");
         return;
     }
 
@@ -120,24 +112,12 @@ void BackgroundRenderer::clear() {
     LOG_INFO("Background cleared");
 }
 
-SDL_Texture* BackgroundRenderer::load_texture(const std::string& image_path) {
-    // 需要获取当前的 renderer
-    SDL_Window* window = SDL_GetRenderWindow(SDL_GetVideoDevice(), 0);
-    if (!window) {
-        LOG_ERROR("No SDL window found");
-        return nullptr;
-    }
-
-    SDL_Renderer* renderer = SDL_GetCurrentRenderWindowRenderer(window);
-    if (!renderer) {
-        LOG_ERROR("No SDL renderer found");
-        return nullptr;
-    }
-
+SDL_Texture* BackgroundRenderer::load_texture(SDL_Renderer* renderer, const std::string& image_path) {
     // 使用 SDL_image 加载图片
     SDL_Texture* texture = IMG_LoadTexture(renderer, image_path.c_str());
     if (!texture) {
-        LOG_ERROR("IMG_LoadTexture failed: {}", IMG_GetError());
+        const char* error = IMG_GetError();
+        LOG_ERROR("IMG_LoadTexture failed: {}", error ? error : "Unknown error");
         return nullptr;
     }
 

@@ -10,6 +10,8 @@
 #pragma once
 
 #include <imgui.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
 #include <string>
 #include <vector>
 #include <memory>
@@ -47,6 +49,12 @@ public:
     }
 
     /**
+     * @brief 设置 SDL 渲染器
+     * @param renderer SDL 渲染器指针
+     */
+    void set_renderer(SDL_Renderer* renderer) { m_renderer = renderer; }
+
+    /**
      * @brief 加载背景图片
      * @param image_path 图片路径（相对于 resources/images/ 或绝对路径）
      * @return 成功返回 true
@@ -55,9 +63,10 @@ public:
 
     /**
      * @brief 渲染背景
+     * @param renderer SDL 渲染器
      * @param viewport 当前视口大小
      */
-    void render(const ImVec2& viewport_size);
+    void render(SDL_Renderer* renderer, const ImVec2& viewport_size);
 
     /**
      * @brief 设置背景模式

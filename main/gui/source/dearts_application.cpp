@@ -80,24 +80,42 @@ bool DearTsApplication::on_init() {
     // 9. 设置背景和角色渲染器
     LOG_INFO("Loading background and character renderers...");
 
-    // 加载人物角色（从 resources/images 目录加载菲比图片）
-    std::vector<std::string> character_frames = {
-        "0-菲比.png",
-        "1-菲比.png",
-        "2-菲比.png",
-        "3-菲比.png"
-    };
+    // 加载默认角色（使用 CharacterManager）
+    auto& character_manager = Core::UI::CharacterManager::instance();
+    character_manager.load_default_characters();
 
-    auto& character_renderer = Core::UI::CharacterRenderer::instance();
-    if (character_renderer.load_character_frames(character_frames)) {
-        character_renderer.set_enabled(true);
-        character_renderer.set_position(Core::UI::CharacterPosition::BottomRight);
-        character_renderer.set_scale(0.5f);
-        character_renderer.set_animation_mode(Core::UI::AnimationMode::FrameLoop);
-        character_renderer.set_frame_interval(1.0f);  // 每秒切换一帧
-        LOG_INFO("Character loaded successfully: {} frames", character_renderer.get_frame_count());
+    // 获取第一个角色并加载到渲染器
+    const auto& characters = character_manager.get_characters();
+    if (!characters.empty()) {
+        const auto& first_character = characters[0];
+
+        auto& character_renderer = Core::UI::CharacterRenderer::instance();
+
+        if (first_character.type == Core::UI::CharacterType::Single) {
+            // 单张图片模式
+            std::vector<std::string> paths = {first_character.image_path};
+            if (character_renderer.load_character_frames(paths)) {
+                character_renderer.set_enabled(true);
+                character_renderer.set_position(Core::UI::CharacterPosition::BottomRight);
+                character_renderer.set_scale(first_character.scale);
+                character_renderer.set_opacity(first_character.opacity);
+                character_renderer.set_animation_mode(Core::UI::AnimationMode::None);  // 单张图片不需要动画
+                LOG_INFO("Character loaded: {} (Single image mode)", first_character.name);
+            }
+        } else if (first_character.type == Core::UI::CharacterType::Animated) {
+            // 动画模式
+            if (character_renderer.load_character_frames(first_character.frame_paths)) {
+                character_renderer.set_enabled(true);
+                character_renderer.set_position(Core::UI::CharacterPosition::BottomRight);
+                character_renderer.set_scale(first_character.scale);
+                character_renderer.set_opacity(first_character.opacity);
+                character_renderer.set_animation_mode(Core::UI::AnimationMode::FrameLoop);
+                character_renderer.set_frame_interval(first_character.frame_interval);
+                LOG_INFO("Character loaded: {} (Animated mode, {} frames)", first_character.name, first_character.frame_paths.size());
+            }
+        }
     } else {
-        LOG_WARN("Failed to load character frames");
+        LOG_WARN("No characters loaded");
     }
 
     LOG_INFO("DearTsApplication initialized successfully");

@@ -18,6 +18,7 @@
 #include "core/ui/task_widget.h"
 #include "core/ui/background_renderer.h"
 #include "core/ui/character_renderer.h"
+#include "core/ui/character_manager.h"
 #include "core/tasks/task_manager.h"
 #include "core/plugin/plugin.h"
 #include "core/config/config_manager.h"

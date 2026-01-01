@@ -16,12 +16,20 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
+# 添加自定义 CMake 模块路径
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
 # Add SDL3 as subdirectory
 set(SDL_BUILD_TESTS OFF CACHE BOOL "Build SDL tests" FORCE)
 set(SDL_BUILD_EXAMPLES OFF CACHE BOOL "Build SDL examples" FORCE)
 set(SDL_DISABLE_INSTALL ON CACHE BOOL "Disable SDL installation" FORCE)
 set(SDL_SHARED OFF CACHE BOOL "Build SDL as shared library" FORCE)
 set(SDL_STATIC ON CACHE BOOL "Build SDL as static library" FORCE)
+set(SDL sdl3-static)  # 设置 SDL 目标名称
+
+# 重要：设置 SDL3 的安装目录，让 SDL_image 能找到它
+set(CMAKE_INSTALL_FULL_LIBDIR ${CMAKE_BINARY_DIR}/lib CACHE PATH "")
+set(CMAKE_INSTALL_FULL_INCLUDEDIR ${CMAKE_BINARY_DIR}/include CACHE PATH "")
 
 # Add FreeType as subdirectory
 set(FT_DISABLE_BROTLI ON CACHE BOOL "Disable Brotli support" FORCE)
@@ -37,6 +45,39 @@ set(JSON_CI OFF CACHE BOOL "Enable CI build targets" FORCE)
 set(JSON_MultipleHeaders ON CACHE BOOL "Use multi-header version" FORCE)
 
 add_subdirectory(third_party/SDL)
+
+# 验证 SDL3 目标已创建
+if(TARGET SDL3::Headers AND TARGET SDL3::SDL3)
+    message(STATUS "SDL3 targets found: SDL3::Headers and SDL3::SDL3")
+else()
+    message(FATAL_ERROR "SDL3 targets not found. Check SDL3 configuration.")
+endif()
+
+# 添加 SDL_image（它需要找到 SDL3）
+# 设置 SDL_image 构建为静态库
+set(SDLIMAGE_BUILD_SHARED_LIBS OFF CACHE BOOL "Build SDL3_image as shared library" FORCE)
+set(SDLIMAGE_STATIC ON CACHE BOOL "Build SDL3_image as static library" FORCE)
+set(SDLIMAGE_TESTS OFF CACHE BOOL "Build SDL3_image tests" FORCE)
+
+# 关键：由于 SDL_image 会检查是否为根项目，让它认为自己是子目录
+# 这样它就不会调用 find_package，而是直接使用现有的 SDL3 目标
+set(SDLIMAGE_ROOTPROJECT OFF CACHE BOOL "SDL3_image is root project" FORCE)
+
+# 强制 SDL3_FOUND 为 TRUE，跳过 find_package
+set(SDL3_FOUND TRUE CACHE BOOL "SDL3 found" FORCE)
+set(SDL3_VERSION "3.3.0" CACHE STRING "SDL3 version" FORCE)
+
+# 禁用需要外部依赖的高级图像格式
+set(SDLIMAGE_AVIF OFF CACHE BOOL "Use AVIF" FORCE)
+set(SDLIMAGE_JXL OFF CACHE BOOL "Use JXL" FORCE)
+set(SDLIMAGE_WEBP OFF CACHE BOOL "Use WebP" FORCE)
+set(SDLIMAGE_TIF OFF CACHE BOOL "Use TIFF" FORCE)
+set(SDLIMAGE_DAV1D OFF CACHE BOOL "Use dav1d" FORCE)
+set(SDLIMAGE_VENDORED OFF CACHE BOOL "Use vendored libraries" FORCE)
+
+# 重要：设置 SDL 为静态，确保 SDL_image 使用正确的 SDL3 目标
+set(SDL_STATIC ON CACHE BOOL "SDL is static" FORCE)
+
 add_subdirectory(third_party/SDL_image)
 add_subdirectory(third_party/freetype)
 add_subdirectory(third_party/lunasvg)

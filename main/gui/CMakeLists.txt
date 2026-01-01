@@ -68,6 +68,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/include
     ${CMAKE_SOURCE_DIR}/third_party/SDL/include
+    ${CMAKE_SOURCE_DIR}/third_party/SDL_image/include
     ${CMAKE_SOURCE_DIR}/third_party/freetype/include
     ${CMAKE_SOURCE_DIR}/third_party/imgui
     ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
@@ -98,6 +99,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/core/ui/icon_font.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/background_renderer.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/character_renderer.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/character_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/app/application.cpp
     ${CMAKE_SOURCE_DIR}/core/utils/file_dialog.cpp
@@ -108,7 +110,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         imgui_full
         implot
         SDL3-static
-        SDL3_image
+        SDL3_image-static
         deartsdl_logger
         freetype
         lunasvg::lunasvg

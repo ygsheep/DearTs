@@ -10,12 +10,17 @@
 #pragma once
 
 #include <imgui.h>
+#include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
 #include <string>
 #include <vector>
 #include <memory>
 #include <chrono>
 
 namespace DearTs::Core::UI {
+
+// 前向声明
+class CharacterManager;
 
 /**
  * @brief 角色位置
@@ -57,6 +62,7 @@ struct CharacterFrame {
  * - 支持多种动画模式（循环、往复、随机）
  * - 可调整角色位置和大小
  * - 支持透明度和混合模式
+ * - 集成 CharacterManager 进行角色管理
  */
 class CharacterRenderer {
 public:
@@ -67,6 +73,12 @@ public:
         static CharacterRenderer inst;
         return inst;
     }
+
+    /**
+     * @brief 设置 SDL 渲染器
+     * @param renderer SDL 渲染器指针
+     */
+    void set_renderer(SDL_Renderer* renderer) { m_renderer = renderer; }
 
     /**
      * @brief 加载角色帧序列
@@ -238,6 +250,7 @@ private:
     size_t m_current_frame = 0;                  ///< 当前帧索引
     bool m_ping_pong_direction = 1;              ///< 往复播放方向（1=正向，-1=反向）
 
+    SDL_Renderer* m_renderer = nullptr;          ///< SDL 渲染器
     std::vector<CharacterFrame> m_frames;        ///< 角色帧列表
 };
 
