@@ -144,15 +144,21 @@ private:
  *
  * 管理项目的生命周期，包括创建、打开、保存、关闭等操作
  */
-class ProjectManager {
+class ProjectManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static ProjectManager& instance() {
+    static ProjectManager& instance() noexcept {
         static ProjectManager inst;
         return inst;
     }
+
+    // 删除所有拷贝和移动操作
+    ProjectManager(const ProjectManager&) = delete;
+    ProjectManager& operator=(const ProjectManager&) = delete;
+    ProjectManager(ProjectManager&&) = delete;
+    ProjectManager& operator=(ProjectManager&&) = delete;
 
     /**
      * @brief 创建新项目
@@ -239,10 +245,6 @@ public:
 private:
     ProjectManager() = default;
     ~ProjectManager() = default;
-
-    // 禁止拷贝
-    ProjectManager(const ProjectManager&) = delete;
-    ProjectManager& operator=(const ProjectManager&) = delete;
 
     /**
      * @brief 生成 JSON 项目文件

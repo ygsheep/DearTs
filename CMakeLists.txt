@@ -6,6 +6,73 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# ==================== CCache 配置 ====================
+# CCache 是一个编译器缓存工具，可以显著加快重复编译速度
+#
+# 效果：
+#   - 首次编译：正常时间（略慢约 5%）
+#   - 重复编译：快 90%+（命中缓存）
+#   - 切换分支后重新编译：快 80%+
+#
+# Windows 安装：
+#   1. 下载：https://github.com/ccache/ccache/releases
+#   2. 解压到：C:\Program Files\ccache
+#   3. 添加到 PATH：C:\Program Files\ccache
+#   4. 验证：ccache --version
+#
+# Linux 安装：
+#   sudo apt install ccache  # Ubuntu/Debian
+#   sudo yum install ccache  # CentOS/RHEL
+#
+# 启用方法：
+#   - 自动：如果系统安装了 ccache，CMake 会自动使用
+#   - 手动：设置环境变量 CC=ccache CXX=ccache
+#   - 强制禁用：-DDEARTS_ENABLE_CCACHE=OFF
+# ==============================================================
+
+option(DEARTS_ENABLE_CCACHE "Enable ccache for faster rebuilds" ON)
+
+if(DEARTS_ENABLE_CCACHE)
+    # 查找 ccache 程序
+    find_program(CCACHE_PROGRAM ccache)
+
+    if(CCACHE_PROGRAM)
+        message(STATUS "CCache found: ${CCACHE_PROGRAM}")
+        message(STATUS "CCache version: ${CCACHE_PROGRAM}")
+
+        # 设置 CMake 使用 ccache
+        set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+        set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
+
+        # 配置 ccache 缓存大小（默认 5GB，可调整）
+        set(CCACHE_MAXSIZE "5G" CACHE STRING "CCache maximum cache size")
+        set(ENV{CCACHE_MAXSIZE} ${CCACHE_MAXSIZE})
+
+        # 配置 ccache 缓存目录
+        if(NOT DEFINED CCACHE_DIR)
+            if(WIN32)
+                set(CCACHE_DIR "${CMAKE_SOURCE_DIR}/.ccache")
+            else()
+                set(CCACHE_DIR "$HOME/.ccache")
+            endif()
+        endif()
+        set(ENV{CCACHE_DIR} ${CCACHE_DIR})
+
+        message(STATUS "CCache configuration:")
+        message(STATUS "  Cache dir: ${CCACHE_DIR}")
+        message(STATUS "  Max size: ${CCACHE_MAXSIZE}")
+    else()
+        message(WARNING "CCache not found. Install ccache for faster rebuilds.")
+        message(STATUS "  Windows: https://github.com/ccache/ccache/releases")
+        message(STATUS "  Linux: sudo apt install ccache")
+    endif()
+else()
+    message(STATUS "CCache disabled by DEARTS_ENABLE_CCACHE=OFF")
+endif()
+
+# CCache 配置结束
+# =============================================================
+
 # MSVC: Enable /Zc:preprocessor for __VA_OPT__ support (C++20)
 if(MSVC)
     add_compile_options(/Zc:preprocessor)
@@ -218,6 +285,39 @@ endif()
 
 # Add GUI test application
 add_subdirectory(main/gui)
+add_subdirectory(examples/toast_example)
+
+# ==================== 预编译头 (PCH) 配置 ====================
+# 预编译头配置模块位于 cmake/PCH.cmake
+#
+# 使用方法（在 main/gui/CMakeLists.txt 中）：
+#   # 在创建目标后启用 PCH
+#   add_executable(${PROJECT_NAME} ...)
+#   include(cmake/PCH.cmake)
+#   dearts_enable_pch(${PROJECT_NAME})
+#
+# 注意事项：
+#   1. 预编译头可以显著加快编译速度（首次编译后，后续编译更快）
+#   2. 修改 pch.hpp 后需要重新编译整个项目
+#   3. pch.hpp 中应包含常用但不常修改的头文件
+#   4. 当前项目未启用 PCH，需要时可取消注释以下代码启用：
+#
+# # 创建 pch.cpp（如果不存在）
+# if(NOT EXISTS "${CMAKE_SOURCE_DIR}/core/pch.cpp")
+#     file(WRITE "${CMAKE_SOURCE_DIR}/core/pch.cpp"
+#         "// DearTs Framework - Precompiled Header Source\n"
+#         "#include \"core/pch.hpp\"\n"
+#     )
+# endif()
+#
+# # 启用预编译头
+# option(DEARTS_ENABLE_PCH "Enable precompiled headers" ON)
+# if(DEARTS_ENABLE_PCH)
+#     include(cmake/PCH.cmake)
+#     # 在 add_executable 后调用：
+#     # dearts_enable_pch(DearTs)
+# endif()
+# ==============================================================
 
 # Add examples (only if BUILD_EXAMPLES is ON)
 if(BUILD_EXAMPLES)

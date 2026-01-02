@@ -111,11 +111,6 @@ void PluginWrapper::disable() {
 
 // ================ PluginManager ================
 
-PluginManager& PluginManager::instance() {
-    static PluginManager instance;
-    return instance;
-}
-
 Result<void, std::string> PluginManager::add_builtin(std::unique_ptr<IPlugin> plugin) {
     auto info = plugin->get_info();
 

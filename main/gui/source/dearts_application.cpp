@@ -14,6 +14,7 @@
 #include "logger_viewer_plugin.hpp"
 #include "navigation_plugin.hpp"
 #include "settings_plugin.hpp"
+#include "live2d_plugin.hpp"
 #include <SDL3/SDL.h>
 #include <chrono>
 #include <format>
@@ -654,6 +655,16 @@ void DearTsApplication::setup_plugins() {
         LOG_ERROR("Failed to load CommandPalettePlugin: {}", result.error());
     } else {
         LOG_INFO("CommandPalettePlugin loaded successfully");
+    }
+
+    // 添加 Live2D 插件
+    auto live2d_plugin = std::make_unique<DearTs::Plugins::Live2D::Live2DPlugin>();
+    result = plugin_manager.add_builtin(std::move(live2d_plugin));
+
+    if (result.isErr()) {
+        LOG_ERROR("Failed to load Live2DPlugin: {}", result.error());
+    } else {
+        LOG_INFO("Live2DPlugin loaded successfully");
     }
 
     // 获取插件信息

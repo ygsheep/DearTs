@@ -64,15 +64,21 @@ struct CharacterFrame {
  * - 支持透明度和混合模式
  * - 集成 CharacterManager 进行角色管理
  */
-class CharacterRenderer {
+class CharacterRenderer final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static CharacterRenderer& instance() {
+    static CharacterRenderer& instance() noexcept {
         static CharacterRenderer inst;
         return inst;
     }
+
+    // 删除所有拷贝和移动操作
+    CharacterRenderer(const CharacterRenderer&) = delete;
+    CharacterRenderer& operator=(const CharacterRenderer&) = delete;
+    CharacterRenderer(CharacterRenderer&&) = delete;
+    CharacterRenderer& operator=(CharacterRenderer&&) = delete;
 
     /**
      * @brief 设置 SDL 渲染器
@@ -204,10 +210,6 @@ public:
 private:
     CharacterRenderer();
     ~CharacterRenderer();
-
-    // 禁止拷贝
-    CharacterRenderer(const CharacterRenderer&) = delete;
-    CharacterRenderer& operator=(const CharacterRenderer&) = delete;
 
     /**
      * @brief 从文件加载纹理

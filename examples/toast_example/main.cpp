@@ -1,7 +1,7 @@
 /**
  * @file main.cpp
  * @brief Toast Notification 示例程序
- * @details 展示如何使用 Toast Notification 插件
+ * @details 展示如何使用 Toast Notification 插件和任务系统集成
  */
 
 #include <imgui.h>
@@ -11,11 +11,18 @@
 #include <iostream>
 #include <chrono>
 #include <thread>
+#include <format>
+#include <fstream>
+#include <filesystem>
 
 // 包含 Toast 管理器
 #include "toast_manager.hpp"
+#include "core/tasks/task_manager.h"
+#include "core/event/event_bus.h"
 
 using namespace DearTs::Plugins::Toast;
+using namespace DearTs::Core::Tasks;
+using namespace DearTs::Core::Event;
 
 // 全局变量
 SDL_Window* g_window = nullptr;
@@ -25,6 +32,9 @@ bool g_running = true;
 // 示例场景计数器
 int g_scene = 0;
 float g_timer = 0.0f;
+
+// 模拟网络请求结果
+bool g_network_success = true;
 
 /**
  * @brief 初始化 SDL 和 ImGui
@@ -65,7 +75,7 @@ bool init() {
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     // 加载中文字体
-    io.Fonts->Clear(); // 清除默认字体
+    io.Fonts->Clear();
 
     // 字体配置
     ImFontConfig font_config;
@@ -75,15 +85,14 @@ bool init() {
 
     // 尝试加载字体（按优先级）
     static const char* font_paths[] = {
-        "resources/fonts/OPPOSans-M.ttf",      // 运行目录
-        "resources/fonts/Noto nerd.ttf",       // 运行目录
-        "../resources/fonts/OPPOSans-M.ttf",  // IDE 调试目录
-        "../../resources/fonts/OPPOSans-M.ttf" // 更深的调试目录
+        "resources/fonts/OPPOSans-M.ttf",
+        "resources/fonts/Noto nerd.ttf",
+        "../resources/fonts/OPPOSans-M.ttf",
+        "../../resources/fonts/OPPOSans-M.ttf"
     };
 
     bool font_loaded = false;
     for (const char* font_path : font_paths) {
-        // 加载中文字体，包含完整的汉字字符集
         ImFont* font = io.Fonts->AddFontFromFileTTF(
             font_path,
             16.0f,
@@ -96,16 +105,14 @@ bool init() {
             std::cout << "成功加载中文字体: " << font_path << std::endl;
             font_loaded = true;
 
-            // 添加更大的字体用于标题
-            font_config.MergeMode = false; // 不合并，创建独立的字体
+            font_config.MergeMode = false;
             io.Fonts->AddFontFromFileTTF(font_path, 24.0f, &font_config, io.Fonts->GetGlyphRangesChineseFull());
             break;
         }
     }
 
     if (!font_loaded) {
-        std::cerr << "警告：未能加载中文字体，使用默认字体（可能无法显示中文）" << std::endl;
-        // 使用默认字体作为后备
+        std::cerr << "警告：未能加载中文字体，使用默认字体" << std::endl;
         io.Fonts->AddFontDefault();
     }
 
@@ -115,6 +122,26 @@ bool init() {
 
     // 设置样式
     ImGui::StyleColorsDark();
+
+    // 订阅任务事件以显示 Toast 通知
+    static auto completed_token = EventBus::instance().subscribe<TaskCompletedEvent>([](const TaskCompletedEvent& event) {
+        std::string message = std::format("任务完成，耗时: {:.1f}ms", event.duration_ms);
+        ToastManager::instance().success("任务完成", message);
+    });
+
+    static auto failed_token = EventBus::instance().subscribe<TaskFailedEvent>([](const TaskFailedEvent& event) {
+        std::string message = std::format("错误: {}", event.error_message);
+        ToastManager::instance().error("任务失败", message);
+    });
+
+    static auto cancelled_token = EventBus::instance().subscribe<TaskCancelledEvent>([](const TaskCancelledEvent& event) {
+        std::string message = std::format("任务已取消，耗时: {:.1f}ms", event.duration_ms);
+        ToastManager::instance().warning("任务取消", message);
+    });
+
+    (void)completed_token;
+    (void)failed_token;
+    (void)cancelled_token;
 
     std::cout << "初始化成功！" << std::endl;
     return true;
@@ -131,9 +158,11 @@ void cleanup() {
     if (g_renderer) {
         SDL_DestroyRenderer(g_renderer);
     }
+
     if (g_window) {
         SDL_DestroyWindow(g_window);
     }
+
     SDL_Quit();
 }
 
@@ -158,15 +187,22 @@ void render_ui() {
         g_timer = 0.0f;
     }
     ImGui::SameLine();
-    if (ImGui::Button("表单验证")) {
+    if (ImGui::Button("网络请求")) {
         g_scene = 3;
         g_timer = 0.0f;
     }
     ImGui::SameLine();
-    if (ImGui::Button("进度反馈")) {
+    if (ImGui::Button("模型加载")) {
         g_scene = 4;
         g_timer = 0.0f;
     }
+    if (ImGui::Button("关闭任务系统")) {
+        ToastManager::instance().close_all();
+    }
+
+    std::string count_text = std::format("正在执行的任务总数: {}" , TaskManager::instance().getRunningTaskCount());
+
+    ImGui::Text(count_text.c_str());
 
     ImGui::Spacing();
     ImGui::Separator();
@@ -199,13 +235,15 @@ void render_ui() {
     ImGui::Separator();
     ImGui::Text("统计信息：");
     ImGui::BulletText("当前 Toast 数量: %zu", ToastManager::instance().get_count());
+    ImGui::BulletText("运行中的任务数: %zu", TaskManager::instance().getRunningTaskCount());
 
     ImGui::End();
 }
 
-/**
- * @brief 运行场景1：基本消息
- */
+// ============================================================================
+// 场景 1：基本消息
+// ============================================================================
+
 void run_scene_basic(float delta_time) {
     static float delay = 0.0f;
     delay += delta_time;
@@ -213,7 +251,6 @@ void run_scene_basic(float delta_time) {
     if (delay > 1.0f) {
         delay = 0.0f;
 
-        // 随机显示不同类型的消息
         static int count = 0;
         if (count < 4) {
             switch (count) {
@@ -235,90 +272,242 @@ void run_scene_basic(float delta_time) {
     }
 }
 
-/**
- * @brief 运行场景2：文件操作
- */
+// ============================================================================
+// 场景 2：文件操作（使用任务系统）
+// ============================================================================
+
 void run_scene_file_operations(float delta_time) {
     static float delay = 0.0f;
     static int step = 0;
+    static float last_task_time = 0.0f;  // 记录上次任务启动时间
     delay += delta_time;
 
-    if (delay > 2.0f) {
+    // 检查是否可以启动新任务（距离上次任务至少2秒）
+    if (delay > 2.0f && (delay - last_task_time) > 2.0f) {
         delay = 0.0f;
         step++;
+        last_task_time = 0.0f;  // 重置
 
         switch (step) {
-            case 1:
-                ToastManager::instance().info("保存中", "正在保存文件...");
+            case 1: {
+                // 文件读取任务
+                auto task = TaskManager::instance().launch(
+                    "读取文件",
+                    [](const std::atomic<bool>& should_cancel) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        if (should_cancel) return;
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        if (should_cancel) return;
+
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    },
+                    TaskType::Background
+                );
                 break;
-            case 2:
-                ToastManager::instance().success("保存成功", "文件已成功保存到磁盘");
+            }
+            case 2: {
+                // 文件保存任务
+                auto task = TaskManager::instance().launch(
+                    "保存文件",
+                    [](const std::atomic<bool>& should_cancel) {
+                        for (int i = 0; i < 10 && !should_cancel; i++) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        }
+                    },
+                    TaskType::Background
+                );
                 break;
-            case 3:
-                ToastManager::instance().info("加载中", "正在加载文件...");
+            }
+            case 3: {
+                // 文件删除任务（模拟失败）
+                auto task = TaskManager::instance().launch(
+                    "删除文件",
+                    [](const std::atomic<bool>& should_cancel) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        throw std::runtime_error("文件被占用，无法删除");
+                    },
+                    TaskType::Background
+                );
                 break;
-            case 4:
-                ToastManager::instance().error("加载失败", "文件不存在或已损坏");
+            }
+            case 4: {
+                // 文件复制任务（模拟取消）
+                auto task = TaskManager::instance().launch(
+                    "复制文件",
+                    [](const std::atomic<bool>& should_cancel) {
+                        for (int i = 0; i < 20 && !should_cancel; i++) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        }
+                    },
+                    TaskType::Background
+                );
+                break;
+            }
+            default:
                 step = 0;
                 break;
         }
     }
 }
 
-/**
- * @brief 运行场景3：表单验证
- */
-void run_scene_form_validation(float delta_time) {
+// ============================================================================
+// 场景 3：网络请求（使用任务系统）
+// ============================================================================
+
+void run_scene_network_request(float delta_time) {
     static float delay = 0.0f;
     static int step = 0;
+    static float last_task_time = 0.0f;
     delay += delta_time;
 
-    if (delay > 1.5f) {
+    if (delay > 2.0f && (delay - last_task_time) > 2.0f) {
         delay = 0.0f;
         step++;
+        last_task_time = 0.0f;
 
         switch (step) {
-            case 1:
-                ToastManager::instance().warning("验证失败", "用户名不能为空");
+            case 1: {
+                // GET 请求任务
+                auto task = TaskManager::instance().launch(
+                    "GET 请求",
+                    [](const std::atomic<bool>& should_cancel) {
+                        for (int i = 0; i < 15 && !should_cancel; i++) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        }
+                    },
+                    TaskType::Background
+                );
                 break;
-            case 2:
-                ToastManager::instance().warning("验证失败", "邮箱格式不正确");
+            }
+            case 2: {
+                // POST 请求任务
+                auto task = TaskManager::instance().launch(
+                    "POST 请求",
+                    [](const std::atomic<bool>& should_cancel) {
+                        for (int i = 0; i < 12 && !should_cancel; i++) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        }
+                    },
+                    TaskType::Background
+                );
                 break;
-            case 3:
-                ToastManager::instance().success("注册成功", "您的账户已创建");
+            }
+            case 3: {
+                // 上传文件任务（模拟失败）
+                auto task = TaskManager::instance().launch(
+                    "上传文件",
+                    [](const std::atomic<bool>& should_cancel) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                        throw std::runtime_error("网络连接超时");
+                    },
+                    TaskType::Background
+                );
+                break;
+            }
+            case 4: {
+                // 下载文件任务
+                auto task = TaskManager::instance().launch(
+                    "下载文件",
+                    [](const std::atomic<bool>& should_cancel) {
+                        for (int i = 0; i < 20 && !should_cancel; i++) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        }
+                    },
+                    TaskType::Background
+                );
+                break;
+            }
+            default:
                 step = 0;
                 break;
         }
     }
 }
 
-/**
- * @brief 运行场景4：进度反馈
- */
-void run_scene_progress(float delta_time) {
+// ============================================================================
+// 场景 4：模型加载（使用任务系统）
+// ============================================================================
+
+void run_scene_model_loading(float delta_time) {
     static float delay = 0.0f;
     static int step = 0;
+    static float last_task_time = 0.0f;
     delay += delta_time;
 
-    if (delay > 1.0f) {
+    if (delay > 2.0f && (delay - last_task_time) > 2.0f) {
         delay = 0.0f;
         step++;
+        last_task_time = 0.0f;
 
-        if (step <= 5) {
-            ToastManager::instance().info(
-                "处理中",
-                "正在处理第 " + std::to_string(step) + "/5 项..."
-            );
-        } else {
-            ToastManager::instance().success("全部完成", "所有项目已处理完毕");
-            step = 0;
+        switch (step) {
+            case 1: {
+                // 加载模型任务
+                auto task = TaskManager::instance().launch(
+                    "加载模型: Haru",
+                    [](const std::atomic<bool>& should_cancel) {
+                        // 模拟模型加载过程
+                        for (int i = 0; i <= 100 && !should_cancel; i += 10) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        }
+
+                        if (!should_cancel) {
+                            // 模拟加载成功
+                        }
+                    },
+                    TaskType::Background
+                );
+                break;
+            }
+            case 2: {
+                // 加载纹理任务
+                auto task = TaskManager::instance().launch(
+                    "加载纹理",
+                    [](const std::atomic<bool>& should_cancel) {
+                        for (int i = 0; i < 10 && !should_cancel; i++) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        }
+                    },
+                    TaskType::Background
+                );
+                break;
+            }
+            case 3: {
+                // 加载动画任务（模拟失败）
+                auto task = TaskManager::instance().launch(
+                    "加载动画",
+                    [](const std::atomic<bool>& should_cancel) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                        throw std::runtime_error("动画文件格式不支持");
+                    },
+                    TaskType::Background
+                );
+                break;
+            }
+            case 4: {
+                // 加载物理任务（模拟取消）
+                auto task = TaskManager::instance().launch(
+                    "加载物理",
+                    [](const std::atomic<bool>& should_cancel) {
+                        for (int i = 0; i < 20 && !should_cancel; i++) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        }
+                    },
+                    TaskType::Background
+                );
+                break;
+            }
+            default:
+                step = 0;
+                break;
         }
     }
 }
 
-/**
- * @brief 主循环
- */
+// ============================================================================
+// 主循环
+// ============================================================================
+
 void main_loop() {
     SDL_Event event;
     auto last_time = std::chrono::steady_clock::now();
@@ -338,6 +527,9 @@ void main_loop() {
             }
         }
 
+        // 处理异步事件
+        EventBus::instance().process_async_events();
+
         // 更新 ToastManager
         ToastManager::instance().update(delta_time);
 
@@ -355,10 +547,10 @@ void main_loop() {
                 run_scene_file_operations(delta_time);
                 break;
             case 3:
-                run_scene_form_validation(delta_time);
+                run_scene_network_request(delta_time);
                 break;
             case 4:
-                run_scene_progress(delta_time);
+                run_scene_model_loading(delta_time);
                 break;
         }
 
@@ -377,7 +569,6 @@ void main_loop() {
 
         // 渲染 ImGui
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), g_renderer);
-
         SDL_RenderPresent(g_renderer);
 
         // 限制帧率
@@ -387,7 +578,14 @@ void main_loop() {
 
 int main(int argc, char* argv[]) {
     std::cout << "Toast Notification 示例程序" << std::endl;
-    std::cout << "=============================" << std::endl;
+    std::cout << "============================" << std::endl;
+    std::cout << std::endl;
+
+    std::cout << "本示例展示任务系统与气泡插件的集成：" << std::endl;
+    std::cout << "- 场景1：基本消息（直接调用 Toast API）" << std::endl;
+    std::cout << "- 场景2：文件操作（使用任务系统）" << std::endl;
+    std::cout << "- 场景3：网络请求（使用任务系统）" << std::endl;
+    std::cout << "- 场景4：模型加载（使用任务系统）" << std::endl;
     std::cout << std::endl;
 
     // 初始化

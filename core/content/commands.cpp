@@ -9,11 +9,6 @@
 
 namespace DearTs::Core::ContentRegistry::Commands {
 
-Registry& Registry::instance() {
-    static Registry instance;
-    return instance;
-}
-
 CommandItem& Registry::add(const UnlocalizedString& name,
                           const std::string& description,
                           Callback callback) {

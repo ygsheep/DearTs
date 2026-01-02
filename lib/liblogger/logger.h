@@ -114,7 +114,7 @@ inline std::string extract_filename(const char* path) noexcept {
  * logger.info("Application started");
  * @endcode
  */
-class Logger {
+class Logger final {  // 单例类，禁止继承
 public:
     // 删除所有复制和移动操作
     Logger(const Logger&) = delete;

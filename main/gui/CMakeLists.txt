@@ -3,6 +3,74 @@
 
 cmake_minimum_required(VERSION 3.20)
 project(DearTs)
+
+# Live2D SDK directories
+set(LIVE2D_SDK_DIR ${CMAKE_SOURCE_DIR}/third_party/Live2D)
+set(LIVE2D_CORE_DIR ${LIVE2D_SDK_DIR}/Core)
+set(LIVE2D_FRAMEWORK_DIR ${LIVE2D_SDK_DIR}/Framework)
+
+# GLEW directories (for Live2D SDK OpenGL support)
+set(GLEW_DIR ${CMAKE_SOURCE_DIR}/third_party/glew)
+
+# Add GLEW as subdirectory to build from source
+# Build static library to avoid DLL dependencies
+set(BUILD_UTILS OFF CACHE BOOL "Build GLEW utilities" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared GLEW library" FORCE)
+add_subdirectory(${GLEW_DIR}/build/cmake ${CMAKE_BINARY_DIR}/glew)
+
+# Platform-specific Live2D Core library
+if(WIN32)
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        # Windows x64
+        # Detect MSVC toolset version (140=VS2015, 141=VS2017, 142=VS2019, 143=VS2022)
+        if(MSVC_VERSION EQUAL 1930)
+            set(LIVE2D_VS_TOOLSET "143")
+        elseif(MSVC_VERSION EQUAL 1920)
+            set(LIVE2D_VS_TOOLSET "142")
+        elseif(MSVC_VERSION EQUAL 1910)
+            set(LIVE2D_VS_TOOLSET "141")
+        else()
+            set(LIVE2D_VS_TOOLSET "140")  # Default to VS2015
+        endif()
+
+        set(LIVE2D_CORE_LIB_DIR ${LIVE2D_CORE_DIR}/lib/windows/x86_64/${LIVE2D_VS_TOOLSET})
+        set(LIVE2D_CORE_DLL_DIR ${LIVE2D_CORE_DIR}/dll/windows/x86_64)
+    else()
+        # Windows x86
+        set(LIVE2D_CORE_LIB_DIR ${LIVE2D_CORE_DIR}/lib/windows/x86/${LIVE2D_VS_TOOLSET})
+        set(LIVE2D_CORE_DLL_DIR ${LIVE2D_CORE_DIR}/dll/windows/x86)
+    endif()
+
+    # Select runtime library variant (MD/MT)
+    if(MSVC)
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            set(LIVE2D_CORE_LIB_SUFFIX "d")
+        else()
+            set(LIVE2D_CORE_LIB_SUFFIX "")
+        endif()
+    endif()
+elseif(APPLE)
+    # macOS
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+        set(LIVE2D_CORE_LIB_DIR ${LIVE2D_CORE_DIR}/lib/macos/arm64)
+    else()
+        set(LIVE2D_CORE_LIB_DIR ${LIVE2D_CORE_DIR}/lib/macos/x86_64)
+    endif()
+else()
+    # Linux
+    set(LIVE2D_CORE_LIB_DIR ${LIVE2D_CORE_DIR}/lib/linux/x86_64)
+endif()
+
+# Collect Live2D Framework source files
+file(GLOB_RECURSE LIVE2D_FRAMEWORK_SOURCES
+    ${LIVE2D_FRAMEWORK_DIR}/src/*.cpp
+)
+
+# Exclude platform-specific renderers we don't use
+list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*D3D.*")
+list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*Metal.*")
+list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*Vulkan.*")
+
 # DearTs 可执行文件
 add_executable(${PROJECT_NAME}
     include/dearts_application.hpp
@@ -45,6 +113,22 @@ add_executable(${PROJECT_NAME}
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/include/command_palette_view.hpp
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_plugin.cpp
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_view.cpp
+    # Live2D 插件
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_plugin.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_model_instance.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_model_manager.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/widgets/live2d_settings_widget.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/views/live2d_settings_view.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_plugin.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_model_instance.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_model_manager.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/widgets/live2d_settings_widget.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/views/live2d_settings_view.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/ilive2d_renderer.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/live2d_renderer_gl.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/live2d_renderer_gl.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/sdl_texture_uploader.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/sdl_texture_uploader.cpp
     # Windows 资源文件（仅 Windows）
     ${CMAKE_SOURCE_DIR}/resources/dearts.rc
 )
@@ -69,6 +153,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/plugins/navigation/include
     ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/include
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/include
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/widgets
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/views
+    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer
+    ${CMAKE_SOURCE_DIR}/plugins/settings/include
     ${CMAKE_SOURCE_DIR}/third_party/SDL/include
     ${CMAKE_SOURCE_DIR}/third_party/SDL_image/include
     ${CMAKE_SOURCE_DIR}/third_party/freetype/include
@@ -76,6 +165,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
     ${CMAKE_SOURCE_DIR}/third_party/imgui/misc/freetype
     ${CMAKE_SOURCE_DIR}/third_party/implot
+    ${LIVE2D_CORE_DIR}/include
+    ${LIVE2D_FRAMEWORK_DIR}/src
+    ${GLEW_DIR}/include
 )
 
 # 源文件（新架构实现）
@@ -105,6 +197,8 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/app/application.cpp
     ${CMAKE_SOURCE_DIR}/core/utils/file_dialog.cpp
+    # Live2D Framework source files
+    ${LIVE2D_FRAMEWORK_SOURCES}
 )
 
 # 链接库
@@ -116,6 +210,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         deartsdl_logger
         freetype
         lunasvg::lunasvg
+        glew_s
 )
 
 # Windows 特定设置
@@ -133,7 +228,23 @@ if(WIN32)
             "/SUBSYSTEM:WINDOWS"
         )
     endif()
+
+    # Link Live2D Core library (Windows)
+    add_library(Live2DCubismCore STATIC IMPORTED)
+    set_target_properties(Live2DCubismCore PROPERTIES
+        IMPORTED_LOCATION ${LIVE2D_CORE_DLL_DIR}/Live2DCubismCore.lib
+        INTERFACE_INCLUDE_DIRECTORIES ${LIVE2D_CORE_DIR}/include
+    )
+    target_link_libraries(${PROJECT_NAME} PRIVATE Live2DCubismCore)
 endif()
+
+# Live2D Framework requires specific definitions
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    # Live2D Framework config
+    CSM_TARGET_WIN_GL=1
+    # GLEW static library
+    GLEW_STATIC
+)
 
 # 定义资源目录
 set(RESOURCE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
@@ -144,6 +255,7 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     # 使用 copy_if_different 避免不必要的时间戳更新
     COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/fonts
     COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/images
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/live2d
     # 复制字体文件（仅在变化时）
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         ${RESOURCE_SOURCE_DIR}/fonts
@@ -152,14 +264,22 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         ${RESOURCE_SOURCE_DIR}/images
         ${RESOURCE_DEST_DIR}/images
+    # 复制 Live2D 模型文件（仅在变化时）
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        ${RESOURCE_SOURCE_DIR}/models
+        ${CMAKE_BINARY_DIR}/bin/models
     # 复制图标文件（仅在变化时）
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${RESOURCE_SOURCE_DIR}/icon.ico
-        ${CMAKE_BINARY_DIR}/bin/icon.ico
+#    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#        ${RESOURCE_SOURCE_DIR}/icon.ico
+#        ${CMAKE_BINARY_DIR}/bin/icon.ico
     # 复制 SDL3_image.dll（根据架构选择）
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/$<IF:$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>,x64,x86>/SDL3_image.dll
         ${CMAKE_BINARY_DIR}/bin/SDL3_image.dll
+    # 复制 Live2D Core DLL（仅 Windows）
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${LIVE2D_CORE_DLL_DIR}/Live2DCubismCore.dll
+        ${CMAKE_BINARY_DIR}/bin/Live2DCubismCore.dll
     COMMENT "Copying resources to output directory (if changed)"
 )
 

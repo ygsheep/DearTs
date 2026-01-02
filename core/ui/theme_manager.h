@@ -35,15 +35,21 @@ enum class Theme {
  * - ImGui 样式自动应用
  * - 颜色查询和修改
  */
-class ThemeManager {
+class ThemeManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static ThemeManager& instance() {
+    static ThemeManager& instance() noexcept {
         static ThemeManager inst;
         return inst;
     }
+
+    // 删除所有拷贝和移动操作
+    ThemeManager(const ThemeManager&) = delete;
+    ThemeManager& operator=(const ThemeManager&) = delete;
+    ThemeManager(ThemeManager&&) = delete;
+    ThemeManager& operator=(ThemeManager&&) = delete;
 
     /**
      * @brief 设置主题
@@ -108,10 +114,6 @@ public:
 private:
     ThemeManager();
     ~ThemeManager() = default;
-
-    // 禁止拷贝
-    ThemeManager(const ThemeManager&) = delete;
-    ThemeManager& operator=(const ThemeManager&) = delete;
 
     /**
      * @brief 初始化预定义主题

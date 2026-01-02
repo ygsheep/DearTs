@@ -9,11 +9,6 @@
 
 namespace DearTs::Core::ContentRegistry::Settings {
 
-Registry& Registry::instance() {
-    static Registry instance;
-    return instance;
-}
-
 SettingItem& Registry::add(const UnlocalizedString& category,
                            const UnlocalizedString& name,
                            const std::string& default_value) {

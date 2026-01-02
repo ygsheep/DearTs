@@ -8,11 +8,6 @@
 
 namespace DearTs::Core::ContentRegistry::Tools {
 
-Registry& Registry::instance() {
-    static Registry instance;
-    return instance;
-}
-
 ToolItem& Registry::add(const UnlocalizedString& name,
                        const std::string& description,
                        Callback callback) {

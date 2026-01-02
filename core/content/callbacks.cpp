@@ -8,11 +8,6 @@
 
 namespace DearTs::Core::ContentRegistry::Callbacks {
 
-Registry& Registry::instance() {
-    static Registry instance;
-    return instance;
-}
-
 void Registry::add_on_init(Callback callback) {
     m_init_callbacks.push_back(std::move(callback));
 }

@@ -205,4 +205,56 @@ namespace fs = std::filesystem;
 // 时间别名
 namespace chrono = std::chrono;
 
+// ==================== 单例模式宏（未来可能使用）====================
+// 注意：当前项目不使用此宏，仅作为参考保留
+// 理由：
+//   1. 手写单例更清晰，便于调试
+//   2. 避免宏展开影响 IDE 代码提示
+//   3. 当前项目单例数量不多，手动维护成本可接受
+//
+// 如果未来单例数量大量增加，可以考虑启用以下宏：
+//
+
+#if 0  // 暂时禁用，未来可能使用
+
+/// @brief 声明单例模式的类
+/// @param ClassName 类名
+/// @usage 在类定义中使用：class MyClass { DECLARE_SINGLETON(MyClass) ... };
+#define DEARTS_DECLARE_SINGLETON(ClassName) \
+public: \
+    static ClassName& instance() noexcept { \
+        static ClassName inst; \
+        return inst; \
+    } \
+    ClassName(const ClassName&) = delete; \
+    ClassName& operator=(const ClassName&) = delete; \
+    ClassName(ClassName&&) = delete; \
+    ClassName& operator=(ClassName&&) = delete; \
+private: \
+    ClassName() = default; \
+    ~ClassName() = default;
+
+/// @brief 单例模式基类（CRTP）
+/// @warning 当前项目不使用，仅作为参考保留
+/// @usage class MyManager : public DearTs::Singleton<MyManager> { ... };
+template<typename T>
+class Singleton {
+public:
+    static T& instance() noexcept {
+        static T inst;
+        return inst;
+    }
+
+    Singleton(const Singleton&) = delete;
+    Singleton& operator=(const Singleton&) = delete;
+    Singleton(Singleton&&) = delete;
+    Singleton& operator=(Singleton&&) = delete;
+
+protected:
+    Singleton() = default;
+    ~Singleton() = default;
+};
+
+#endif  // 暂时禁用单例宏
+
 #endif // DEARTS_PCH_HPP

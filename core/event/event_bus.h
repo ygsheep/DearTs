@@ -84,17 +84,17 @@ private:
  * // 自动取消订阅（RAII）
  * // token 析构时自动取消订阅
  */
-class EventBus {
+class EventBus final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static EventBus& instance() {
+    static EventBus& instance() noexcept {
         static EventBus instance;
         return instance;
     }
 
-    // 删除拷贝和移动
+    // 删除所有拷贝和移动操作
     EventBus(const EventBus&) = delete;
     EventBus& operator=(const EventBus&) = delete;
     EventBus(EventBus&&) = delete;

@@ -155,12 +155,21 @@ private:
  *
  * 负责管理所有插件的生命周期
  */
-class PluginManager {
+class PluginManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static PluginManager& instance();
+    static PluginManager& instance() noexcept {
+        static PluginManager instance;
+        return instance;
+    }
+
+    // 删除所有拷贝和移动操作
+    PluginManager(const PluginManager&) = delete;
+    PluginManager& operator=(const PluginManager&) = delete;
+    PluginManager(PluginManager&&) = delete;
+    PluginManager& operator=(PluginManager&&) = delete;
 
     /**
      * @brief 从动态库加载插件
@@ -237,12 +246,6 @@ public:
 private:
     PluginManager() = default;
     ~PluginManager() = default;
-
-    // 删除拷贝和移动
-    PluginManager(const PluginManager&) = delete;
-    PluginManager& operator=(const PluginManager&) = delete;
-    PluginManager(PluginManager&&) = delete;
-    PluginManager& operator=(PluginManager&&) = delete;
 
     std::unordered_map<std::string, std::unique_ptr<PluginWrapper>> m_plugins;
 };
