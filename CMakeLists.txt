@@ -81,7 +81,7 @@ endif()
 # Options
 option(BUILD_UI_TESTS "Build UI tests with ImGui Test Engine" OFF)
 option(ENABLE_IMGUI_TEST_ENGINE "Enable ImGui Test Engine hooks in ImGui" ${BUILD_UI_TESTS})
-option(BUILD_EXAMPLES "Build example programs" OFF)
+option(BUILD_EXAMPLES "Build example programs" ON)
 
 # Set output directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -112,6 +112,15 @@ set(JSON_CI OFF CACHE BOOL "Enable CI build targets" FORCE)
 set(JSON_MultipleHeaders ON CACHE BOOL "Use multi-header version" FORCE)
 
 add_subdirectory(third_party/SDL)
+# Add examples (only if BUILD_EXAMPLES is ON)
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples/demo_imhex_style ${CMAKE_BINARY_DIR}/examples/demo_imhex_style)
+    add_subdirectory(examples/toast_example ${CMAKE_BINARY_DIR}/examples/toast_example)
+    add_subdirectory(examples/sdl_render_example ${CMAKE_BINARY_DIR}/examples/sdl_render_example)
+    add_subdirectory(examples/sdl_interactive_example ${CMAKE_BINARY_DIR}/examples/sdl_interactive_example)
+endif()
+add_subdirectory(examples/live2d_example ${CMAKE_BINARY_DIR}/examples/live2d_example)
+
 
 # 使用预编译的 SDL_image 库（third_party/SDL_image 已编译）
 add_library(SDL3_image-static STATIC IMPORTED)
@@ -285,7 +294,7 @@ endif()
 
 # Add GUI test application
 add_subdirectory(main/gui)
-add_subdirectory(examples/toast_example)
+
 
 # ==================== 预编译头 (PCH) 配置 ====================
 # 预编译头配置模块位于 cmake/PCH.cmake
@@ -319,13 +328,6 @@ add_subdirectory(examples/toast_example)
 # endif()
 # ==============================================================
 
-# Add examples (only if BUILD_EXAMPLES is ON)
-if(BUILD_EXAMPLES)
-    add_subdirectory(examples/demo_imhex_style)
-    add_subdirectory(examples/toast_example)
-    add_subdirectory(examples/sdl_render_example)
-    add_subdirectory(examples/sdl_interactive_example)
-endif()
 
 # Add plugins
 # Note: builtin plugin is compiled directly into main executable, not as separate library

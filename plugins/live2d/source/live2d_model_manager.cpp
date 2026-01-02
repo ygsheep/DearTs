@@ -303,8 +303,11 @@ Result<void, std::string> Live2DModelManager::set_active_model(const std::string
 
 Live2DModelInstance* Live2DModelManager::get_active_model() {
     if (m_active_model_id.empty()) {
+        LOG_DEBUG("Live2DModelManager: No active model ID set");
         return nullptr;
     }
+
+    LOG_DEBUG("Live2DModelManager: Getting active model '{}'", m_active_model_id);
 
     std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
     auto it = m_loaded_models.find(m_active_model_id);
@@ -315,6 +318,7 @@ Live2DModelInstance* Live2DModelManager::get_active_model() {
         return nullptr;
     }
 
+    LOG_DEBUG("Live2DModelManager: Found active model '{}'", m_active_model_id);
     return it->second.get();
 }
 

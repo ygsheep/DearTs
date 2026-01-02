@@ -290,8 +290,69 @@ RendererState Live2DRendererGL::get_state() const {
 // Live2D Framework 管理
 // ============================================================================
 
+/**
+ * @brief Live2D 文件加载函数
+ * @param filePath 文件路径
+ * @param outSize 输出文件大小
+ * @return 文件内容指针
+ */
+static csmByte* Live2DLoadFile(const std::string filePath, csmSizeInt* outSize) {
+    // 路径映射：将 FrameworkShaders/ 映射到实际的着色器目录
+    std::string actualPath = filePath;
+
+    // 如果路径以 "FrameworkShaders/" 开头，替换为实际的着色器目录
+    if (actualPath.find("FrameworkShaders/") == 0) {
+        // 替换为实际的着色器路径
+        actualPath = actualPath.replace(0, 17, "third_party/Live2D/Framework/src/Rendering/OpenGL/Shaders/Standard/");
+    }
+
+    FILE* fp = fopen(actualPath.c_str(), "rb");
+
+    if (fp == NULL) {
+        return NULL;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    if (size <= 0) {
+        fclose(fp);
+        return NULL;
+    }
+
+    csmByte* buffer = static_cast<csmByte*>(malloc(size));
+    if (buffer == NULL) {
+        fclose(fp);
+        return NULL;
+    }
+
+    size_t readSize = fread(buffer, 1, size, fp);
+    fclose(fp);
+
+    if (readSize != static_cast<size_t>(size)) {
+        free(buffer);
+        return NULL;
+    }
+
+    *outSize = size;
+    return buffer;
+}
+
+/**
+ * @brief Live2D 释放字节函数
+ * @param byteData 字节数据指针
+ */
+static void Live2DReleaseBytes(csmByte* byteData) {
+    if (byteData != NULL) {
+        // 直接使用 free()，因为 CSM_MALLOC 使用了标准 malloc
+        free(byteData);
+    }
+}
+
 Result<void, std::string> Live2DRendererGL::initialize_cubism_framework() {
     if (m_cubism_initialized) {
+        LOG_INFO("Live2DRendererGL: Cubism Framework already initialized");
         return Result<void, std::string>::ok();
     }
 
@@ -306,10 +367,22 @@ Result<void, std::string> Live2DRendererGL::initialize_cubism_framework() {
     // 设置日志级别
     options.LoggingLevel = CubismFramework::Option::LogLevel_Info;
 
+    // 设置文件加载函数（着色器等资源需要）
+    options.LoadFileFunction = &Live2DLoadFile;
+    options.ReleaseBytesFunction = &Live2DReleaseBytes;
+
+    LOG_INFO("Live2DRendererGL: Setting file loader: LoadFileFunction={}, ReleaseBytesFunction={}",
+             reinterpret_cast<void*>(&Live2DLoadFile),
+             reinterpret_cast<void*>(&Live2DReleaseBytes));
+
     // 启动 Live2D Framework
     if (!CubismFramework::StartUp(&s_allocator, &options)) {
         return Result<void, std::string>::err("Failed to start up Live2D Cubism Framework");
     }
+
+    // 验证文件加载器是否设置成功
+    auto loadFunc = CubismFramework::GetLoadFileFunction();
+    LOG_INFO("Live2DRendererGL: File loader after StartUp: {}", reinterpret_cast<void*>(loadFunc));
 
     // 初始化 Framework
     CubismFramework::Initialize();
@@ -341,16 +414,25 @@ void Live2DRendererGL::cleanup_cubism_framework() {
 Result<void, std::string> Live2DRendererGL::initialize_opengl() {
     LOG_INFO("Live2DRendererGL: Initializing OpenGL state");
 
-    // 初始化 GLEW
-    GLenum err = glewInit();
-    if (err != GLEW_OK) {
-        std::string error_msg = "Failed to initialize GLEW: ";
-        error_msg += reinterpret_cast<const char*>(glewGetErrorString(err));
-        LOG_ERROR("Live2DRendererGL: {}", error_msg);
-        return Result<void, std::string>::err(error_msg);
-    }
+    // 检查 OpenGL 上下文是否已创建
+    // 如果 glGetString 成功返回版本号，说明上下文已存在
+    const char* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
+    if (!version) {
+        LOG_ERROR("Live2DRendererGL: No OpenGL context found");
 
-    LOG_INFO("Live2DRendererGL: GLEW {} initialized", reinterpret_cast<const char*>(glewGetString(GLEW_VERSION)));
+        // 尝试初始化 GLEW
+        GLenum err = glewInit();
+        if (err != GLEW_OK) {
+            std::string error_msg = "Failed to initialize GLEW: ";
+            error_msg += reinterpret_cast<const char*>(glewGetErrorString(err));
+            LOG_ERROR("Live2DRendererGL: {}", error_msg);
+            return Result<void, std::string>::err(error_msg);
+        }
+
+        LOG_INFO("Live2DRendererGL: GLEW {} initialized", reinterpret_cast<const char*>(glewGetString(GLEW_VERSION)));
+    } else {
+        LOG_INFO("Live2DRendererGL: Using existing OpenGL context (GLEW initialization skipped)");
+    }
 
     // 检查 OpenGL 版本
     LOG_INFO("Live2DRendererGL: OpenGL version: {}", reinterpret_cast<const char*>(glGetString(GL_VERSION)));

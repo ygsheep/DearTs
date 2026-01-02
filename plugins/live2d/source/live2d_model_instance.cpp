@@ -206,7 +206,8 @@ Result<void, std::string> Live2DModelInstance::setup_model(L2D::ICubismModelSett
     // 加载 MOC3 文件
     if (strcmp(setting->GetModelFileName(), "") != 0) {
         L2D::csmString path = setting->GetModelFileName();
-        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + path;
+        // 添加路径分隔符
+        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + "/" + path;
 
         LOG_INFO("Live2DModelInstance: Loading MOC3: {}", fullPath.GetRawString());
 
@@ -221,7 +222,7 @@ Result<void, std::string> Live2DModelInstance::setup_model(L2D::ICubismModelSett
         for (L2D::csmInt32 i = 0; i < count; i++) {
             L2D::csmString name = setting->GetExpressionName(i);
             L2D::csmString path = setting->GetExpressionFileName(i);
-            L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + path;
+            L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + "/" + path;
 
             LOG_DEBUG("Live2DModelInstance: Loading expression: {}", fullPath.GetRawString());
 
@@ -234,7 +235,7 @@ Result<void, std::string> Live2DModelInstance::setup_model(L2D::ICubismModelSett
     // 加载物理文件
     if (strcmp(setting->GetPhysicsFileName(), "") != 0) {
         L2D::csmString path = setting->GetPhysicsFileName();
-        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + path;
+        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + "/" + path;
 
         LOG_INFO("Live2DModelInstance: Loading physics: {}", fullPath.GetRawString());
 
@@ -246,7 +247,7 @@ Result<void, std::string> Live2DModelInstance::setup_model(L2D::ICubismModelSett
     // 加载姿势文件
     if (strcmp(setting->GetPoseFileName(), "") != 0) {
         L2D::csmString path = setting->GetPoseFileName();
-        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + path;
+        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + "/" + path;
 
         LOG_INFO("Live2DModelInstance: Loading pose: {}", fullPath.GetRawString());
 
@@ -282,7 +283,7 @@ Result<void, std::string> Live2DModelInstance::setup_model(L2D::ICubismModelSett
     // 用户数据
     if (strcmp(setting->GetUserDataFile(), "") != 0) {
         L2D::csmString path = setting->GetUserDataFile();
-        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + path;
+        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + "/" + path;
 
         LOG_DEBUG("Live2DModelInstance: Loading user data: {}", fullPath.GetRawString());
 
@@ -301,7 +302,27 @@ Result<void, std::string> Live2DModelInstance::setup_model(L2D::ICubismModelSett
     // 布局
     L2D::csmMap<L2D::csmString, L2D::csmFloat32> layout;
     setting->GetLayoutMap(layout);
-    _modelMatrix->SetupFromLayout(layout);
+
+    if (layout.GetSize() > 0) {
+        // 使用模型文件中的布局信息
+        _modelMatrix->SetupFromLayout(layout);
+        LOG_INFO("Live2DModelInstance: Applied model layout ({} items)", layout.GetSize());
+    } else {
+        // 没有布局信息，设置默认值以适应视口
+        LOG_WARN("Live2DModelInstance: No layout info in model JSON, using default layout");
+
+        // 获取模型Canvas尺寸
+        const L2D::CubismModel* model = _model;
+        float canvasWidth = model->GetCanvasWidth();
+        float canvasHeight = model->GetCanvasHeight();
+
+        LOG_INFO("Live2DModelInstance: Model canvas size: {}x{}", canvasWidth, canvasHeight);
+
+        // 设置模型居中并适当缩放
+        _modelMatrix->SetupFromLayout(layout);  // 使用空布局
+        _modelMatrix->SetWidth(2.0f);  // 设置宽度比例
+        _modelMatrix->SetHeight(2.0f);  // 设置高度比例
+    }
 
     _model->SaveParameters();
 
@@ -338,7 +359,8 @@ Result<void, std::string> Live2DModelInstance::setup_textures() {
 
         // 获取纹理路径
         L2D::csmString texturePath = _modelSetting->GetTextureFileName(modelTextureNumber);
-        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + texturePath;
+        // 添加路径分隔符
+        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + "/" + texturePath;
 
         LOG_INFO("Live2DModelInstance: Loading texture {}: {}",
                  modelTextureNumber, fullPath.GetRawString());
@@ -397,7 +419,8 @@ void Live2DModelInstance::preload_motion_group(const L2D::csmChar* group) {
     for (L2D::csmInt32 i = 0; i < count; i++) {
         L2D::csmString name = L2D::Utils::CubismString::GetFormatedString("%s_%d", group, i);
         L2D::csmString path = _modelSetting->GetMotionFileName(group, i);
-        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + path;
+        // 添加路径分隔符
+        L2D::csmString fullPath = L2D::csmString(m_model_directory.string().c_str()) + "/" + path;
 
         LOG_DEBUG("Live2DModelInstance: Loading motion: {}", fullPath.GetRawString());
 
@@ -489,14 +512,52 @@ void Live2DModelInstance::update(float delta_time) {
 }
 
 void Live2DModelInstance::draw() {
+    LOG_INFO("Live2DModelInstance: draw() called for model '{}'", m_info.model_name);
+
     if (!is_loaded() || !_model) {
+        LOG_DEBUG("Live2DModelInstance: Skipping draw (model not loaded)");
         return;
     }
+    LOG_DEBUG("Live2DModelInstance: Model is loaded and _model is not null");
+
+    // 确保 OpenGL 上下文存在
+    if (!glGetString(GL_VERSION)) {
+        LOG_ERROR("Live2DModelInstance: No OpenGL context, skipping draw");
+        return;
+    }
+    LOG_DEBUG("Live2DModelInstance: OpenGL context exists");
 
     auto* renderer = GetRenderer<Csm::Rendering::CubismRenderer_OpenGLES2>();
-    if (renderer) {
-        renderer->DrawModel();
+    if (!renderer) {
+        LOG_ERROR("Live2DModelInstance: Failed to get renderer for model '{}'",
+                  m_info.model_name);
+        return;
     }
+    LOG_DEBUG("Live2DModelInstance: Got renderer pointer");
+
+    // 确保 renderer 已初始化
+    if (!renderer->GetModel()) {
+        LOG_ERROR("Live2DModelInstance: Renderer not initialized for model '{}'",
+                  m_info.model_name);
+        return;
+    }
+    LOG_DEBUG("Live2DModelInstance: Renderer is initialized");
+
+    LOG_DEBUG("Live2DModelInstance: Drawing model '{}', size: {}x{}, canvas: {}x{}",
+              m_info.model_name, m_info.width, m_info.height,
+              _model->GetCanvasWidth(), _model->GetCanvasHeight());
+
+    // 更新模型矩阵
+    if (_modelMatrix) {
+        LOG_DEBUG("Live2DModelInstance: Setting MVP matrix");
+        renderer->SetMvpMatrix(_modelMatrix);
+    } else {
+        LOG_WARN("Live2DModelInstance: Model matrix is null");
+    }
+
+    LOG_DEBUG("Live2DModelInstance: Calling DrawModel()");
+    renderer->DrawModel();
+    LOG_DEBUG("Live2DModelInstance: DrawModel() completed");
 }
 
 bool Live2DModelInstance::is_valid() const {

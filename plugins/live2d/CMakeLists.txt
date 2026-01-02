@@ -12,13 +12,9 @@ set(LIVE2D_CORE_DIR ${LIVE2D_SDK_DIR}/Core)
 set(LIVE2D_FRAMEWORK_DIR ${LIVE2D_SDK_DIR}/Framework)
 
 # GLEW directories (for Live2D SDK OpenGL support)
+# Note: GLEW is already built by main/gui/CMakeLists.txt
+# We just need to include the headers and link the library
 set(GLEW_DIR ${CMAKE_SOURCE_DIR}/third_party/glew)
-
-# Add GLEW as subdirectory to build from source
-# Build static library to avoid DLL dependencies
-set(BUILD_UTILS OFF CACHE BOOL "Build GLEW utilities" FORCE)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared GLEW library" FORCE)
-add_subdirectory(${GLEW_DIR}/build/cmake ${CMAKE_BINARY_DIR}/glew)
 
 # Platform-specific Live2D Core library
 if(WIN32)

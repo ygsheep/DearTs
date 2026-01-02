@@ -164,30 +164,23 @@ Live2DModelInstance* Live2DPlugin::get_model(const std::string& model_name) {
 }
 
 std::vector<std::string> Live2DPlugin::get_model_names() const {
-    std::vector<std::string> names;
-
-    // 先添加已加载的模型
-    names.reserve(m_models.size() + m_discovered_models.size());
-    for (const auto& [name, model] : m_models) {
-        names.push_back(name);
-    }
-
-    // 再添加已扫描但未加载的模型（如果渲染器还未初始化）
-    for (const auto& name : m_discovered_models) {
-        // 避免重复添加
-        if (std::find(names.begin(), names.end(), name) == names.end()) {
-            names.push_back(name);
-        }
-    }
-
-    return names;
+    // 从 ModelManager 获取所有已注册的模型名称
+    return Live2DModelManager::instance().get_registered_models();
 }
 
 void Live2DPlugin::set_active_model(const std::string& model_name) {
-    // 检查模型是否已加载
-    if (m_models.find(model_name) != m_models.end()) {
-        m_active_model_name = model_name;
-        LOG_INFO("Live2DPlugin: Active model set to '{}'", model_name);
+    auto& manager = Live2DModelManager::instance();
+
+    // 检查模型是否已在 ModelManager 中加载
+    if (manager.get_model(model_name) != nullptr) {
+        // 直接设置 ModelManager 的活动模型
+        auto result = manager.set_active_model(model_name);
+        if (result.isOk()) {
+            m_active_model_name = model_name;
+            LOG_INFO("Live2DPlugin: Active model set to '{}'", model_name);
+        } else {
+            LOG_ERROR("Live2DPlugin: Failed to set active model: {}", result.error());
+        }
         return;
     }
 
@@ -205,7 +198,6 @@ void Live2DPlugin::set_active_model(const std::string& model_name) {
     }
 
     // 尝试从 Live2DModelManager 加载模型
-    auto& manager = Live2DModelManager::instance();
     auto load_result = manager.load_model(model_name);
     if (load_result.isErr()) {
         LOG_ERROR("Live2DPlugin: Failed to load model '{}': {}", model_name, load_result.error());
@@ -213,15 +205,18 @@ void Live2DPlugin::set_active_model(const std::string& model_name) {
     }
 
     // 模型加载成功，设置为活动模型
-    m_active_model_name = model_name;
-    LOG_INFO("Live2DPlugin: Model '{}' loaded and set as active", model_name);
+    auto set_result = manager.set_active_model(model_name);
+    if (set_result.isOk()) {
+        m_active_model_name = model_name;
+        LOG_INFO("Live2DPlugin: Model '{}' loaded and set as active", model_name);
+    } else {
+        LOG_ERROR("Live2DPlugin: Failed to set active model: {}", set_result.error());
+    }
 }
 
 Live2DModelInstance* Live2DPlugin::get_active_model() {
-    if (m_active_model_name.empty()) {
-        return nullptr;
-    }
-    return get_model(m_active_model_name);
+    // 直接从 ModelManager 获取活动模型（保持单数据源）
+    return Live2DModelManager::instance().get_active_model();
 }
 
 // ============================================================================
@@ -248,24 +243,36 @@ void Live2DPlugin::render() {
         return;
     }
 
+    LOG_DEBUG("Live2DPlugin: render() called, enabled=true");
+
     // 确保渲染器已初始化
     ensure_renderer_initialized();
 
     if (!m_renderer) {
+        LOG_WARN("Live2DPlugin: Renderer not available, skipping render");
         return;
     }
 
+    LOG_DEBUG("Live2DPlugin: Calling begin_frame()");
     // 开始渲染帧
     m_renderer->begin_frame();
 
+    LOG_DEBUG("Live2DPlugin: Getting active model");
     // 渲染活动模型
     auto* active_model = get_active_model();
     if (active_model) {
+        LOG_INFO("Live2DPlugin: Drawing active model '{}'",
+                  active_model->get_info().model_name);
         active_model->draw();
+        LOG_DEBUG("Live2DPlugin: draw() completed");
+    } else {
+        LOG_WARN("Live2DPlugin: No active model to render");
     }
 
+    LOG_DEBUG("Live2DPlugin: Calling end_frame()");
     // 结束渲染帧
     m_renderer->end_frame();
+    LOG_DEBUG("Live2DPlugin: render() completed");
 }
 
 // ============================================================================
@@ -280,8 +287,8 @@ Result<void, std::string> Live2DPlugin::initialize_renderer() {
 
     // 配置渲染器
     RendererConfig config;
-    config.viewport_width = 800;   // TODO: 从主窗口获取
-    config.viewport_height = 600;
+    config.viewport_width = 1280;  // 与示例窗口大小一致
+    config.viewport_height = 720;
     config.use_fbo = m_config.use_fbo;
     config.fbo_downsample = m_config.fbo_downsample;
     config.enable_profiling = m_config.enable_profiling;
