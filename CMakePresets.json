@@ -5,11 +5,6 @@
     "minor": 20,
     "patch": 0
   },
-  "include": [
-    {
-      "file": "${sourceDir}/cmake/Presets.json"
-    }
-  ],
   "configurePresets": [
     {
       "name": "default",

@@ -5,7 +5,7 @@ project(DearTs VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
+#set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 
 # ==================== CCache 配置 ====================
 # CCache 是一个编译器缓存工具，可以显著加快重复编译速度
@@ -105,39 +105,47 @@ option(ENABLE_FFMPEG "Enable FFmpeg support for video/audio processing" ON)
 
 if(ENABLE_FFMPEG)
     message(STATUS "Looking for FFmpeg...")
-    
-    # 尝试查找 FFmpeg（使用 vcpkg）
+
+    # 查找 FFmpeg（vcpkg 提供的 FindFFMPEG.cmake）
     find_package(FFMPEG QUIET)
-    
-    # 检查 vcpkg 创建的 CMake 目标
-    if(TARGET FFmpeg::avcodec AND TARGET FFmpeg::avformat AND TARGET FFmpeg::avutil)
-        message(STATUS "FFmpeg: Found (vcpkg targets)")
-        
+
+    # vcpkg 的 FFmpeg 包提供 FFMPEG_FOUND 变量而非 CMake 目标
+    if(FFMPEG_FOUND)
+        message(STATUS "FFmpeg: Found (v${FFMPEG_VERSION})")
+
+        # 显示找到的库
+        if(DEFINED FFMPEG_LIBRARIES)
+            message(STATUS "  Libraries: ${FFMPEG_LIBRARIES}")
+        endif()
+
+        # 显示头文件路径
+        if(DEFINED FFMPEG_INCLUDE_DIRS)
+            message(STATUS "  Include dirs: ${FFMPEG_INCLUDE_DIRS}")
+        endif()
+
         # 创建 FFmpeg 接口库
         add_library(ffmpeg_interface INTERFACE)
-        
-        # 链接 FFmpeg 库（vcpkg 提供的导入目标）
-        target_link_libraries(ffmpeg_interface INTERFACE
-            FFmpeg::avcodec
-            FFmpeg::avformat
-            FFmpeg::avutil
-            FFmpeg::swscale
-            FFmpeg::swresample
-        )
-        
+
+        # 添加头文件目录
+        target_include_directories(ffmpeg_interface INTERFACE ${FFMPEG_INCLUDE_DIRS})
+
+        # 链接 FFmpeg 库
+        target_link_libraries(ffmpeg_interface INTERFACE ${FFMPEG_LIBRARIES})
+
         # 添加 FFmpeg 编译定义
         target_compile_definitions(ffmpeg_interface INTERFACE
             DEARTS_FFMPEG_SUPPORT=1
         )
-        
+
         message(STATUS "FFmpeg: Enabled")
     else()
         message(WARNING "FFmpeg not found. Video/audio features will be disabled.")
         message(STATUS "  To enable FFmpeg:")
         message(STATUS "    1. Install vcpkg: https://github.com/Microsoft/vcpkg")
         message(STATUS "    2. Run: vcpkg install ffmpeg:x64-windows")
-        message(STATUS "    3. Use CMake preset: cmake --preset default")
-        
+        message(STATUS "    3. Set VCPKG_ROOT environment variable")
+        message(STATUS "    4. Use CMake preset: cmake --preset default")
+
         # 创建空的接口库
         add_library(ffmpeg_interface INTERFACE)
         target_compile_definitions(ffmpeg_interface INTERFACE
@@ -154,11 +162,6 @@ endif()
 
 # FFmpeg 配置结束
 # ==============================================================
-
-# ==============================================================
-
-# =============================================================
-# ==================== FFmpeg 配置 ====================# FFmpeg 是一个强大的音视频处理库## 安装方法：#   Windows:#     1. 安装 vcpkg: https://github.com/Microsoft/vcpkg#     2. 运行: vcpkg install ffmpeg:x64-windows#     3. 设置环境变量: VCPKG_ROOT=<vcpkg 路径>#   Linux:#     1. 安装 vcpkg#     2. 运行: vcpkg install ffmpeg:x64-linux## CMake 集成：#   - vcpkg 会自动提供 FFmpeg CMake 目标#   - 使用: target_link_libraries(${TARGET} PRIVATE ffmpeg::avcodec ffmpeg::avformat ...)#   - 定义: DEARTS_FFMPEG_SUPPORT 宏用于条件编译## 依赖库：#   - ffmpeg::avcodec    - 编解码器库#   - ffmpeg::avformat   - 容器格式库#   - ffmpeg::avutil     - 工具库#   - ffmpeg::swscale    - 图像缩放库#   - ffmpeg::swresample - 音频重采样库## 禁用方法：#   - 设置: -DENABLE_FFMPEG=OFF# ==============================================================option(ENABLE_FFMPEG "Enable FFmpeg support for video/audio processing" ON)if(ENABLE_FFMPEG)    message(STATUS "Looking for FFmpeg...")    # vcpkg 提供的 FFmpeg 包使用 FFMPEG 作为包名（大写）    find_package(FFMPEG QUIET COMPONENTS        AVCODEC        AVFORMAT        AVUTIL        SWSCALE        SWRESAMPLE    )    if(FFMPEG_FOUND)        message(STATUS "FFmpeg: Found")        # 获取 FFmpeg 版本信息        if(DEFINED FFMPEG_VERSION)            message(STATUS "  Version: ${FFMPEG_VERSION}")        endif()        # 获取 FFmpeg 库路径        if(DEFINED FFMPEG_LIBRARIES)            message(STATUS "  Libraries: ${FFMPEG_LIBRARIES}")        endif()        # 获取 FFmpeg 头文件路径        if(DEFINED FFMPEG_INCLUDE_DIRS)            message(STATUS "  Include dirs: ${FFMPEG_INCLUDE_DIRS}")        endif()        # 检查是否所有必需的组件都找到        set(FFMPEG_ALL_COMPONENTS_FOUND TRUE)        foreach(component IN ITEMS AVCODEC AVFORMAT AVUTIL SWSCALE SWRESAMPLE)            if(NOT FFMPEG_${component}_FOUND)                set(FFMPEG_ALL_COMPONENTS_FOUND FALSE)                message(WARNING "  FFmpeg component ${component} not found")            endif()        endforeach()        if(FFMPEG_ALL_COMPONENTS_FOUND)            message(STATUS "FFmpeg: All required components found")            # 创建 FFmpeg 接口库            add_library(ffmpeg_interface INTERFACE)            # 链接 FFmpeg 库            target_include_directories(ffmpeg_interface INTERFACE ${FFMPEG_INCLUDE_DIRS})            target_link_libraries(ffmpeg_interface INTERFACE                ${FFMPEG_LIBRARIES}            )            # 添加 FFmpeg 编译定义            target_compile_definitions(ffmpeg_interface INTERFACE                DEARTS_FFMPEG_SUPPORT=1            )            message(STATUS "FFmpeg: Enabled")        else()            message(WARNING "FFmpeg: Not all components found, FFmpeg support will be disabled")            add_library(ffmpeg_interface INTERFACE)            target_compile_definitions(ffmpeg_interface INTERFACE                DEARTS_FFMPEG_SUPPORT=0            )        endif()    else()        message(WARNING "FFmpeg not found. Video/audio transcoding will be disabled.")        message(STATUS "  To enable FFmpeg:")        message(STATUS "    1. Install vcpkg: https://github.com/Microsoft/vcpkg")        message(STATUS "    2. Run: vcpkg install ffmpeg:x64-windows")        message(STATUS "    3. Set VCPKG_ROOT environment variable")        message(STATUS "    4. Reconfigure CMake")        add_library(ffmpeg_interface INTERFACE)        target_compile_definitions(ffmpeg_interface INTERFACE            DEARTS_FFMPEG_SUPPORT=0        )    endif()else()    message(STATUS "FFmpeg: Disabled by ENABLE_FFMPEG=OFF")    add_library(ffmpeg_interface INTERFACE)    target_compile_definitions(ffmpeg_interface INTERFACE        DEARTS_FFMPEG_SUPPORT=0    )endif()# FFmpeg 配置结束# ==============================================================
 
 # MSVC: Enable /Zc:preprocessor for __VA_OPT__ support (C++20)
 if(MSVC)
