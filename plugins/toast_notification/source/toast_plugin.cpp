@@ -7,8 +7,10 @@
 #include "toast_manager.hpp"
 #include "toast_view.hpp"
 #include "core/content/commands.h"
+#include "core/tasks/task_manager.h"
 #include "liblogger/logger.h"
 #include <imgui.h>
+#include <format>
 
 namespace DearTs::Plugins::Toast {
 
@@ -37,6 +39,9 @@ Core::Result<void, std::string> ToastPlugin::on_load() {
         // 注册命令
         register_commands();
 
+        // 订阅任务事件
+        subscribe_task_events();
+
         LOG_INFO("ToastPlugin: Loaded successfully");
         return Core::Result<void, std::string>::ok();
 
@@ -49,6 +54,9 @@ Core::Result<void, std::string> ToastPlugin::on_load() {
 
 void ToastPlugin::on_unload() {
     LOG_INFO("ToastPlugin: Unloading...");
+
+    // 取消订阅任务事件
+    unsubscribe_task_events();
 
     // 保存配置
     save_config();
@@ -232,6 +240,95 @@ void ToastPlugin::save_config() {
     m_config.set("click_to_close", config.click_to_close);
 
     LOG_DEBUG("ToastPlugin: Configuration saved");
+}
+
+void ToastPlugin::subscribe_task_events() {
+    LOG_DEBUG("ToastPlugin: Subscribing to task events...");
+
+    auto& event_bus = Core::Event::EventBus::instance();
+
+    // 订阅任务开始事件
+    m_taskStartedToken = event_bus.subscribe<Core::Tasks::TaskStartedEvent>(
+        [this](const Core::Tasks::TaskStartedEvent& event) {
+            this->on_task_started(event);
+        }
+    );
+
+    // 订阅任务完成事件
+    m_taskCompletedToken = event_bus.subscribe<Core::Tasks::TaskCompletedEvent>(
+        [this](const Core::Tasks::TaskCompletedEvent& event) {
+            this->on_task_completed(event);
+        }
+    );
+
+    // 订阅任务失败事件
+    m_taskFailedToken = event_bus.subscribe<Core::Tasks::TaskFailedEvent>(
+        [this](const Core::Tasks::TaskFailedEvent& event) {
+            this->on_task_failed(event);
+        }
+    );
+
+    // 订阅任务取消事件
+    m_taskCancelledToken = event_bus.subscribe<Core::Tasks::TaskCancelledEvent>(
+        [this](const Core::Tasks::TaskCancelledEvent& event) {
+            this->on_task_cancelled(event);
+        }
+    );
+
+    LOG_DEBUG("ToastPlugin: Task events subscribed");
+}
+
+void ToastPlugin::unsubscribe_task_events() {
+    LOG_DEBUG("ToastPlugin: Unsubscribing from task events...");
+
+    auto& event_bus = Core::Event::EventBus::instance();
+
+    // 取消订阅所有任务事件
+    event_bus.unsubscribe<Core::Tasks::TaskStartedEvent>(m_taskStartedToken);
+    event_bus.unsubscribe<Core::Tasks::TaskCompletedEvent>(m_taskCompletedToken);
+    event_bus.unsubscribe<Core::Tasks::TaskFailedEvent>(m_taskFailedToken);
+    event_bus.unsubscribe<Core::Tasks::TaskCancelledEvent>(m_taskCancelledToken);
+
+    LOG_DEBUG("ToastPlugin: Task events unsubscribed");
+}
+
+void ToastPlugin::on_task_started(const Core::Tasks::TaskStartedEvent& event) {
+    // 任务开始时显示信息气泡
+    ToastManager::instance().info(
+        "任务开始",
+        std::format("正在执行: {}", event.task_name)
+    );
+}
+
+void ToastPlugin::on_task_completed(const Core::Tasks::TaskCompletedEvent& event) {
+    // 任务完成时显示成功气泡
+    ToastManager::instance().success(
+        "任务完成",
+        std::format("{} 已成功完成 (耗时: {:.1f}ms)", 
+                  event.task_name, 
+                  event.duration_ms)
+    );
+}
+
+void ToastPlugin::on_task_failed(const Core::Tasks::TaskFailedEvent& event) {
+    // 任务失败时显示错误气泡
+    ToastManager::instance().error(
+        "任务失败",
+        std::format("{} 失败: {} (耗时: {:.1f}ms)", 
+                  event.task_name, 
+                  event.error_message,
+                  event.duration_ms)
+    );
+}
+
+void ToastPlugin::on_task_cancelled(const Core::Tasks::TaskCancelledEvent& event) {
+    // 任务取消时显示警告气泡
+    ToastManager::instance().warning(
+        "任务已取消",
+        std::format("{} 已被取消 (耗时: {:.1f}ms)", 
+                  event.task_name, 
+                  event.duration_ms)
+    );
 }
 
 } // namespace DearTs::Plugins::Toast

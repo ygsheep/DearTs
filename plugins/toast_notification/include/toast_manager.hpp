@@ -19,17 +19,17 @@ namespace DearTs::Plugins::Toast {
  *
  * 管理所有 Toast 消息的生命周期
  */
-class ToastManager {
+class ToastManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static ToastManager& instance() {
+    static ToastManager& instance() noexcept {
         static ToastManager s_instance;
         return s_instance;
     }
 
-    // 禁止拷贝和移动
+    // 删除所有拷贝和移动操作
     ToastManager(const ToastManager&) = delete;
     ToastManager& operator=(const ToastManager&) = delete;
     ToastManager(ToastManager&&) = delete;

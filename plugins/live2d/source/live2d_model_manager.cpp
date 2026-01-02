@@ -4,9 +4,11 @@
  */
 
 #include "live2d_model_manager.hpp"
+#include "core/tasks/task_manager.h"
 #include "liblogger/logger.h"
 #include <nlohmann/json.hpp>
 #include <filesystem>
+#include <format>
 
 #ifdef ERROR
 #undef ERROR
@@ -19,11 +21,6 @@ namespace fs = std::filesystem;
 // ============================================================================
 // 单例实现
 // ============================================================================
-
-Live2DModelManager& Live2DModelManager::instance() {
-    static Live2DModelManager s_instance;
-    return s_instance;
-}
 
 Live2DModelManager::~Live2DModelManager() {
     LOG_INFO("Live2DModelManager: Destroying manager, unloading all models");
@@ -135,9 +132,12 @@ Result<void, std::string> Live2DModelManager::load_model(const std::string& mode
     }
 
     // 检查模型是否已加载
-    if (m_loaded_models.find(model_id) != m_loaded_models.end()) {
-        LOG_WARN("Live2DModelManager: Model '{}' already loaded", model_id);
-        return Result<void, std::string>::ok();
+    {
+        std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
+        if (m_loaded_models.find(model_id) != m_loaded_models.end()) {
+            LOG_WARN("Live2DModelManager: Model '{}' already loaded", model_id);
+            return Result<void, std::string>::ok();
+        }
     }
 
     LOG_INFO("Live2DModelManager: Loading model '{}'", model_id);
@@ -157,28 +157,105 @@ Result<void, std::string> Live2DModelManager::load_model(const std::string& mode
     }
 
     // 添加到已加载列表
-    m_loaded_models[model_id] = std::move(model_instance);
+    {
+        std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
+        m_loaded_models[model_id] = std::move(model_instance);
+    }
 
     LOG_INFO("Live2DModelManager: Model '{}' loaded successfully", model_id);
     return Result<void, std::string>::ok();
 }
 
+std::shared_ptr<Core::Tasks::Task> Live2DModelManager::load_model_async(const std::string& model_id) {
+    // 检查模型是否已注册
+    auto reg_it = m_registered_models.find(model_id);
+    if (reg_it == m_registered_models.end()) {
+        LOG_ERROR("Live2DModelManager: Model not registered: {}", model_id);
+        return nullptr;
+    }
+
+    // 检查模型是否已加载
+    {
+        std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
+        if (m_loaded_models.find(model_id) != m_loaded_models.end()) {
+            LOG_WARN("Live2DModelManager: Model '{}' already loaded", model_id);
+            return nullptr;
+        }
+    }
+
+    // 获取模型注册信息
+    const auto& registration = reg_it->second;
+    std::filesystem::path model_dir = fs::path(registration.model_json_file).parent_path();
+
+    // 创建异步加载任务
+    auto task = Core::Tasks::TaskManager::instance().launch(
+        std::format("加载模型: {}", model_id),
+        [this, model_id, model_dir](const std::atomic<bool>& should_cancel) {
+            LOG_INFO("Live2DModelManager: Async loading model '{}'", model_id);
+
+            // 模拟加载进度
+            for (int i = 0; i <= 100 && !should_cancel; i += 10) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                // 在实际实现中，这里应该更新真实的加载进度
+            }
+
+            if (should_cancel) {
+                LOG_INFO("Live2DModelManager: Model loading cancelled: {}", model_id);
+                return;
+            }
+
+            // 创建模型实例
+            auto model_instance = std::make_unique<Live2DModelInstance>();
+
+            // 从目录加载模型
+            auto result = model_instance->load_from_directory(model_dir);
+            if (result.isErr()) {
+                throw std::runtime_error(
+                    std::format("Failed to load model '{}': {}", model_id, result.error())
+                );
+            }
+
+            // 添加到已加载列表（需要在主线程执行）
+            // 这里使用互斥锁保护
+            {
+                std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
+                m_loaded_models[model_id] = std::move(model_instance);
+            }
+
+            LOG_INFO("Live2DModelManager: Model '{}' loaded successfully", model_id);
+        },
+        Core::Tasks::TaskType::Background
+    );
+
+    return task;
+}
+
 void Live2DModelManager::unload_model(const std::string& model_id) {
-    auto it = m_loaded_models.find(model_id);
-    if (it == m_loaded_models.end()) {
-        return;
+    std::unique_ptr<Live2DModelInstance> model_to_unload;
+
+    {
+        std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
+        auto it = m_loaded_models.find(model_id);
+        if (it == m_loaded_models.end()) {
+            return;
+        }
+
+        LOG_INFO("Live2DModelManager: Unloading model '{}'", model_id);
+
+        // 如果是活动模型，清除活动状态
+        if (m_active_model_id == model_id) {
+            m_active_model_id.clear();
+        }
+
+        // 移动模型实例到锁外
+        model_to_unload = std::move(it->second);
+        m_loaded_models.erase(it);
     }
 
-    LOG_INFO("Live2DModelManager: Unloading model '{}'", model_id);
-
-    // 如果是活动模型，清除活动状态
-    if (m_active_model_id == model_id) {
-        m_active_model_id.clear();
+    // 在锁外卸载模型
+    if (model_to_unload) {
+        model_to_unload->unload();
     }
-
-    // 卸载模型
-    it->second->unload();
-    m_loaded_models.erase(it);
 
     LOG_INFO("Live2DModelManager: Model '{}' unloaded", model_id);
 }
@@ -208,10 +285,13 @@ Result<void, std::string> Live2DModelManager::set_active_model(const std::string
     }
 
     // 检查模型是否已加载
-    if (m_loaded_models.find(model_id) == m_loaded_models.end()) {
-        return Result<void, std::string>::err(
-            "Cannot set active model: '" + model_id + "' is not loaded"
-        );
+    {
+        std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
+        if (m_loaded_models.find(model_id) == m_loaded_models.end()) {
+            return Result<void, std::string>::err(
+                "Cannot set active model: '" + model_id + "' is not loaded"
+            );
+        }
     }
 
     // 设置活动模型
@@ -226,6 +306,7 @@ Live2DModelInstance* Live2DModelManager::get_active_model() {
         return nullptr;
     }
 
+    std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
     auto it = m_loaded_models.find(m_active_model_id);
     if (it == m_loaded_models.end()) {
         LOG_WARN("Live2DModelManager: Active model '{}' not found in loaded models",
@@ -238,6 +319,7 @@ Live2DModelInstance* Live2DModelManager::get_active_model() {
 }
 
 Live2DModelInstance* Live2DModelManager::get_model(const std::string& model_id) {
+    std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
     auto it = m_loaded_models.find(model_id);
     if (it == m_loaded_models.end()) {
         return nullptr;
@@ -246,6 +328,7 @@ Live2DModelInstance* Live2DModelManager::get_model(const std::string& model_id) 
 }
 
 bool Live2DModelManager::is_model_loaded(const std::string& model_id) const {
+    std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
     return m_loaded_models.find(model_id) != m_loaded_models.end();
 }
 
@@ -266,10 +349,14 @@ std::vector<std::string> Live2DModelManager::get_registered_models() const {
 
 std::vector<std::string> Live2DModelManager::get_loaded_models() const {
     std::vector<std::string> models;
-    models.reserve(m_loaded_models.size());
 
-    for (const auto& pair : m_loaded_models) {
-        models.push_back(pair.first);
+    {
+        std::lock_guard<std::mutex> lock(m_loaded_models_mutex);
+        models.reserve(m_loaded_models.size());
+
+        for (const auto& pair : m_loaded_models) {
+            models.push_back(pair.first);
+        }
     }
 
     return models;

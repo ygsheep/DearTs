@@ -11,6 +11,7 @@
 
 #include "live2d_model_instance.hpp"
 #include "core/result.h"
+#include "core/tasks/task_manager.h"
 #include <SDL3/SDL.h>
 #include <memory>
 #include <string>
@@ -21,6 +22,7 @@ namespace DearTs::Plugins::Live2D {
 
 // 导入 Result 类型到当前命名空间
 using DearTs::Core::Result;
+using namespace DearTs::Core::Tasks;
 
 /**
  * @brief 模型注册信息
@@ -61,12 +63,21 @@ struct ModelRegistration {
  * manager.set_active_model("haru");
  * ```
  */
-class Live2DModelManager {
+class Live2DModelManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static Live2DModelManager& instance();
+    static Live2DModelManager& instance() noexcept {
+        static Live2DModelManager instance;
+        return instance;
+    }
+
+    // 删除所有拷贝和移动操作
+    Live2DModelManager(const Live2DModelManager&) = delete;
+    Live2DModelManager& operator=(const Live2DModelManager&) = delete;
+    Live2DModelManager(Live2DModelManager&&) = delete;
+    Live2DModelManager& operator=(Live2DModelManager&&) = delete;
 
     /**
      * @brief 注册模型
@@ -93,12 +104,20 @@ public:
     );
 
     /**
-     * @brief 加载模型
+     * @brief 加载模型（同步）
      *
      * @param model_id 模型 ID
      * @return Result<void, std::string> 成功或错误信息
      */
     Result<void, std::string> load_model(const std::string& model_id);
+
+    /**
+     * @brief 异步加载模型（使用任务系统）
+     *
+     * @param model_id 模型 ID
+     * @return 任务指针，可用于取消加载
+     */
+    std::shared_ptr<Core::Tasks::Task> load_model_async(const std::string& model_id);
 
     /**
      * @brief 卸载模型
@@ -181,12 +200,6 @@ private:
     Live2DModelManager() = default;
     ~Live2DModelManager();
 
-    // 禁止拷贝和移动
-    Live2DModelManager(const Live2DModelManager&) = delete;
-    Live2DModelManager& operator=(const Live2DModelManager&) = delete;
-    Live2DModelManager(Live2DModelManager&&) = delete;
-    Live2DModelManager& operator=(Live2DModelManager&&) = delete;
-
     /**
      * @brief 查找目录中的 .model3.json 文件
      *
@@ -213,6 +226,9 @@ private:
 
     // 已加载的模型实例
     std::unordered_map<std::string, std::unique_ptr<Live2DModelInstance>> m_loaded_models;
+
+    // 互斥锁，保护已加载模型的访问
+    mutable std::mutex m_loaded_models_mutex;
 
     // 活动模型 ID
     std::string m_active_model_id;

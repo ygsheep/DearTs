@@ -79,9 +79,19 @@ set(PLUGIN_SOURCES
     source/live2d_plugin.cpp
     source/live2d_model_instance.cpp
     source/live2d_model_manager.cpp
+    source/widgets/live2d_settings_widget.cpp
+    source/views/live2d_settings_view.cpp
     renderer/live2d_renderer_gl.cpp
     renderer/sdl_texture_uploader.cpp
+    # Core dependencies (for View, ContentRegistry, etc.)
     ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
+    ${CMAKE_SOURCE_DIR}/core/content/settings.cpp
+    ${CMAKE_SOURCE_DIR}/core/content/commands.cpp
+    ${CMAKE_SOURCE_DIR}/core/content/tools.cpp
+    ${CMAKE_SOURCE_DIR}/core/content/callbacks.cpp
+    ${CMAKE_SOURCE_DIR}/core/content/project_manager.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
 )
 
 # Plugin header files
@@ -89,6 +99,8 @@ set(PLUGIN_HEADERS
     include/live2d_plugin.hpp
     include/live2d_model_instance.hpp
     include/live2d_model_manager.hpp
+    include/widgets/live2d_settings_widget.hpp
+    include/views/live2d_settings_view.hpp
     renderer/ilive2d_renderer.hpp
     renderer/live2d_renderer_gl.hpp
     renderer/sdl_texture_uploader.hpp
@@ -113,7 +125,10 @@ target_include_directories(${PROJECT_NAME}
         ${LIVE2D_FRAMEWORK_DIR}/src
         ${GLEW_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/widgets
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/views
         ${CMAKE_CURRENT_SOURCE_DIR}/renderer
+        ${CMAKE_SOURCE_DIR}/plugins/settings/include
 )
 
 # Link libraries
@@ -123,6 +138,7 @@ target_link_libraries(${PROJECT_NAME}
         SDL3_image-static
         deartsdl_logger
         glew_s
+        imgui
 )
 
 # Link Live2D Core library

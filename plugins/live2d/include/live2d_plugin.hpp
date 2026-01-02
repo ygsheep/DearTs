@@ -29,15 +29,53 @@ using DearTs::Core::Plugin::PluginInfo;
 using DearTs::Core::Config::ConfigScope;
 
 /**
+ * @brief Live2D 模型位置
+ */
+enum class Live2DModelPosition {
+    TopLeft,        ///< 左上角
+    TopCenter,      ///< 顶部居中
+    TopRight,       ///< 右上角
+    CenterLeft,     ///< 左侧居中
+    Center,         ///< 居中
+    CenterRight,    ///< 右侧居中
+    BottomLeft,     ///< 左下角
+    BottomCenter,   ///< 底部居中
+    BottomRight,    ///< 右下角
+};
+
+/**
  * @brief Live2D 插件配置
  */
 struct Live2DPluginConfig {
-    std::string models_directory = "models/live2d";    ///< 模型目录
-    bool enable_profiling = false;                     ///< 是否启用性能分析
-    bool use_fbo = false;                              ///< 是否使用 FBO
-    int fbo_downsample = 1;                            ///< FBO 降采样比例
-    bool auto_play_idle_motion = true;                 ///< 是否自动播放待机动作
-    float model_scale = 1.0f;                          ///< 模型缩放
+    // === 模型设置 ===
+    std::string models_directory = "resources/live2d";    ///< 模型目录
+    std::string active_model = "";                       ///< 当前活动模型 ID
+    float model_scale = 1.0f;                           ///< 模型缩放
+    Live2DModelPosition model_position = Live2DModelPosition::BottomRight;  ///< 模型位置
+    int model_x_offset = 0;                             ///< X 轴偏移
+    int model_y_offset = 0;                             ///< Y 轴偏移
+    float model_opacity = 1.0f;                         ///< 模型透明度 (0.0 - 1.0)
+
+    // === 渲染设置 ===
+    bool use_fbo = false;                               ///< 是否使用 FBO
+    int fbo_downsample = 1;                             ///< FBO 降采样比例 (1, 2, 4)
+    bool enable_profiling = false;                      ///< 是否启用性能分析
+
+    // === 动画设置 ===
+    bool auto_play_idle_motion = true;                  ///< 是否自动播放待机动作
+    float motion_speed = 1.0f;                          ///< 动作播放速度
+    bool enable_breath = true;                          ///< 是否启用呼吸效果
+    bool enable_eye_blink = true;                       ///< 是否启用眨眼
+    bool enable_physics = true;                         ///< 是否启用物理模拟
+
+    // === 交互设置 ===
+    bool enable_mouse_follow = false;                   ///< 是否启用鼠标跟随
+    float mouse_follow_intensity = 0.5f;                ///< 鼠标跟随强度 (0.0 - 1.0)
+    bool enable_drag = false;                           ///< 是否启用拖拽
+
+    // === 调试设置 ===
+    bool show_hit_areas = false;                        ///< 是否显示碰撞区域
+    bool show_parameters = false;                       ///< 是否显示参数列表
 };
 
 /**
@@ -148,6 +186,7 @@ public:
     /**
      * @brief 获取插件配置
      */
+    Live2DPluginConfig& get_config() { return m_config; }
     const Live2DPluginConfig& get_config() const { return m_config; }
 
     /**
@@ -173,6 +212,16 @@ private:
     void cleanup_renderer();
 
     /**
+     * @brief 确保渲染器已初始化（延迟初始化）
+     */
+    void ensure_renderer_initialized();
+
+    /**
+     * @brief 加载扫描到的模型（在渲染器初始化后调用）
+     */
+    void load_discovered_models();
+
+    /**
      * @brief 注册命令
      */
     void register_commands();
@@ -183,6 +232,11 @@ private:
     void register_settings();
 
     /**
+     * @brief 注册视图
+     */
+    void register_views();
+
+    /**
      * @brief 扫描并加载模型目录
      */
     void scan_models_directory();
@@ -191,10 +245,12 @@ private:
     Live2DPluginConfig m_config;
     std::unique_ptr<Live2DRendererGL> m_renderer;
     std::unique_ptr<SDLTextureUploader> m_texture_uploader;
+    bool m_renderer_initialized = false;
 
     // 模型管理
     std::unordered_map<std::string, std::unique_ptr<Live2DModelInstance>> m_models;
     std::string m_active_model_name;
+    std::vector<std::string> m_discovered_models;  // 扫描到的模型（延迟加载）
 
     // 事件订阅（RAII 自动取消）
     std::vector<DearTs::Core::Event::EventToken> m_event_tokens;
