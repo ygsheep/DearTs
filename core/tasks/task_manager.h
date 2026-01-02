@@ -17,6 +17,8 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
+#include <chrono>
+#include "task_events.h"
 
 namespace DearTs::Core::Tasks {
 
@@ -44,7 +46,7 @@ enum class TaskStatus {
 /**
  * @brief 任务类
  */
-class Task {
+class Task : public std::enable_shared_from_this<Task> {
 public:
     using TaskFunc = std::function<void(const std::atomic<bool>& should_cancel)>;
 
@@ -71,7 +73,7 @@ public:
     /**
      * @brief 设置任务类型
      */
-    void setType(TaskType type) { m_type = type; }
+    void setType(const TaskType& type) { m_type = type; }
 
     /**
      * @brief 获取任务状态
@@ -98,7 +100,7 @@ public:
     /**
      * @brief 更新进度
      */
-    void setProgress(float progress) {
+    void setProgress(const float progress) {
         m_progress = std::min(progress, m_max_progress);
         if (m_progress >= m_max_progress) {
             m_status = TaskStatus::Completed;
@@ -108,7 +110,7 @@ public:
     /**
      * @brief 增加进度
      */
-    void addProgress(float delta) {
+    void addProgress(const float delta) {
         m_progress += delta;
         if (m_progress >= m_max_progress) {
             m_progress = m_max_progress;
@@ -161,20 +163,12 @@ private:
     /**
      * @brief 标记任务完成
      */
-    void markCompleted() {
-        m_progress = m_max_progress;  // 完成时自动设置为最大进度
-        m_status = TaskStatus::Completed;
-        if (m_completed_callback) {
-            m_completed_callback();
-        }
-    }
+    void markCompleted();
 
     /**
      * @brief 标记任务失败
      */
-    void markFailed() {
-        m_status = TaskStatus::Failed;
-    }
+    void markFailed(const std::string& error_message = "Unknown error");
 
 private:
     std::string m_name;
@@ -182,11 +176,13 @@ private:
     TaskType m_type = TaskType::Normal;
     TaskStatus m_status = TaskStatus::Pending;
 
-    float m_progress = 0.0f;
+    float m_progress = 0.0F;
     float m_max_progress;
 
     std::atomic<bool> m_should_cancel;
     std::function<void()> m_completed_callback;
+
+    std::chrono::steady_clock::time_point m_start_time;  ///< 任务开始时间
 
     friend class TaskManager;
 };
@@ -196,15 +192,21 @@ private:
  *
  * 管理任务的生命周期、执行和状态跟踪
  */
-class TaskManager {
+class TaskManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static TaskManager& instance() {
+    static TaskManager& instance() noexcept {
         static TaskManager inst;
         return inst;
     }
+
+    // 删除所有拷贝和移动操作
+    TaskManager(const TaskManager&) = delete;
+    TaskManager& operator=(const TaskManager&) = delete;
+    TaskManager(TaskManager&&) = delete;
+    TaskManager& operator=(TaskManager&&) = delete;
 
     /**
      * @brief 创建任务
@@ -278,10 +280,6 @@ public:
 private:
     TaskManager() = default;
     ~TaskManager();
-
-    // 禁止拷贝
-    TaskManager(const TaskManager&) = delete;
-    TaskManager& operator=(const TaskManager&) = delete;
 
 private:
     std::vector<std::shared_ptr<Task>> m_tasks;

@@ -38,15 +38,21 @@ enum class BackgroundMode {
  * - 自动适配窗口大小变化
  * - 支持 PNG/JPG 等常见图片格式
  */
-class BackgroundRenderer {
+class BackgroundRenderer final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static BackgroundRenderer& instance() {
+    static BackgroundRenderer& instance() noexcept {
         static BackgroundRenderer inst;
         return inst;
     }
+
+    // 删除所有拷贝和移动操作
+    BackgroundRenderer(const BackgroundRenderer&) = delete;
+    BackgroundRenderer& operator=(const BackgroundRenderer&) = delete;
+    BackgroundRenderer(BackgroundRenderer&&) = delete;
+    BackgroundRenderer& operator=(BackgroundRenderer&&) = delete;
 
     /**
      * @brief 设置 SDL 渲染器
@@ -120,10 +126,6 @@ public:
 private:
     BackgroundRenderer();
     ~BackgroundRenderer();
-
-    // 禁止拷贝
-    BackgroundRenderer(const BackgroundRenderer&) = delete;
-    BackgroundRenderer& operator=(const BackgroundRenderer&) = delete;
 
     /**
      * @brief 从文件加载纹理

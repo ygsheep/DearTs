@@ -35,12 +35,21 @@ struct CommandItem {
 /**
  * @brief 命令注册表类
  */
-class Registry {
+class Registry final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static Registry& instance();
+    static Registry& instance() noexcept {
+        static Registry instance;
+        return instance;
+    }
+
+    // 删除所有拷贝和移动操作
+    Registry(const Registry&) = delete;
+    Registry& operator=(const Registry&) = delete;
+    Registry(Registry&&) = delete;
+    Registry& operator=(Registry&&) = delete;
 
     /**
      * @brief 添加命令
@@ -80,12 +89,6 @@ public:
 private:
     Registry() = default;
     ~Registry() = default;
-
-    // 删除拷贝和移动
-    Registry(const Registry&) = delete;
-    Registry& operator=(const Registry&) = delete;
-    Registry(Registry&&) = delete;
-    Registry& operator=(Registry&&) = delete;
 
     std::vector<CommandItem> m_commands;
 };

@@ -25,6 +25,11 @@
 #include <memory>
 #include <vector>
 
+// Live2D 插件前置声明
+namespace DearTs::Plugins::Live2D {
+class Live2DPlugin;
+}
+
 namespace DearTs::Main::GUI {
 
 /**

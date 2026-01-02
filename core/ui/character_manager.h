@@ -21,7 +21,8 @@ namespace DearTs::Core::UI {
  */
 enum class CharacterType {
     Single,      ///< 单张图片（静态角色）
-    Animated     ///< 多帧动画
+    Animated,    ///< 多帧动画
+    Live2D       ///< Live2D 角色
 };
 
 /**
@@ -48,15 +49,21 @@ struct CharacterInfo {
  * - 角色切换和选择
  * - 角色配置管理
  */
-class CharacterManager {
+class CharacterManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static CharacterManager& instance() {
+    static CharacterManager& instance() noexcept {
         static CharacterManager inst;
         return inst;
     }
+
+    // 删除所有拷贝和移动操作
+    CharacterManager(const CharacterManager&) = delete;
+    CharacterManager& operator=(const CharacterManager&) = delete;
+    CharacterManager(CharacterManager&&) = delete;
+    CharacterManager& operator=(CharacterManager&&) = delete;
 
     /**
      * @brief 注册角色
@@ -142,10 +149,6 @@ public:
 private:
     CharacterManager() = default;
     ~CharacterManager() = default;
-
-    // 禁止拷贝
-    CharacterManager(const CharacterManager&) = delete;
-    CharacterManager& operator=(const CharacterManager&) = delete;
 
     /**
      * @brief 触发角色变更回调

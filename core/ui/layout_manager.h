@@ -22,15 +22,21 @@ namespace DearTs::Core::UI {
  * 管理窗口布局的保存、加载和恢复功能
  * 基于 ImGui 的 INI 设置持久化系统
  */
-class LayoutManager {
+class LayoutManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static LayoutManager& instance() {
+    static LayoutManager& instance() noexcept {
         static LayoutManager inst;
         return inst;
     }
+
+    // 删除所有拷贝和移动操作
+    LayoutManager(const LayoutManager&) = delete;
+    LayoutManager& operator=(const LayoutManager&) = delete;
+    LayoutManager(LayoutManager&&) = delete;
+    LayoutManager& operator=(LayoutManager&&) = delete;
 
     /**
      * @brief 保存当前布局到文件
@@ -118,10 +124,6 @@ public:
 private:
     LayoutManager() = default;
     ~LayoutManager() = default;
-
-    // 禁止拷贝
-    LayoutManager(const LayoutManager&) = delete;
-    LayoutManager& operator=(const LayoutManager&) = delete;
 
     /**
      * @brief 获取默认布局文件路径

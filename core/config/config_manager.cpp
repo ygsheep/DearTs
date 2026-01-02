@@ -11,11 +11,6 @@
 
 namespace DearTs::Core::Config {
 
-ConfigManager& ConfigManager::instance() {
-    static ConfigManager instance;
-    return instance;
-}
-
 bool ConfigManager::has(const std::string& key) const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_values.find(key) != m_values.end();

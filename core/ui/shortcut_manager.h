@@ -86,15 +86,21 @@ struct ShortcutBinding {
  *
  * 管理应用程序的快捷键绑定和分发
  */
-class ShortcutManager {
+class ShortcutManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static ShortcutManager& instance() {
+    static ShortcutManager& instance() noexcept {
         static ShortcutManager inst;
         return inst;
     }
+
+    // 删除所有拷贝和移动操作
+    ShortcutManager(const ShortcutManager&) = delete;
+    ShortcutManager& operator=(const ShortcutManager&) = delete;
+    ShortcutManager(ShortcutManager&&) = delete;
+    ShortcutManager& operator=(ShortcutManager&&) = delete;
 
     /**
      * @brief 添加快捷键
@@ -155,10 +161,6 @@ public:
 private:
     ShortcutManager() = default;
     ~ShortcutManager() = default;
-
-    // 禁止拷贝
-    ShortcutManager(const ShortcutManager&) = delete;
-    ShortcutManager& operator=(const ShortcutManager&) = delete;
 
 private:
     std::vector<ShortcutBinding> m_bindings;

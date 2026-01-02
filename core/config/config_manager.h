@@ -68,12 +68,21 @@ struct ConfigMeta {
  *     .is_required = false
  * });
  */
-class ConfigManager {
+class ConfigManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static ConfigManager& instance();
+    static ConfigManager& instance() noexcept {
+        static ConfigManager instance;
+        return instance;
+    }
+
+    // 删除所有拷贝和移动操作
+    ConfigManager(const ConfigManager&) = delete;
+    ConfigManager& operator=(const ConfigManager&) = delete;
+    ConfigManager(ConfigManager&&) = delete;
+    ConfigManager& operator=(ConfigManager&&) = delete;
 
     /**
      * @brief 设置配置值
@@ -274,12 +283,6 @@ public:
 private:
     ConfigManager() = default;
     ~ConfigManager() = default;
-
-    // 删除拷贝和移动
-    ConfigManager(const ConfigManager&) = delete;
-    ConfigManager& operator=(const ConfigManager&) = delete;
-    ConfigManager(ConfigManager&&) = delete;
-    ConfigManager& operator=(ConfigManager&&) = delete;
 
     mutable std::mutex m_mutex;
     std::unordered_map<std::string, ConfigValue> m_values;

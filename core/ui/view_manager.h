@@ -23,15 +23,21 @@ namespace DearTs::Core::UI {
  * 管理所有视图的注册、绘制和停靠功能
  * 参考 ImHex 的 ContentRegistry::Views 系统
  */
-class ViewManager {
+class ViewManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static ViewManager& instance() {
+    static ViewManager& instance() noexcept {
         static ViewManager inst;
         return inst;
     }
+
+    // 删除所有拷贝和移动操作
+    ViewManager(const ViewManager&) = delete;
+    ViewManager& operator=(const ViewManager&) = delete;
+    ViewManager(ViewManager&&) = delete;
+    ViewManager& operator=(ViewManager&&) = delete;
 
     /**
      * @brief 添加视图
@@ -92,10 +98,6 @@ public:
 private:
     ViewManager() = default;
     ~ViewManager() = default;
-
-    // 禁止拷贝
-    ViewManager(const ViewManager&) = delete;
-    ViewManager& operator=(const ViewManager&) = delete;
 
     /**
      * @brief 处理视图停靠
