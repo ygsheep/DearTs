@@ -10,6 +10,7 @@
 #include "core/event/event_bus.h"
 #include "core/config/config_manager.h"
 #include "core/result.h"
+#include "core/tasks/task_events.h"
 
 namespace DearTs::Plugins::Toast {
 
@@ -71,8 +72,42 @@ private:
      */
     void save_config();
 
+    /**
+     * @brief 订阅任务事件
+     */
+    void subscribe_task_events();
+
+    /**
+     * @brief 取消订阅任务事件
+     */
+    void unsubscribe_task_events();
+
+    /**
+     * @brief 处理任务开始事件
+     */
+    void on_task_started(const Core::Tasks::TaskStartedEvent& event);
+
+    /**
+     * @brief 处理任务完成事件
+     */
+    void on_task_completed(const Core::Tasks::TaskCompletedEvent& event);
+
+    /**
+     * @brief 处理任务失败事件
+     */
+    void on_task_failed(const Core::Tasks::TaskFailedEvent& event);
+
+    /**
+     * @brief 处理任务取消事件
+     */
+    void on_task_cancelled(const Core::Tasks::TaskCancelledEvent& event);
+
 private:
     Core::Event::EventToken m_eventToken;  ///< 事件订阅令牌
+    Core::Event::EventToken m_taskStartedToken;    ///< 任务开始事件令牌
+    Core::Event::EventToken m_taskCompletedToken;  ///< 任务完成事件令牌
+    Core::Event::EventToken m_taskFailedToken;     ///< 任务失败事件令牌
+    Core::Event::EventToken m_taskCancelledToken;  ///< 任务取消事件令牌
     Core::Config::ConfigScope m_config{"toast_notification"};  ///< 配置作用域
 };
 

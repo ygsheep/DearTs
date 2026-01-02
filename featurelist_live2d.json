@@ -1,0 +1,818 @@
+{
+  "project": "DearTs-Live2D-Integration",
+  "version": "1.0.0",
+  "last_updated": "2025-01-01T00:00:00Z",
+  "features": [
+    {
+      "id": "phase1-01",
+      "phase": 1,
+      "title": "下载并配置 Live2D Cubism SDK for OpenGL",
+      "priority": "P0",
+      "desc": "下载 Live2D Cubism SDK for Native 4.x 并配置到 third_party/Live2D/ 目录",
+      "test_cases": [
+        "SDK 文件正确解压到 third_party/Live2D/",
+        "CMake 能够找到 Live2D 头文件",
+        "CMake 能够链接 Live2D Core Framework 库"
+      ],
+      "implementation_status": "completed",
+      "test_status": "passed",
+      "git_commit": "a303b2e",
+      "estimated_hours": 2.0,
+      "actual_hours": 2.0,
+      "dependencies": [],
+      "notes": "SDK 已配置到 third_party/Live2D/"
+    },
+    {
+      "id": "phase1-02",
+      "phase": 1,
+      "title": "配置 CMake 构建系统",
+      "priority": "P0",
+      "desc": "在 CMakeLists.txt 中添加 ENABLE_LIVE2D 选项，配置 OpenGL 依赖",
+      "test_cases": [
+        "cmake -DENABLE_LIVE2D=ON 配置成功",
+        "Windows: 正确链接 opengl32.lib",
+        "Linux: 正确链接 OpenGL::GL",
+        "编译 Live2D 插件目标成功"
+      ],
+      "implementation_status": "completed",
+      "test_status": "passed",
+      "git_commit": "ef2227b",
+      "estimated_hours": 3.0,
+      "actual_hours": 4.0,
+      "dependencies": ["phase1-01"],
+      "notes": "CMake 配置完成，GLEW 集成完成"
+    },
+    {
+      "id": "phase1-03",
+      "phase": 1,
+      "title": "创建 ILive2DRenderer 抽象接口",
+      "priority": "P0",
+      "desc": "在 renderer/ilive2d_renderer.hpp 中定义抽象渲染器接口",
+      "test_cases": [
+        "ILive2DRenderer 接口定义完整",
+        "包含所有必需的虚函数",
+        "代码编译通过"
+      ],
+      "implementation_status": "completed",
+      "test_status": "passed",
+      "git_commit": "ef2227b",
+      "estimated_hours": 1.0,
+      "actual_hours": 1.0,
+      "dependencies": [],
+      "notes": "接口设计完成"
+    },
+    {
+      "id": "phase1-04",
+      "phase": 1,
+      "title": "实现 Live2DRendererGL 基础框架",
+      "priority": "P0",
+      "desc": "实现 OpenGL 渲染器的基础框架，包括 FBO 创建和销毁",
+      "test_cases": [
+        "Live2DRendererGL 成功创建 OpenGL FBO",
+        "FBO 分辨率为屏幕分辨率的 1/2",
+        "FBO 像素格式为 GL_RGBA8",
+        "OpenGL 资源正确释放（无内存泄漏）"
+      ],
+      "implementation_status": "completed",
+      "test_status": "passed",
+      "git_commit": "ef2227b",
+      "estimated_hours": 6.0,
+      "actual_hours": 6.0,
+      "dependencies": ["phase1-02", "phase1-03"],
+      "notes": "Live2DRendererGL 实现完成"
+    },
+    {
+      "id": "phase1-05",
+      "phase": 1,
+      "title": "实现 SDL 纹理上传机制",
+      "priority": "P0",
+      "desc": "实现从 FBO 读取像素数据并上传到 SDL3_Texture 的机制",
+      "test_cases": [
+        "glReadPixels 成功读取 FBO 像素",
+        "SDL_UpdateTexture 成功上传像素",
+        "SDL_RenderTexture 能够正确渲染纹理",
+        "渲染结果无色差或扭曲"
+      ],
+      "implementation_status": "completed",
+      "test_status": "passed",
+      "git_commit": "ef2227b",
+      "estimated_hours": 5.0,
+      "actual_hours": 5.0,
+      "dependencies": ["phase1-04"],
+      "notes": "SDLTextureUploader 实现完成"
+    },
+    {
+      "id": "phase1-06",
+      "phase": 1,
+      "title": "实现 Live2DModelInstance 模型加载",
+      "priority": "P0",
+      "desc": "实现 Live2D 模型实例类，加载 .model3.json 文件",
+      "test_cases": [
+        "成功解析 .model3.json 文件",
+        "成功加载 Live2D 模型（.moc3 文件）",
+        "成功加载模型纹理",
+        "模型加载失败时返回错误信息"
+      ],
+      "implementation_status": "completed",
+      "test_status": "in_progress",
+      "git_commit": null,
+      "estimated_hours": 8.0,
+      "actual_hours": 10.0,
+      "dependencies": ["phase1-04"],
+      "notes": "Live2DModelInstance 继承 CubismUserModel 实现"
+    },
+    {
+      "id": "phase1-07",
+      "phase": 1,
+      "title": "实现 Live2DPlugin 插件主类",
+      "priority": "P0",
+      "desc": "实现 IPlugin 接口，集成到 PluginManager",
+      "test_cases": [
+        "插件成功加载到 PluginManager",
+        "插件成功启用（on_enable）",
+        "插件成功禁用（on_disable）",
+        "插件成功卸载（on_unload）"
+      ],
+      "implementation_status": "completed",
+      "test_status": "in_progress",
+      "git_commit": null,
+      "estimated_hours": 4.0,
+      "actual_hours": 4.0,
+      "dependencies": ["phase1-03", "phase1-06"],
+      "notes": "Live2DPlugin 实现完成"
+    },
+    {
+      "id": "phase1-08",
+      "phase": 1,
+      "title": "集成到主渲染循环",
+      "priority": "P0",
+      "desc": "在 DearTsApplication::on_render() 中添加 Live2D 渲染调用",
+      "test_cases": [
+        "Live2D 模型在屏幕上正确显示",
+        "渲染顺序正确（ImGui → Character → Live2D）",
+        "无 OpenGL 状态冲突",
+        "帧率 > 60 FPS"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 3.0,
+      "actual_hours": null,
+      "dependencies": ["phase1-05", "phase1-07"],
+      "notes": "Phase 1 核心里程碑"
+    },
+    {
+      "id": "phase2-01",
+      "phase": 2,
+      "title": "实现 Live2DModelManager 模型管理器",
+      "priority": "P0",
+      "desc": "实现单例模型管理器，支持模型注册、加载、卸载、切换",
+      "test_cases": [
+        "成功注册多个模型",
+        "成功加载指定 ID 的模型",
+        "成功卸载指定 ID 的模型",
+        "成功切换活动模型",
+        "模型 ID 冲突时返回错误"
+      ],
+      "implementation_status": "completed",
+      "test_status": "in_progress",
+      "git_commit": null,
+      "estimated_hours": 6.0,
+      "actual_hours": 7.0,
+      "dependencies": ["phase1-06"],
+      "notes": "Live2DModelManager 单例实现完成"
+    },
+    {
+      "id": "phase2-02",
+      "phase": 2,
+      "title": "定义 Live2D 配置 JSON 结构",
+      "priority": "P0",
+      "desc": "定义 live2d.* 配置命名空间和 JSON 结构",
+      "test_cases": [
+        "配置文件格式正确",
+        "ConfigScope 能够读写配置",
+        "配置文件成功保存到磁盘",
+        "配置文件成功从磁盘加载"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 2.0,
+      "actual_hours": null,
+      "dependencies": [],
+      "notes": "与现有 character.* 配置并存"
+    },
+    {
+      "id": "phase2-03",
+      "phase": 2,
+      "title": "实现模型目录扫描功能",
+      "priority": "P1",
+      "desc": "从指定目录自动扫描并注册 Live2D 模型",
+      "test_cases": [
+        "成功扫描包含 .model3.json 的目录",
+        "自动提取模型 ID 和名称",
+        "跳过无效目录",
+        "返回扫描到的模型数量"
+      ],
+      "implementation_status": "completed",
+      "test_status": "in_progress",
+      "git_commit": null,
+      "estimated_hours": 4.0,
+      "actual_hours": 4.0,
+      "dependencies": ["phase2-01"],
+      "notes": "scan_directory() 方法实现完成"
+    },
+    {
+      "id": "phase2-04",
+      "phase": 2,
+      "title": "实现 Live2DSettingsWidget 设置界面",
+      "priority": "P1",
+      "desc": "创建 Live2D 设置界面组件，包含模型选择、位置、缩放、透明度控制",
+      "test_cases": [
+        "模型选择下拉框显示所有已注册模型",
+        "模型切换成功",
+        "位置选择正常工作",
+        "缩放滑块正常工作",
+        "透明度滑块正常工作",
+        "配置自动保存到 ConfigManager"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 6.0,
+      "actual_hours": null,
+      "dependencies": ["phase2-01", "phase2-02"],
+      "notes": "参考 CharacterSettingsWidget 实现"
+    },
+    {
+      "id": "phase2-05",
+      "phase": 2,
+      "title": "扩展 CharacterManager 添加 CharacterType::Live2D",
+      "priority": "P0",
+      "desc": "修改 CharacterManager 支持 Live2D 作为新的角色类型",
+      "test_cases": [
+        "CharacterType 枚举包含 Live2D",
+        "现有角色类型（Single, Animated）仍然正常工作",
+        "Live2D 角色类型正确识别",
+        "向后兼容性测试通过"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 2.0,
+      "actual_hours": null,
+      "dependencies": [],
+      "notes": "仅扩展枚举，不修改现有实现"
+    },
+    {
+      "id": "phase2-06",
+      "phase": 2,
+      "title": "Phase 2 集成测试",
+      "priority": "P0",
+      "desc": "测试完整的模型管理和配置流程",
+      "test_cases": [
+        "通过设置界面切换模型成功",
+        "配置持久化测试通过",
+        "多模型管理测试通过",
+        "性能测试: 帧率 > 60 FPS"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 2.0,
+      "actual_hours": null,
+      "dependencies": ["phase2-01", "phase2-02", "phase2-03", "phase2-04", "phase2-05"],
+      "notes": "Phase 2 核心里程碑"
+    },
+    {
+      "id": "phase3-01",
+      "phase": 3,
+      "title": "实现 Live2DMotionManager 动画管理器",
+      "priority": "P1",
+      "desc": "实现动画文件加载、播放控制、优先级管理",
+      "test_cases": [
+        "成功加载 .motion3.json 文件",
+        "动画播放/暂停/停止功能正常",
+        "动画优先级正确执行",
+        "动画淡入淡出效果正常"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 8.0,
+      "actual_hours": null,
+      "dependencies": ["phase2-01"],
+      "notes": "支持多个动画同时播放"
+    },
+    {
+      "id": "phase3-02",
+      "phase": 3,
+      "title": "实现表情系统",
+      "priority": "P1",
+      "desc": "实现 .exp3.json 文件加载和表情切换",
+      "test_cases": [
+        "成功加载 .exp3.json 文件",
+        "表情切换成功",
+        "表情与动画正确叠加",
+        "表情优先级高于基础参数"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 4.0,
+      "actual_hours": null,
+      "dependencies": ["phase3-01"],
+      "notes": "表情可以与动画同时播放"
+    },
+    {
+      "id": "phase3-03",
+      "phase": 3,
+      "title": "集成 Live2D Physics SDK",
+      "priority": "P1",
+      "desc": "集成物理引擎，实现头发、衣服摆动模拟",
+      "test_cases": [
+        "成功加载 .physics3.json 文件",
+        "物理模拟正常工作",
+        "风力参数影响物理效果",
+        "物理效果自然流畅"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 10.0,
+      "actual_hours": null,
+      "dependencies": ["phase2-01"],
+      "notes": "Live2D Physics SDK 是独立模块"
+    },
+    {
+      "id": "phase3-04",
+      "phase": 3,
+      "title": "实现自动动画",
+      "priority": "P1",
+      "desc": "实现 Idle 动画、呼吸效果、随机动作触发",
+      "test_cases": [
+        "Idle 动画循环播放",
+        "呼吸效果自然",
+        "随机动作正确触发",
+        "自动动画不冲突用户操作"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 6.0,
+      "actual_hours": null,
+      "dependencies": ["phase3-01"],
+      "notes": "通过定时器或帧更新触发"
+    },
+    {
+      "id": "phase3-05",
+      "phase": 3,
+      "title": "Phase 3 性能测试",
+      "priority": "P1",
+      "desc": "测试动画和物理效果的性能",
+      "test_cases": [
+        "动画流畅播放（无卡顿）",
+        "表情正确叠加",
+        "物理效果自然",
+        "渲染开销 < 5ms/帧",
+        "总帧率 > 60 FPS"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 2.0,
+      "actual_hours": null,
+      "dependencies": ["phase3-01", "phase3-02", "phase3-03", "phase3-04"],
+      "notes": "Phase 3 核心里程碑"
+    },
+    {
+      "id": "phase4-01",
+      "phase": 4,
+      "title": "定义 Live2D 事件类型",
+      "priority": "P1",
+      "desc": "在 core/ui/live2d_events.h 中定义所有 Live2D 特有事件",
+      "test_cases": [
+        "事件结构体定义完整",
+        "事件包含必要的字段",
+        "代码编译通过"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 1.0,
+      "actual_hours": null,
+      "dependencies": [],
+      "notes": "参考现有 EventBus 事件定义"
+    },
+    {
+      "id": "phase4-02",
+      "phase": 4,
+      "title": "实现 Hit Area 检测",
+      "priority": "P1",
+      "desc": "实现 .canvas3.json 解析和鼠标点击检测",
+      "test_cases": [
+        "成功解析 .canvas3.json 文件",
+        "鼠标点击模型时正确检测",
+        "Hit Area 坐标正确映射",
+        "返回被点击的区域名称"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 6.0,
+      "actual_hours": null,
+      "dependencies": ["phase2-01"],
+      "notes": "需要处理坐标空间转换"
+    },
+    {
+      "id": "phase4-03",
+      "phase": 4,
+      "title": "实现拖拽跟随功能",
+      "priority": "P1",
+      "desc": "实现模型跟随鼠标移动的交互效果",
+      "test_cases": [
+        "拖拽模型时跟随鼠标",
+        "拖拽释放后模型回弹",
+        "拖拽过程中模型缩放正常",
+        "拖拽不影响动画播放"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 5.0,
+      "actual_hours": null,
+      "dependencies": ["phase4-02"],
+      "notes": "需要平滑插值"
+    },
+    {
+      "id": "phase4-04",
+      "phase": 4,
+      "title": "实现参数控制接口",
+      "priority": "P1",
+      "desc": "实现程序化设置参数和参数动画插值",
+      "test_cases": [
+        "成功设置模型参数",
+        "参数变化平滑过渡",
+        "参数动画插值正确",
+        "参数变化触发事件"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 4.0,
+      "actual_hours": null,
+      "dependencies": ["phase4-01"],
+      "notes": "用于鼠标跟随等效果"
+    },
+    {
+      "id": "phase4-05",
+      "phase": 4,
+      "title": "注册 ContentRegistry 命令",
+      "priority": "P1",
+      "desc": "通过 ContentRegistry::Commands 注册表情切换和动画播放命令",
+      "test_cases": [
+        "命令成功注册到 Command Palette",
+        "表情切换命令正常工作",
+        "动画播放命令正常工作",
+        "命令快捷键正常工作"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 3.0,
+      "actual_hours": null,
+      "dependencies": ["phase3-01", "phase3-02"],
+      "notes": "参考现有命令注册示例"
+    },
+    {
+      "id": "phase4-06",
+      "phase": 4,
+      "title": "Phase 4 交互测试",
+      "priority": "P1",
+      "desc": "测试完整的用户交互流程",
+      "test_cases": [
+        "鼠标交互正确触发",
+        "拖拽跟随流畅",
+        "参数控制响应及时",
+        "命令系统正常工作",
+        "事件发布正确"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 2.0,
+      "actual_hours": null,
+      "dependencies": ["phase4-01", "phase4-02", "phase4-03", "phase4-04", "phase4-05"],
+      "notes": "Phase 4 核心里程碑"
+    },
+    {
+      "id": "phase5-01",
+      "phase": 5,
+      "title": "实现 Live2DDebugView 调试视图",
+      "priority": "P2",
+      "desc": "创建调试视图，显示参数列表、Hit Area、性能统计",
+      "test_cases": [
+        "参数列表正确显示",
+        "参数滑块实时调整参数",
+        "Hit Area 可视化正确显示",
+        "性能统计信息准确"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 8.0,
+      "actual_hours": null,
+      "dependencies": ["phase4-02"],
+      "notes": "开发调试必备工具"
+    },
+    {
+      "id": "phase5-02",
+      "phase": 5,
+      "title": "实现脏标记系统",
+      "priority": "P2",
+      "desc": "实现脏标记，只在参数变化时重新渲染",
+      "test_cases": [
+        "参数变化时设置脏标记",
+        "脏标记为 true 时重新渲染",
+        "脏标记为 false 时跳过渲染",
+        "性能提升显著"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 4.0,
+      "actual_hours": null,
+      "dependencies": [],
+      "notes": "性能优化核心"
+    },
+    {
+      "id": "phase5-03",
+      "phase": 5,
+      "title": "实现 FBO 降采样",
+      "priority": "P2",
+      "desc": "支持 1/2, 1/4 分辨率渲染以提升性能",
+      "test_cases": [
+        "1/2 分辨率渲染正确",
+        "1/4 分辨率渲染正确",
+        "降采样不影响视觉效果",
+        "性能提升显著"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 3.0,
+      "actual_hours": null,
+      "dependencies": ["phase1-04"],
+      "notes": "可配置降采样比例"
+    },
+    {
+      "id": "phase5-04",
+      "phase": 5,
+      "title": "添加 PBO 异步传输",
+      "priority": "P2",
+      "desc": "使用 OpenGL PBO 异步读取 FBO，避免 GPU 同步等待",
+      "test_cases": [
+        "PBO 创建和绑定成功",
+        "异步读取 FBO 成功",
+        "GPU 同步等待消除",
+        "帧率提升明显"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 6.0,
+      "actual_hours": null,
+      "dependencies": ["phase1-05"],
+      "notes": "高级优化，需要仔细测试"
+    },
+    {
+      "id": "phase5-05",
+      "phase": 5,
+      "title": "添加日志和错误处理",
+      "priority": "P2",
+      "desc": "添加加载失败日志、渲染错误捕获、性能分析工具",
+      "test_cases": [
+        "加载失败时记录详细日志",
+        "渲染错误被正确捕获",
+        "性能分析数据准确",
+        "日志不严重影响性能"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 4.0,
+      "actual_hours": null,
+      "dependencies": [],
+      "notes": "使用 liblogger"
+    },
+    {
+      "id": "phase5-06",
+      "phase": 5,
+      "title": "编写 API 文档",
+      "priority": "P2",
+      "desc": "编写完整的 API 文档和模型制作指南",
+      "test_cases": [
+        "API 文档覆盖所有公开接口",
+        "模型制作指南清晰易懂",
+        "示例代码正确运行",
+        "文档格式规范"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 6.0,
+      "actual_hours": null,
+      "dependencies": [],
+      "notes": "Markdown 格式"
+    },
+    {
+      "id": "phase5-07",
+      "phase": 5,
+      "title": "Phase 5 优化验证",
+      "priority": "P2",
+      "desc": "验证所有优化措施和工具",
+      "test_cases": [
+        "调试工具功能完整",
+        "渲染开销 < 5ms/帧",
+        "无内存泄漏",
+        "文档完整"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 2.0,
+      "actual_hours": null,
+      "dependencies": ["phase5-01", "phase5-02", "phase5-03", "phase5-04", "phase5-05", "phase5-06"],
+      "notes": "Phase 5 核心里程碑"
+    },
+    {
+      "id": "phase6-01",
+      "phase": 6,
+      "title": "Windows 平台测试",
+      "priority": "P1",
+      "desc": "在 Windows 10/11 上进行完整测试",
+      "test_cases": [
+        "OpenGL 驱动兼容性测试通过",
+        "不同分辨率测试通过",
+        "多显示器支持测试通过",
+        "性能测试: 帧率 > 60 FPS"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 8.0,
+      "actual_hours": null,
+      "dependencies": ["phase5-07"],
+      "notes": "测试 NVIDIA/AMD/Intel 显卡"
+    },
+    {
+      "id": "phase6-02",
+      "phase": 6,
+      "title": "Linux 平台测试",
+      "priority": "P1",
+      "desc": "在 Linux (Ubuntu/Debian) 上进行完整测试",
+      "test_cases": [
+        "Ubuntu/Debian 包依赖测试通过",
+        "Wayland/X11 兼容性测试通过",
+        "NVIDIA/AMD/Intel 驱动测试通过",
+        "性能测试: 帧率 > 60 FPS"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 10.0,
+      "actual_hours": null,
+      "dependencies": ["phase5-07"],
+      "notes": "测试多种发行版"
+    },
+    {
+      "id": "phase6-03",
+      "phase": 6,
+      "title": "修复路径分隔符问题",
+      "priority": "P1",
+      "desc": "修复 Windows 和 Linux 路径分隔符不兼容问题",
+      "test_cases": [
+        "Windows 路径正确处理",
+        "Linux 路径正确处理",
+        "跨平台路径兼容",
+        "模型加载无路径错误"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 2.0,
+      "actual_hours": null,
+      "dependencies": [],
+      "notes": "使用 SDL 文件路径抽象"
+    },
+    {
+      "id": "phase6-04",
+      "phase": 6,
+      "title": "修复动态库加载问题",
+      "priority": "P1",
+      "desc": "修复不同平台的动态库加载问题",
+      "test_cases": [
+        "Windows DLL 正确加载",
+        "Linux .so 正确加载",
+        "动态库路径正确",
+        "无加载错误"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 3.0,
+      "actual_hours": null,
+      "dependencies": [],
+      "notes": "CMAKE_RUNTIME_OUTPUT_DIRECTORY"
+    },
+    {
+      "id": "phase6-05",
+      "phase": 6,
+      "title": "修复线程安全性问题",
+      "priority": "P1",
+      "desc": "确保 Live2D 插件在多线程环境下安全",
+      "test_cases": [
+        "多线程加载模型无崩溃",
+        "多线程渲染无数据竞争",
+        "EventBus 订阅线程安全",
+        "无竞态条件"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 4.0,
+      "actual_hours": null,
+      "dependencies": [],
+      "notes": "使用 std::mutex 保护"
+    },
+    {
+      "id": "phase6-06",
+      "phase": 6,
+      "title": "性能基准测试",
+      "priority": "P1",
+      "desc": "进行全面的性能基准测试",
+      "test_cases": [
+        "帧率测试: > 60 FPS",
+        "内存使用分析: 无泄漏",
+        "加载时间优化: < 2 秒",
+        "渲染开销: < 5ms/帧"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 4.0,
+      "actual_hours": null,
+      "dependencies": ["phase6-01", "phase6-02"],
+      "notes": "使用性能分析工具"
+    },
+    {
+      "id": "phase6-07",
+      "phase": 6,
+      "title": "编写故障排除指南",
+      "priority": "P2",
+      "desc": "编写完整的故障排除指南和平台特定说明",
+      "test_cases": [
+        "故障排除指南覆盖常见问题",
+        "平台特定说明清晰",
+        "解决方案有效",
+        "文档格式规范"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 3.0,
+      "actual_hours": null,
+      "dependencies": [],
+      "notes": "Markdown 格式"
+    },
+    {
+      "id": "phase6-08",
+      "phase": 6,
+      "title": "Phase 6 最终验证",
+      "priority": "P0",
+      "desc": "最终验证所有功能和平台",
+      "test_cases": [
+        "Windows 和 Linux 稳定运行",
+        "所有功能测试通过",
+        "性能测试通过",
+        "无已知严重 Bug",
+        "文档完整"
+      ],
+      "implementation_status": "pending",
+      "test_status": "pending",
+      "git_commit": null,
+      "estimated_hours": 4.0,
+      "actual_hours": null,
+      "dependencies": ["phase6-01", "phase6-02", "phase6-03", "phase6-04", "phase6-05", "phase6-06", "phase6-07"],
+      "notes": "项目最终里程碑"
+    }
+  ],
+  "statistics": {
+    "total_features": 38,
+    "completed_features": 9,
+    "passed_tests": 5,
+    "total_estimated_hours": 186.0,
+    "total_actual_hours": 43.0,
+    "progress_percentage": 23.7
+  }
+}
