@@ -423,6 +423,7 @@ endif()
 add_subdirectory(plugins/toast_notification)
 add_subdirectory(plugins/command_palette)
 add_subdirectory(plugins/live2d)
+add_subdirectory(plugins/ffmpeg)  # FFmpeg 视频处理插件
 
 # Add tests (optional, can be enabled with -DBUILD_TESTING=ON)
 option(BUILD_TESTING "Build the testing tree" OFF)

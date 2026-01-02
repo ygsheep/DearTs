@@ -92,6 +92,8 @@ set(PLUGIN_SOURCES
     ${CMAKE_SOURCE_DIR}/core/content/project_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
+    ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
 )
 
 # Plugin header files

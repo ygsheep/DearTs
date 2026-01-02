@@ -10,11 +10,16 @@
 #include "command_palette_plugin.hpp"
 #include "core/content/callbacks.h"
 #include "core/content/commands.h"
+#include "core/event/event_bus.h"
 #include "liblogger/logger.h"
 #include "logger_viewer_plugin.hpp"
 #include "navigation_plugin.hpp"
 #include "settings_plugin.hpp"
-#include "live2d_plugin.hpp"
+
+// FFmpeg Plugin (仅在 FFmpeg 支持时包含)
+#if DEARTS_FFMPEG_SUPPORT
+#include "ffmpeg_plugin.hpp"
+#endif
 #include <SDL3/SDL.h>
 #include <chrono>
 #include <format>
@@ -189,6 +194,9 @@ void DearTsApplication::load_character_config() {
 void DearTsApplication::on_update(double delta_time) {
     m_current_fps = 1.0 / delta_time;
 
+    // 处理异步事件（必须在任务管理器更新之前）
+    Core::Event::EventBus::instance().process_async_events();
+
     // 更新任务管理器
     Core::Tasks::TaskManager::instance().update();
 
@@ -205,8 +213,8 @@ void DearTsApplication::on_update(double delta_time) {
     // 每5秒打印一次统计信息
     if (static_cast<int>(total_time) % 5 == 0 &&
         static_cast<int>(total_time) > m_last_log_time) {
-        LOG_INFO("Running for {:.1f} seconds, FPS: {:.2f}",
-                 total_time, m_current_fps);
+        // LOG_INFO("Running for {:.1f} seconds, FPS: {:.2f}",
+                 // total_time, m_current_fps);
         m_last_log_time = static_cast<int>(total_time);
     }
 }
@@ -657,15 +665,23 @@ void DearTsApplication::setup_plugins() {
         LOG_INFO("CommandPalettePlugin loaded successfully");
     }
 
-    // 添加 Live2D 插件
-    auto live2d_plugin = std::make_unique<DearTs::Plugins::Live2D::Live2DPlugin>();
-    result = plugin_manager.add_builtin(std::move(live2d_plugin));
-
     if (result.isErr()) {
         LOG_ERROR("Failed to load Live2DPlugin: {}", result.error());
     } else {
         LOG_INFO("Live2DPlugin loaded successfully");
     }
+
+#if DEARTS_FFMPEG_SUPPORT
+    // 添加 FFmpeg 插件
+    auto ffmpeg_plugin = std::make_unique<DearTs::Plugins::FFmpeg::FFmpegPlugin>();
+    result = plugin_manager.add_builtin(std::move(ffmpeg_plugin));
+
+    if (result.isErr()) {
+        LOG_ERROR("Failed to load FFmpegPlugin: {}", result.error());
+    } else {
+        LOG_INFO("FFmpegPlugin loaded successfully");
+    }
+#endif
 
     // 获取插件信息
     auto plugin_infos = plugin_manager.get_all_plugins_info();

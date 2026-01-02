@@ -31,7 +31,14 @@ void ThemeSettingsWidget::render() {
     ImGui::Separator();
     ImGui::Spacing();
 
-    // 3. 主题预览
+    // 3. 玻璃态样式设置
+    render_glassmorphism_settings();
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // 4. 主题预览
     render_theme_preview();
 }
 
@@ -154,6 +161,92 @@ void ThemeSettingsWidget::render_theme_selection() {
     if (current_theme == Core::UI::Theme::Classic) {
         ImGui::PopStyleColor();
     }
+}
+
+void ThemeSettingsWidget::render_glassmorphism_settings() {
+    auto& theme_manager = Core::UI::ThemeManager::instance();
+
+    ImGui::Text("玻璃态样式设置");
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // 透明度设置
+    float glass_alpha = theme_manager.getGlassAlpha();
+    ImGui::Text("玻璃态透明度: %.2f", glass_alpha);
+    if (ImGui::SliderFloat("##glass_alpha", &glass_alpha, 0.3f, 1.0f, "%.2f")) {
+        theme_manager.setGlassAlpha(glass_alpha);
+        theme_manager.applyGlassmorphismStyle();
+        LOG_INFO("Glass alpha changed to: {:.2f}", glass_alpha);
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("控制玻璃态效果的透明度，值越小越透明");
+    }
+
+    // 圆角设置
+    float border_radius = theme_manager.getBorderRadius();
+    ImGui::Text("圆角半径: %.1f px", border_radius);
+    if (ImGui::SliderFloat("##border_radius", &border_radius, 0.0f, 16.0f, "%.1f px")) {
+        theme_manager.setBorderRadius(border_radius);
+        theme_manager.applyGlassmorphismStyle();
+        LOG_INFO("Border radius changed to: {:.1f}", border_radius);
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("控制 UI 元素的圆角半径，0 为直角");
+    }
+
+    // 强调色设置
+    ImVec4 accent_color = theme_manager.getAccentColor();
+    ImGui::Text("强调色:");
+    if (ImGui::ColorEdit4("##accent_color", reinterpret_cast<float*>(&accent_color),
+                          ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_AlphaBar)) {
+        theme_manager.setAccentColor(accent_color);
+        theme_manager.applyGlassmorphismStyle();
+        LOG_INFO("Accent color changed to: ({:.2f}, {:.2f}, {:.2f}, {:.2f})",
+                 accent_color.x, accent_color.y, accent_color.z, accent_color.w);
+    }
+
+    // 预设颜色
+    ImGui::Spacing();
+    ImGui::Text("预设颜色:");
+
+    struct PresetColor {
+        const char* name;
+        ImVec4 color;
+    };
+
+    static PresetColor presets[] = {
+        {"蓝色", {0.3f, 0.6f, 1.0f, 1.0f}},
+        {"紫色", {0.6f, 0.3f, 1.0f, 1.0f}},
+        {"绿色", {0.3f, 0.9f, 0.5f, 1.0f}},
+        {"橙色", {1.0f, 0.6f, 0.2f, 1.0f}},
+        {"红色", {1.0f, 0.3f, 0.3f, 1.0f}},
+        {"青色", {0.2f, 0.8f, 0.9f, 1.0f}},
+    };
+
+    for (const auto& preset : presets) {
+        ImGui::PushStyleColor(ImGuiCol_Button, preset.color);
+        if (ImGui::Button(preset.name, ImVec2(70, 0))) {
+            theme_manager.setAccentColor(preset.color);
+            theme_manager.applyGlassmorphismStyle();
+            LOG_INFO("Accent color preset selected: {}", preset.name);
+        }
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+    }
+    ImGui::NewLine();
+
+    // 应用按钮
+    ImGui::Spacing();
+    if (ImGui::Button("应用玻璃态样式", ImVec2(160, 0))) {
+        theme_manager.applyGlassmorphismStyle();
+        LOG_INFO("Glassmorphism style applied manually");
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("更改会自动应用");
 }
 
 void ThemeSettingsWidget::render_theme_preview() {

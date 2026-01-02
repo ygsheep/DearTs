@@ -63,6 +63,12 @@ private:
     void render_theme_preview();
 
     /**
+     * @brief 渲染玻璃态样式设置
+     * @details 玻璃态透明度、圆角、强调色等配置
+     */
+    void render_glassmorphism_settings();
+
+    /**
      * @brief 标记配置项为已修改
      */
     void mark_modified(const std::string& key);
