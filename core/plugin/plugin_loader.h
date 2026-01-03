@@ -16,6 +16,12 @@
 
 // 平台特定的头文件
 #ifdef _WIN32
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
+    #ifndef WIN32_LEAN_AND_MEAN
+        #define WIN32_LEAN_AND_MEAN
+    #endif
     #include <windows.h>
 #elif defined(__linux__) || defined(__APPLE__)
     #include <dlfcn.h>
@@ -114,3 +120,10 @@ private:
 #endif
 
 } // namespace DearTs::Core::Plugin
+
+// 在 Windows 上，取消可能与其他代码冲突的宏定义
+#ifdef _WIN32
+    #ifdef ERROR
+        #undef ERROR
+    #endif
+#endif
