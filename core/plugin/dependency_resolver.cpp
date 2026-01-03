@@ -12,10 +12,44 @@
 
 namespace DearTs::Core::Plugin {
 
+// ================ Helper Functions ================
+
+namespace {
+    std::string to_string(DependencyErrorType type) {
+        switch (type) {
+            case DependencyErrorType::MissingDependency:
+                return "MissingDependency";
+            case DependencyErrorType::VersionConflict:
+                return "VersionConflict";
+            case DependencyErrorType::CircularDependency:
+                return "CircularDependency";
+            case DependencyErrorType::InvalidVersionSpec:
+                return "InvalidVersionSpec";
+            default:
+                return "Unknown";
+        }
+    }
+
+    std::string to_string(DependencyResolutionMode mode) {
+        return (mode == DependencyResolutionMode::Lenient) ? "Lenient" : "Strict";
+    }
+
+    std::string to_string(PluginState state) {
+        switch (state) {
+            case PluginState::Enabled:  return "Enabled";
+            case PluginState::Loaded:   return "Loaded";
+            case PluginState::Disabled: return "Disabled";
+            case PluginState::Unloaded: return "Unloaded";
+            case PluginState::Error:    return "Error";
+            default:                    return "Unknown";
+        }
+    }
+}
+
 // ================ DependencyError ================
 
 std::string DependencyError::to_string() const {
-    std::string result = std::format("{}: {} -> {}", type, plugin_name, dependency_name);
+    std::string result = std::format("{}: {} -> {}", DearTs::Core::Plugin::to_string(type), plugin_name, dependency_name);
 
     if (!details.empty()) {
         result += std::format("\n  Details: {}", details);

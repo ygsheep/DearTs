@@ -21,10 +21,11 @@ Result<PluginDependency, std::string> PluginDependency::required(
         );
     }
 
-    PluginDependency dep;
-    dep.plugin_name = std::move(name);
-    dep.version_range = range_result.unwrap();
-    dep.type = DependencyType::Required;
+    PluginDependency dep{
+        std::move(name),
+        range_result.unwrap(),
+        DependencyType::Required
+    };
 
     LOG_DEBUG("Created required dependency: {}", dep.to_string());
     return Result<PluginDependency, std::string>::ok(dep);
@@ -40,10 +41,11 @@ Result<PluginDependency, std::string> PluginDependency::optional(
         );
     }
 
-    PluginDependency dep;
-    dep.plugin_name = std::move(name);
-    dep.version_range = range_result.unwrap();
-    dep.type = DependencyType::Optional;
+    PluginDependency dep{
+        std::move(name),
+        range_result.unwrap(),
+        DependencyType::Optional
+    };
 
     LOG_DEBUG("Created optional dependency: {}", dep.to_string());
     return Result<PluginDependency, std::string>::ok(dep);
@@ -59,10 +61,11 @@ Result<PluginDependency, std::string> PluginDependency::soft(
         );
     }
 
-    PluginDependency dep;
-    dep.plugin_name = std::move(name);
-    dep.version_range = range_result.unwrap();
-    dep.type = DependencyType::Soft;
+    PluginDependency dep{
+        std::move(name),
+        range_result.unwrap(),
+        DependencyType::Soft
+    };
 
     LOG_DEBUG("Created soft dependency: {}", dep.to_string());
     return Result<PluginDependency, std::string>::ok(dep);
