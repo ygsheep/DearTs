@@ -160,6 +160,9 @@ public:
     void disable();
 
 protected:
+    // 默认构造函数，供派生类使用
+    PluginWrapper() = default;
+
     std::unique_ptr<IPlugin> m_plugin;
     PluginState m_state = PluginState::Unloaded;
     std::string m_error;
