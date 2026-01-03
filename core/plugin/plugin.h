@@ -21,16 +21,6 @@ namespace DearTs::Core::Plugin {
 class DynamicLibraryLoader;
 }
 
-/**
- * @brief 插件创建函数类型
- */
-using CreatePluginFunc = IPlugin* (*)();
-
-/**
- * @brief 插件销毁函数类型
- */
-using DestroyPluginFunc = void (*)(IPlugin*);
-
 #ifdef _WIN32
     #define PLUGIN_EXPORT __declspec(dllexport)
     #define PLUGIN_IMPORT __declspec(dllimport)
@@ -96,6 +86,16 @@ public:
      */
     virtual void on_disable() {}
 };
+
+/**
+ * @brief 插件创建函数类型
+ */
+using CreatePluginFunc = IPlugin* (*)();
+
+/**
+ * @brief 插件销毁函数类型
+ */
+using DestroyPluginFunc = void (*)(IPlugin*);
 
 /**
  * @brief 插件状态
