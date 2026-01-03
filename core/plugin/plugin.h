@@ -98,6 +98,23 @@ using CreatePluginFunc = IPlugin* (*)();
 using DestroyPluginFunc = void (*)(IPlugin*);
 
 /**
+ * @brief 插件删除器（用于 unique_ptr）
+ */
+struct PluginDeleter {
+    DestroyPluginFunc destroy_func = nullptr;
+
+    void operator()(IPlugin* plugin) const {
+        if (plugin) {
+            if (destroy_func) {
+                destroy_func(plugin);
+            } else {
+                delete plugin;
+            }
+        }
+    }
+};
+
+/**
  * @brief 插件状态
  */
 enum class PluginState {
@@ -113,7 +130,7 @@ enum class PluginState {
  */
 class PluginWrapper {
 public:
-    explicit PluginWrapper(std::unique_ptr<IPlugin> plugin);
+    explicit PluginWrapper(std::unique_ptr<IPlugin, PluginDeleter> plugin);
     virtual ~PluginWrapper();
 
     // 删除拷贝
@@ -163,7 +180,7 @@ protected:
     // 默认构造函数，供派生类使用
     PluginWrapper() = default;
 
-    std::unique_ptr<IPlugin> m_plugin;
+    std::unique_ptr<IPlugin, PluginDeleter> m_plugin;
     PluginState m_state = PluginState::Unloaded;
     std::string m_error;
 };

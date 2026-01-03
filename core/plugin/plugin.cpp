@@ -19,7 +19,7 @@ bool PluginInfo::is_api_compatible(const std::string& current_api_version) const
 
 // ================ PluginWrapper ================
 
-PluginWrapper::PluginWrapper(std::unique_ptr<IPlugin> plugin)
+PluginWrapper::PluginWrapper(std::unique_ptr<IPlugin, PluginDeleter> plugin)
     : m_plugin(std::move(plugin))
     , m_state(PluginState::Unloaded) {
     auto info = m_plugin->get_info();
@@ -124,11 +124,7 @@ DynamicPluginWrapper::DynamicPluginWrapper(
     , m_source_path(std::move(source_path))
 {
     // 创建带有自定义 deleter 的 unique_ptr 并存储到基类成员
-    m_plugin = std::unique_ptr<IPlugin>(plugin, [destroy_func](IPlugin* p) {
-        if (destroy_func) {
-            destroy_func(p);
-        }
-    });
+    m_plugin = std::unique_ptr<IPlugin, PluginDeleter>(plugin, PluginDeleter{destroy_func});
 
     auto info = m_plugin->get_info();
     LOG_INFO("Created dynamic plugin wrapper for: {} from {}", info.name, m_source_path);
@@ -155,6 +151,9 @@ void DynamicPluginWrapper::unload() {
 Result<void, std::string> PluginManager::add_builtin(std::unique_ptr<IPlugin> plugin) {
     auto info = plugin->get_info();
 
+    // 转换为使用 PluginDeleter 的 unique_ptr
+    std::unique_ptr<IPlugin, PluginDeleter> plugin_with_deleter(plugin.release(), PluginDeleter{nullptr});
+
     // 检查是否已存在
     if (m_plugins.find(info.name) != m_plugins.end()) {
         return Result<void, std::string>::err(
@@ -162,7 +161,7 @@ Result<void, std::string> PluginManager::add_builtin(std::unique_ptr<IPlugin> pl
         );
     }
 
-    auto wrapper = std::make_unique<PluginWrapper>(std::move(plugin));
+    auto wrapper = std::make_unique<PluginWrapper>(std::move(plugin_with_deleter));
     auto result = wrapper->load();
 
     if (result.isErr()) {
