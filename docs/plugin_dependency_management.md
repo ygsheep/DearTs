@@ -853,6 +853,76 @@ public:
 
 ---
 
+## 重要限制
+
+### DLL 边界问题
+
+动态加载的插件（从 DLL 文件加载）存在 **DLL 边界限制**：
+
+**问题描述：**
+- 每个 DLL 都有自己独立的静态变量实例
+- 动态插件中的单例（如 `ContentRegistry::Commands::Registry`）与主应用程序的单例是**不同的实例**
+- 这导致动态插件无法直接向主应用的命令注册表、视图管理器等注册内容
+
+**影响范围：**
+- ❌ 命令注册 (`ContentRegistry::Commands::add`)
+- ❌ 视图注册 (`ContentRegistry::Views::add`)
+- ❌ 工具注册 (`ContentRegistry::Tools::add`)
+- ✅ 插件依赖管理（使用 `IPlugin` 接口，不受影响）
+- ✅ 日志记录（使用 `liblogger`，不受影响）
+- ✅ 配置管理（需要使用 `ConfigManager` API，不受影响）
+
+**解决方案：**
+
+对于动态插件，有两种推荐方式：
+
+1. **使用内置插件**（推荐）：
+   - 将插件编译到主应用程序中
+   - 通过 `PluginManager::add_builtin()` 加载
+   - 完全支持所有 ContentRegistry 功能
+
+2. **使用事件系统**：
+   - 动态插件可以通过 `EventBus` 发布事件
+   - 内置插件订阅事件并响应
+   - 间接实现跨 DLL 边界的通信
+
+**示例（事件通信）：**
+
+```cpp
+// 动态插件中
+class MyPlugin : public IPlugin {
+    EventBus::Token m_eventToken;
+
+    Result<void, std::string> on_load() override {
+        // 发布自定义事件
+        EventBus::instance().publish(MyCustomEvent{...});
+        return Result::ok();
+    }
+};
+
+// 内置插件中
+class BuiltinPlugin : public IPlugin {
+    EventBus::Token m_eventToken;
+
+    Result<void, std::string> on_load() override {
+        // 订阅事件
+        m_eventToken = EventBus::instance().subscribe<MyCustomEvent>(
+            [](const MyCustomEvent& e) {
+                // 处理事件
+            }
+        );
+        return Result::ok();
+    }
+};
+```
+
+**总结：**
+- 动态插件适合**独立功能**（如数据处理、文件格式支持）
+- 内置插件适合需要深度集成的功能（如 UI、命令、工具）
+- 插件依赖管理系统**完全支持**动态和内置插件
+
+---
+
 ## 总结
 
 DearTs Framework 插件依赖管理系统提供了强大而灵活的工具来管理插件间的依赖关系。

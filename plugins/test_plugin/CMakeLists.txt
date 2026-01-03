@@ -43,11 +43,11 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 # 自动复制到 bin/plugins/ 目录（用于自动发现）
 if(WIN32)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/plugins"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/plugins"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:${PROJECT_NAME}>"
-            "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/plugins/"
-        COMMENT "Copying ${PROJECT_NAME}.dll to bin/$<CONFIG>/plugins/"
+            "${CMAKE_BINARY_DIR}/bin/plugins/"
+        COMMENT "Copying ${PROJECT_NAME}.dll to bin/plugins/"
     )
 elseif(APPLE)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

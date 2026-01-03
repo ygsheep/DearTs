@@ -705,7 +705,7 @@ void DearTsApplication::setup_plugins() {
     bool auto_load_enabled = config.get_or<bool>("plugins.auto_load", true);
 
     if (auto_load_enabled) {
-        // 从配置读取插件目录
+        // 从配置读取插件目录（默认：plugins/）
         std::string plugin_dir = config.get_or<std::string>("plugins.directory", "plugins");
 
         LOG_INFO("Auto-discovering plugins in: {}", plugin_dir);

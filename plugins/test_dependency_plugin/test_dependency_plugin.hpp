@@ -79,19 +79,16 @@ public:
         LOG_INFO("TestDependencyPlugin: on_load() called");
         LOG_INFO("TestDependencyPlugin: All dependencies satisfied!");
 
-        // 注册一个测试命令
-        ContentRegistry::Commands::add(
-            "testdeps.check",
-            "检查依赖状态",
-            []() {
-                LOG_INFO("TestDependencyPlugin: All dependencies are working correctly!");
-                LOG_INFO("  - BuiltinPlugin: Required and available");
-                LOG_INFO("  - TestPlugin: Optional (may or may not be available)");
-                LOG_INFO("  - Live2DPlugin: Soft dependency (may or may not be available)");
-            }
-        );
+        // 注意：由于 DLL 边界问题，动态插件无法直接向主应用的命令注册表注册命令
+        // 这个插件主要用于测试依赖管理功能，不注册命令
+        // 依赖检查结果已通过日志输出
 
-        LOG_INFO("TestDependencyPlugin: Registered command 'testdeps.check'");
+        LOG_INFO("TestDependencyPlugin: Plugin loaded successfully");
+        LOG_INFO("TestDependencyPlugin: Dependencies:");
+        LOG_INFO("  - BuiltinPlugin (Required): ✓ Available");
+        LOG_INFO("  - TestPlugin (Optional): May or may not be available");
+        LOG_INFO("  - Live2DPlugin (Soft): May or may not be available");
+
         return Result<void, std::string>::ok();
     }
 
