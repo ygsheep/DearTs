@@ -16,6 +16,11 @@
 #include <filesystem>
 #include <unordered_map>
 
+// 前向声明
+namespace DearTs::Core::Plugin {
+class DynamicLibraryLoader;
+}
+
 #ifdef _WIN32
     #define PLUGIN_EXPORT __declspec(dllexport)
     #define PLUGIN_IMPORT __declspec(dllimport)
@@ -132,7 +137,7 @@ public:
     /**
      * @brief 卸载插件
      */
-    void unload();
+    virtual void unload();
 
     /**
      * @brief 启用插件
@@ -144,10 +149,52 @@ public:
      */
     void disable();
 
-private:
+protected:
     std::unique_ptr<IPlugin> m_plugin;
     PluginState m_state = PluginState::Unloaded;
     std::string m_error;
+};
+
+/**
+ * @brief 动态加载插件包装器
+ * @details 管理动态库插件的完整生命周期，包括动态库的加载和卸载
+ */
+class DynamicPluginWrapper : public PluginWrapper {
+public:
+    /**
+     * @brief 构造函数
+     * @param plugin 插件实例（使用自定义 deleter）
+     * @param loader 动态库加载器
+     * @param source_path 插件源文件路径
+     */
+    DynamicPluginWrapper(
+        std::unique_ptr<IPlugin, DestroyPluginFunc> plugin,
+        std::unique_ptr<DynamicLibraryLoader> loader,
+        std::string source_path
+    );
+
+    ~DynamicPluginWrapper() override;
+
+    // 禁止拷贝和移动
+    DynamicPluginWrapper(const DynamicPluginWrapper&) = delete;
+    DynamicPluginWrapper& operator=(const DynamicPluginWrapper&) = delete;
+    DynamicPluginWrapper(DynamicPluginWrapper&&) noexcept = delete;
+    DynamicPluginWrapper& operator=(DynamicPluginWrapper&&) noexcept = delete;
+
+    /**
+     * @brief 获取插件源路径
+     */
+    [[nodiscard]] const std::string& get_source_path() const { return m_source_path; }
+
+    /**
+     * @brief 卸载插件和动态库
+     */
+    void unload() override;
+
+private:
+    std::unique_ptr<IPlugin, DestroyPluginFunc> m_plugin_with_deleter;
+    std::unique_ptr<DynamicLibraryLoader> m_loader;
+    std::string m_source_path;
 };
 
 /**

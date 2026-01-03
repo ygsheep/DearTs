@@ -4,7 +4,9 @@
  */
 
 #include "core/plugin/plugin.h"
+#include "core/plugin/plugin_loader.h"
 #include "liblogger/logger.h"
+#include <format>
 
 namespace DearTs::Core::Plugin {
 
@@ -109,6 +111,41 @@ void PluginWrapper::disable() {
     m_state = PluginState::Loaded;
 }
 
+// ================ DynamicPluginWrapper ================
+
+DynamicPluginWrapper::DynamicPluginWrapper(
+    std::unique_ptr<IPlugin, DestroyPluginFunc> plugin,
+    std::unique_ptr<DynamicLibraryLoader> loader,
+    std::string source_path
+)
+    : PluginWrapper(std::unique_ptr<IPlugin>(plugin.get(), [](IPlugin*) {}))  // 占位符，实际所有权在 m_plugin_with_deleter
+    , m_plugin_with_deleter(std::move(plugin))
+    , m_loader(std::move(loader))
+    , m_source_path(std::move(source_path))
+{
+    // 将插件指针设置到基类
+    m_plugin = std::unique_ptr<IPlugin>(m_plugin_with_deleter.get(), [](IPlugin*) {});
+
+    auto info = m_plugin->get_info();
+    LOG_INFO("Created dynamic plugin wrapper for: {} from {}", info.name, m_source_path);
+}
+
+DynamicPluginWrapper::~DynamicPluginWrapper() {
+    unload();
+}
+
+void DynamicPluginWrapper::unload() {
+    // 先调用基类的 unload（会调用插件的 on_unload）
+    PluginWrapper::unload();
+
+    // 然后卸载动态库
+    if (m_loader) {
+        LOG_INFO("Unloading dynamic library: {}", m_source_path);
+        m_loader->unload();
+        m_loader.reset();
+    }
+}
+
 // ================ PluginManager ================
 
 Result<void, std::string> PluginManager::add_builtin(std::unique_ptr<IPlugin> plugin) {
@@ -136,29 +173,193 @@ Result<void, std::string> PluginManager::add_builtin(std::unique_ptr<IPlugin> pl
 }
 
 Result<void, std::string> PluginManager::load_from_file(const std::filesystem::path& path) {
-    // TODO: 实现动态库加载
+    // 1. 检查文件是否存在
+    if (!std::filesystem::exists(path)) {
+        return Result<void, std::string>::err(
+            std::format("File not found: {}", path.string())
+        );
+    }
+
+    // 2. 检查文件扩展名
+    std::string ext = path.extension().string();
+    bool valid_extension = false;
+
+    #ifdef _WIN32
+        valid_extension = (ext == ".dll");
+    #elif defined(__linux__)
+        valid_extension = (ext == ".so");
+    #elif defined(__APPLE__)
+        valid_extension = (ext == ".dylib");
+    #endif
+
+    if (!valid_extension) {
+        return Result<void, std::string>::err(
+            std::format("Invalid plugin extension: {} (expected: {})",
+                ext,
+                #ifdef _WIN32
+                    ".dll"
+                #elif defined(__linux__)
+                    ".so"
+                #elif defined(__APPLE__)
+                    ".dylib"
+                #endif
+            )
+        );
+    }
+
     LOG_INFO("Loading plugin from: {}", path.string());
-    return Result<void, std::string>::err("Dynamic loading not implemented yet");
+
+    // 3. 加载动态库
+    auto loader = DynamicLibraryLoader::create();
+    auto load_result = loader->load(path);
+
+    if (load_result.isErr()) {
+        return Result<void, std::string>::err(
+            std::format("Failed to load library: {}", load_result.error())
+        );
+    }
+
+    // 4. 解析符号：dearts_create_plugin
+    auto create_symbol = loader->get_symbol("dearts_create_plugin");
+    if (create_symbol.isErr()) {
+        return Result<void, std::string>::err(
+            std::format("Plugin export 'dearts_create_plugin' not found: {}", create_symbol.error())
+        );
+    }
+
+    // 5. 解析符号：dearts_destroy_plugin
+    auto destroy_symbol = loader->get_symbol("dearts_destroy_plugin");
+    if (destroy_symbol.isErr()) {
+        return Result<void, std::string>::err(
+            std::format("Plugin export 'dearts_destroy_plugin' not found: {}", destroy_symbol.error())
+        );
+    }
+
+    // 6. 获取函数指针
+    auto create_func = reinterpret_cast<CreatePluginFunc>(create_symbol.unwrap());
+    auto destroy_func = reinterpret_cast<DestroyPluginFunc>(destroy_symbol.unwrap());
+
+    // 7. 创建插件实例
+    IPlugin* plugin_raw = create_func();
+    if (!plugin_raw) {
+        return Result<void, std::string>::err(
+            "Failed to create plugin instance (create_plugin returned null)"
+        );
+    }
+
+    // 8. 包装为 unique_ptr（使用自定义 deleter）
+    std::unique_ptr<IPlugin, DestroyPluginFunc> plugin(plugin_raw, destroy_func);
+
+    // 9. 验证插件信息
+    auto info = plugin->get_info();
+    if (info.name.empty()) {
+        return Result<void, std::string>::err("Plugin name cannot be empty");
+    }
+
+    // 10. 检查 API 版本兼容性
+    const std::string current_api_version = "1.0.0";
+    if (!info.is_api_compatible(current_api_version)) {
+        return Result<void, std::string>::err(
+            std::format("Plugin API version mismatch: plugin requires {}, current is {}",
+                info.api_version, current_api_version)
+        );
+    }
+
+    // 11. 检查是否已存在
+    if (m_plugins.find(info.name) != m_plugins.end()) {
+        return Result<void, std::string>::err(
+            std::format("Plugin '{}' already exists", info.name)
+        );
+    }
+
+    // 12. 创建包装器并加载
+    auto wrapper = std::make_unique<DynamicPluginWrapper>(
+        std::move(plugin),
+        std::move(loader),
+        path.string()
+    );
+
+    auto wrapper_load_result = wrapper->load();
+    if (wrapper_load_result.isErr()) {
+        return Result<void, std::string>::err(
+            std::format("Failed to load plugin '{}': {}", info.name, wrapper_load_result.error())
+        );
+    }
+
+    wrapper->enable();
+    m_plugins[info.name] = std::move(wrapper);
+
+    LOG_INFO("Successfully loaded plugin: {} from {}", info.name, path.filename().string());
+    return Result<void, std::string>::ok();
 }
 
 Result<size_t, std::string> PluginManager::load_from_directory(const std::filesystem::path& directory) {
+    // 1. 检查目录是否存在
     if (!std::filesystem::exists(directory)) {
         return Result<size_t, std::string>::err(
             std::format("Directory '{}' does not exist", directory.string())
         );
     }
 
+    // 2. 检查是否为目录
+    if (!std::filesystem::is_directory(directory)) {
+        return Result<size_t, std::string>::err(
+            std::format("Path '{}' is not a directory", directory.string())
+        );
+    }
+
+    LOG_INFO("Scanning directory for plugins: {}", directory.string());
+
     size_t count = 0;
+    size_t failed = 0;
+    std::vector<std::string> errors;
+
+    // 3. 遍历目录（非递归）
     for (const auto& entry : std::filesystem::directory_iterator(directory)) {
-        if (entry.is_regular_file()) {
-            auto result = load_from_file(entry.path());
-            if (result.isOk()) {
-                count++;
-            }
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+
+        // 4. 检查文件扩展名（过滤非插件文件）
+        std::string ext = entry.path().extension().string();
+        bool is_plugin = false;
+
+        #ifdef _WIN32
+            is_plugin = (ext == ".dll");
+        #elif defined(__linux__)
+            is_plugin = (ext == ".so");
+        #elif defined(__APPLE__)
+            is_plugin = (ext == ".dylib");
+        #endif
+
+        if (!is_plugin) {
+            continue;
+        }
+
+        // 5. 尝试加载插件
+        auto result = load_from_file(entry.path());
+
+        if (result.isOk()) {
+            count++;
+            LOG_INFO("Successfully loaded: {}", entry.path().filename().string());
+        } else {
+            failed++;
+            std::string error = result.error();
+            errors.push_back(std::format("{}: {}", entry.path().filename().string(), error));
+            LOG_WARN("Failed to load plugin: {} - {}", entry.path().filename().string(), error);
         }
     }
 
-    LOG_INFO("Loaded {} plugins from directory: {}", count, directory.string());
+    // 6. 汇总日志
+    LOG_INFO("Directory scan complete: {} loaded, {} failed", count, failed);
+
+    if (!errors.empty() && failed > 0) {
+        LOG_WARN("Failed plugins:");
+        for (const auto& err : errors) {
+            LOG_WARN("  - {}", err);
+        }
+    }
+
     return Result<size_t, std::string>::ok(count);
 }
 

@@ -545,7 +545,27 @@ void DearTsApplication::setup_commands_and_tools() {
         }
     });
 
+    // ============ 插件管理命令 ============
+    // 重新扫描插件目录
+    Commands::add("plugins.rescan", "重新扫描插件目录", []() {
+        auto& pm = Core::Plugin::PluginManager::instance();
+        auto& config = Core::Config::ConfigManager::instance();
+
+        std::string plugin_dir = config.get_or<std::string>("plugins.directory", "plugins");
+        LOG_INFO("Rescanning plugins in: {}", plugin_dir);
+
+        auto result = pm.load_from_directory(plugin_dir);
+
+        if (result.isOk()) {
+            size_t count = result.unwrap();
+            LOG_INFO("Rescan complete: {} new plugins loaded", count);
+        } else {
+            LOG_ERROR("Rescan failed: {}", result.error());
+        }
+    });
+
     LOG_INFO("视图切换命令已注册");
+    LOG_INFO("插件管理命令已注册");
 }
 
 void DearTsApplication::setup_shortcuts() {
@@ -604,6 +624,10 @@ void DearTsApplication::setup_views() {
 
 void DearTsApplication::setup_plugins() {
     auto& plugin_manager = Core::Plugin::PluginManager::instance();
+    auto& config = Core::Config::ConfigManager::instance();
+
+    // ============ Phase 1: 加载内置插件 ============
+    LOG_INFO("Loading builtin plugins...");
 
     // 添加内置插件
     auto builtin_plugin = std::make_unique<DearTs::Plugins::Builtin::BuiltinPlugin>();
@@ -683,13 +707,30 @@ void DearTsApplication::setup_plugins() {
     }
 #endif
 
-    // 获取插件信息
-    auto plugin_infos = plugin_manager.get_all_plugins_info();
-    LOG_INFO("Plugin system initialized");
-    LOG_INFO("Built-in plugins: {}", plugin_infos.size());
+    // ============ Phase 2: 自动发现外部插件 ============
+    bool auto_load_enabled = config.get_or<bool>("plugins.auto_load", true);
 
-    // 可以从目录加载插件
-    // plugin_manager.load_from_directory("plugins");
+    if (auto_load_enabled) {
+        // 从配置读取插件目录
+        std::string plugin_dir = config.get_or<std::string>("plugins.directory", "plugins");
+
+        LOG_INFO("Auto-discovering plugins in: {}", plugin_dir);
+
+        auto discovery_result = plugin_manager.load_from_directory(plugin_dir);
+
+        if (discovery_result.isOk()) {
+            size_t count = discovery_result.unwrap();
+            LOG_INFO("Auto-discovered {} external plugins", count);
+        } else {
+            LOG_WARN("Plugin auto-discovery failed: {}", discovery_result.error());
+        }
+    } else {
+        LOG_INFO("Plugin auto-load disabled by configuration");
+    }
+
+    // ============ Phase 3: 统计信息 ============
+    auto plugin_infos = plugin_manager.get_all_plugins_info();
+    LOG_INFO("Plugin system initialized: {} total plugins", plugin_infos.size());
 }
 
 void DearTsApplication::render_menu_bar() {

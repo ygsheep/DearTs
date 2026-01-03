@@ -186,6 +186,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/core/content/project_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_loader.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/imgui_layer.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
@@ -212,7 +213,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
         imgui_full
         implot
-        SDL3-shared
+        SDL3_shared
         SDL3_image-static
         deartsdl_logger
         freetype
@@ -221,6 +222,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         # FFmpeg (如果可用)
         $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:ffmpeg_interface>
 )
+
+# 平台特定的链接库
+if(UNIX AND NOT APPLE)
+    # Linux 需要 dl 库用于动态加载
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
+endif()
 
 # Windows 特定设置
 if(WIN32)
