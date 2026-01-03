@@ -689,12 +689,6 @@ void DearTsApplication::setup_plugins() {
         LOG_INFO("CommandPalettePlugin loaded successfully");
     }
 
-    if (result.isErr()) {
-        LOG_ERROR("Failed to load Live2DPlugin: {}", result.error());
-    } else {
-        LOG_INFO("Live2DPlugin loaded successfully");
-    }
-
 #if DEARTS_FFMPEG_SUPPORT
     // 添加 FFmpeg 插件
     auto ffmpeg_plugin = std::make_unique<DearTs::Plugins::FFmpeg::FFmpegPlugin>();
