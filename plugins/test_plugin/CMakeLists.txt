@@ -40,6 +40,33 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIR}"
 )
 
+# 自动复制到 bin/plugins/ 目录（用于自动发现）
+if(WIN32)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:${PROJECT_NAME}>"
+            "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/plugins/"
+        COMMENT "Copying ${PROJECT_NAME}.dll to bin/$<CONFIG>/plugins/"
+    )
+elseif(APPLE)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:${PROJECT_NAME}>"
+            "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/plugins/lib${PROJECT_NAME}.dylib"
+        COMMENT "Copying lib${PROJECT_NAME}.dylib to bin/$<CONFIG>/plugins/"
+    )
+else()
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/bin/plugins"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:${PROJECT_NAME}>"
+            "${CMAKE_BINARY_DIR}/bin/plugins/"
+        COMMENT "Copying lib${PROJECT_NAME}.so to bin/plugins/"
+    )
+endif()
+
 # Windows DLL 输出为 .dll
 # Linux 共享库输出为 .so
 # macOS 共享库输出为 .dylib

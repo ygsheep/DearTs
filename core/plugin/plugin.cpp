@@ -138,6 +138,12 @@ void DynamicPluginWrapper::unload() {
     // 先调用基类的 unload（会调用插件的 on_unload）
     PluginWrapper::unload();
 
+    // 在卸载动态库之前，先销毁插件实例
+    if (m_plugin) {
+        LOG_INFO("Destroying plugin instance before unloading library");
+        m_plugin.reset();  // 这会调用 destroy_func
+    }
+
     // 然后卸载动态库
     if (m_loader) {
         LOG_INFO("Unloading dynamic library: {}", m_source_path);
@@ -250,26 +256,26 @@ Result<void, std::string> PluginManager::load_from_file(const std::filesystem::p
         );
     }
 
-    // 8. 包装为 unique_ptr（使用自定义 deleter）
-    std::unique_ptr<IPlugin, DestroyPluginFunc> plugin(plugin_raw, destroy_func);
-
-    // 9. 验证插件信息
-    auto info = plugin->get_info();
+    // 8. 验证插件信息（使用原始指针）
+    auto info = plugin_raw->get_info();
     if (info.name.empty()) {
+        destroy_func(plugin_raw);  // 清理资源
         return Result<void, std::string>::err("Plugin name cannot be empty");
     }
 
-    // 10. 检查 API 版本兼容性
+    // 9. 检查 API 版本兼容性
     const std::string current_api_version = "1.0.0";
     if (!info.is_api_compatible(current_api_version)) {
+        destroy_func(plugin_raw);  // 清理资源
         return Result<void, std::string>::err(
             std::format("Plugin API version mismatch: plugin requires {}, current is {}",
                 info.api_version, current_api_version)
         );
     }
 
-    // 11. 检查是否已存在
+    // 10. 检查是否已存在
     if (m_plugins.find(info.name) != m_plugins.end()) {
+        destroy_func(plugin_raw);  // 清理资源
         return Result<void, std::string>::err(
             std::format("Plugin '{}' already exists", info.name)
         );
