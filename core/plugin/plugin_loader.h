@@ -14,6 +14,13 @@
 #include <memory>
 #include <string>
 
+// 平台特定的头文件
+#ifdef _WIN32
+    #include <windows.h>
+#elif defined(__linux__) || defined(__APPLE__)
+    #include <dlfcn.h>
+#endif
+
 namespace DearTs::Core::Plugin {
 
 /**
