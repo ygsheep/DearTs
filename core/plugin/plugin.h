@@ -114,7 +114,7 @@ enum class PluginState {
 class PluginWrapper {
 public:
     explicit PluginWrapper(std::unique_ptr<IPlugin> plugin);
-    ~PluginWrapper();
+    virtual ~PluginWrapper();
 
     // 删除拷贝
     PluginWrapper(const PluginWrapper&) = delete;
