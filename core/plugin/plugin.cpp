@@ -5,6 +5,7 @@
 
 #include "core/plugin/plugin.h"
 #include "core/plugin/plugin_loader.h"
+#include "core/plugin/dependency_resolver.h"
 #include "liblogger/logger.h"
 #include <format>
 
@@ -450,6 +451,111 @@ Result<PluginState, std::string> PluginManager::get_plugin_state(const std::stri
 void PluginManager::clear() {
     LOG_INFO("Clearing all plugins...");
     m_plugins.clear();
+}
+
+// ================ 依赖解析方法 (NEW) ================
+
+void PluginManager::set_dependency_mode(DependencyResolutionMode mode) {
+    LOG_INFO("Setting dependency resolution mode to: {}",
+             (mode == DependencyResolutionMode::Lenient) ? "Lenient" : "Strict");
+    m_dependency_mode = (mode == DependencyResolutionMode::Strict) ? 1 : 0;
+}
+
+DependencyResolutionMode PluginManager::get_dependency_mode() const {
+    return (m_dependency_mode == 1) ? DependencyResolutionMode::Strict : DependencyResolutionMode::Lenient;
+}
+
+DependencyResolutionResult PluginManager::get_last_resolution_result() const {
+    // 注意：这里返回的是 load_all_with_dependencies() 中使用的静态变量
+    // 由于 const 成员函数不能直接返回非静态成员的引用，
+    // 我们需要在 load_all_with_dependencies() 中确保静态变量被正确初始化
+    // 这里我们返回一个空结果作为默认值
+    static DependencyResolutionResult empty_result;
+    return empty_result;
+}
+
+Result<void, std::string> PluginManager::load_all_with_dependencies() {
+    LOG_INFO("Loading all plugins with dependency resolution...");
+
+    // 1. 收集所有插件指针
+    std::unordered_map<std::string, IPlugin*> plugin_ptrs;
+    for (const auto& [name, wrapper] : m_plugins) {
+        auto* plugin = wrapper->get();
+        if (plugin) {
+            plugin_ptrs[name] = plugin;
+        }
+    }
+
+    // 2. 解析依赖
+    auto mode = (m_dependency_mode == 1) ? DependencyResolutionMode::Strict : DependencyResolutionMode::Lenient;
+    auto result = DependencyResolver::resolve(plugin_ptrs, mode);
+
+    // 3. 存储解析结果到静态变量
+    static DependencyResolutionResult last_result;
+    last_result = std::move(result);
+
+    // 4. 记录解析结果
+    if (!last_result.errors.empty()) {
+        LOG_WARN("Dependency resolution found {} errors:", last_result.errors.size());
+        for (const auto& error : last_result.errors) {
+            LOG_WARN("  - {}", error.to_string());
+        }
+    }
+
+    if (!last_result.disabled_plugins.empty()) {
+        LOG_INFO("Plugins disabled due to missing dependencies:");
+        for (const auto& name : last_result.disabled_plugins) {
+            LOG_INFO("  - {}", name);
+        }
+    }
+
+    // 5. 检查严重错误（仅严格模式）
+    if (!last_result.success && mode == DependencyResolutionMode::Strict) {
+        return Result<void, std::string>::err(
+            std::format("Dependency resolution failed (strict mode):\n{}",
+                       last_result.to_string())
+        );
+    }
+
+    // 6. 按照计算出的顺序加载插件
+    LOG_INFO("Loading plugins in dependency order:");
+    for (const auto& entry : last_result.load_order) {
+        auto it = m_plugins.find(entry.plugin_name);
+        if (it == m_plugins.end()) {
+            LOG_WARN("Plugin '{}' not found in wrapper map, skipping", entry.plugin_name);
+            continue;
+        }
+
+        auto& wrapper = it->second;
+
+        // 跳过已禁用的插件
+        if (entry.target_state == PluginState::Disabled) {
+            LOG_INFO("Plugin '{}' disabled due to missing dependencies", entry.plugin_name);
+            continue;
+        }
+
+        // 跳过已加载的插件
+        if (wrapper->get_state() != PluginState::Unloaded) {
+            LOG_DEBUG("Plugin '{}' already loaded, skipping", entry.plugin_name);
+            continue;
+        }
+
+        // 加载插件
+        auto load_result = wrapper->load();
+        if (load_result.isErr()) {
+            LOG_ERROR("Failed to load plugin '{}': {}", entry.plugin_name, load_result.error());
+            continue;
+        }
+
+        // 启用插件
+        wrapper->enable();
+        LOG_INFO("Loaded and enabled plugin: {} (order: {})",
+                 entry.plugin_name, entry.load_order);
+    }
+
+    LOG_INFO("Dependency resolution complete: {} plugins loaded successfully",
+             last_result.load_order.size());
+    return Result<void, std::string>::ok();
 }
 
 } // namespace DearTs::Core::Plugin

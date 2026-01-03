@@ -20,6 +20,10 @@
 // 前向声明
 namespace DearTs::Core::Plugin {
 class DynamicLibraryLoader;
+
+// 依赖解析相关前向声明
+enum class DependencyResolutionMode;
+struct DependencyResolutionResult;
 }
 
 #ifdef _WIN32
@@ -312,6 +316,29 @@ public:
     Result<void, std::string> disable(const std::string& name);
 
     /**
+     * @brief 设置依赖解析模式 (NEW)
+     * @param mode 宽松模式或严格模式
+     */
+    void set_dependency_mode(DependencyResolutionMode mode);
+
+    /**
+     * @brief 获取依赖解析模式 (NEW)
+     */
+    [[nodiscard]] DependencyResolutionMode get_dependency_mode() const;
+
+    /**
+     * @brief 获取最后一次依赖解析结果 (NEW)
+     */
+    [[nodiscard]] DependencyResolutionResult get_last_resolution_result() const;
+
+    /**
+     * @brief 解析并加载所有插件依赖 (NEW)
+     * @details 在添加所有插件后调用此方法，会按照依赖顺序加载插件
+     * @return 成功返回 void，失败返回错误信息（仅严格模式）
+     */
+    Result<void, std::string> load_all_with_dependencies();
+
+    /**
      * @brief 重载插件
      * @param name 插件名称
      * @return 成功返回 void，失败返回错误信息
@@ -346,6 +373,10 @@ private:
     ~PluginManager() = default;
 
     std::unordered_map<std::string, std::unique_ptr<PluginWrapper>> m_plugins;
+
+    // 依赖解析相关成员 (NEW)
+    // 使用 int 避免前向声明问题 (0 = Lenient, 1 = Strict)
+    int m_dependency_mode = 0;  // 0 = Lenient, 1 = Strict
 };
 
 } // namespace DearTs::Core::Plugin
