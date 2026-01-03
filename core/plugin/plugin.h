@@ -173,12 +173,14 @@ class DynamicPluginWrapper : public PluginWrapper {
 public:
     /**
      * @brief 构造函数
-     * @param plugin 插件实例（使用自定义 deleter）
+     * @param plugin 插件原始指针（使用自定义 deleter）
+     * @param destroy_func 插件销毁函数
      * @param loader 动态库加载器
      * @param source_path 插件源文件路径
      */
     DynamicPluginWrapper(
-        std::unique_ptr<IPlugin, DestroyPluginFunc> plugin,
+        IPlugin* plugin,
+        DestroyPluginFunc destroy_func,
         std::unique_ptr<DynamicLibraryLoader> loader,
         std::string source_path
     );
@@ -202,7 +204,7 @@ public:
     void unload() override;
 
 private:
-    std::unique_ptr<IPlugin, DestroyPluginFunc> m_plugin_with_deleter;
+    DestroyPluginFunc m_destroy_func;
     std::unique_ptr<DynamicLibraryLoader> m_loader;
     std::string m_source_path;
 };

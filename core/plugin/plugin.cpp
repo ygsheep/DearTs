@@ -114,18 +114,20 @@ void PluginWrapper::disable() {
 // ================ DynamicPluginWrapper ================
 
 DynamicPluginWrapper::DynamicPluginWrapper(
-    std::unique_ptr<IPlugin, DestroyPluginFunc> plugin,
+    IPlugin* plugin,
+    DestroyPluginFunc destroy_func,
     std::unique_ptr<DynamicLibraryLoader> loader,
     std::string source_path
 )
-    : PluginWrapper(std::unique_ptr<IPlugin>(plugin.get(), [](IPlugin*) {}))  // 占位符，实际所有权在 m_plugin_with_deleter
-    , m_plugin_with_deleter(std::move(plugin))
+    : PluginWrapper(std::unique_ptr<IPlugin>(plugin, [destroy_func](IPlugin* p) {
+        if (destroy_func) {
+            destroy_func(p);
+        }
+    }))
+    , m_destroy_func(destroy_func)
     , m_loader(std::move(loader))
     , m_source_path(std::move(source_path))
 {
-    // 将插件指针设置到基类
-    m_plugin = std::unique_ptr<IPlugin>(m_plugin_with_deleter.get(), [](IPlugin*) {});
-
     auto info = m_plugin->get_info();
     LOG_INFO("Created dynamic plugin wrapper for: {} from {}", info.name, m_source_path);
 }
@@ -274,7 +276,8 @@ Result<void, std::string> PluginManager::load_from_file(const std::filesystem::p
 
     // 12. 创建包装器并加载
     auto wrapper = std::make_unique<DynamicPluginWrapper>(
-        std::move(plugin),
+        plugin_raw,
+        destroy_func,
         std::move(loader),
         path.string()
     );
