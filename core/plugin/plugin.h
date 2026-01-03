@@ -10,6 +10,7 @@
 #pragma once
 
 #include "core/result.h"
+#include "core/plugin/plugin_dependency.h"
 #include <string>
 #include <vector>
 #include <memory>
@@ -60,6 +61,24 @@ public:
      * @brief 获取插件信息
      */
     [[nodiscard]] virtual PluginInfo get_info() const = 0;
+
+    /**
+     * @brief 获取插件依赖列表
+     * @details 声明此插件依赖的其他插件及其版本要求
+     * @return 依赖列表（默认为空，保证向后兼容）
+     *
+     * @example
+     * std::vector<PluginDependency> get_dependencies() const override {
+     *     return {
+     *         PluginDependency::required("Live2DPlugin", ">=1.0.0"),
+     *         PluginDependency::optional("FFmpegPlugin", "^2.1.0"),
+     *         PluginDependency::soft("AudioPlugin", "~1.2.0")
+     *     };
+     * }
+     */
+    [[nodiscard]] virtual std::vector<PluginDependency> get_dependencies() const {
+        return {};  // 默认：无依赖（向后兼容）
+    }
 
     /**
      * @brief 插件加载时调用
