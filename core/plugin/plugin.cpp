@@ -119,15 +119,17 @@ DynamicPluginWrapper::DynamicPluginWrapper(
     std::unique_ptr<DynamicLibraryLoader> loader,
     std::string source_path
 )
-    : PluginWrapper(std::unique_ptr<IPlugin>(plugin, [destroy_func](IPlugin* p) {
-        if (destroy_func) {
-            destroy_func(p);
-        }
-    }))
-    , m_destroy_func(destroy_func)
+    : m_destroy_func(destroy_func)
     , m_loader(std::move(loader))
     , m_source_path(std::move(source_path))
 {
+    // 创建带有自定义 deleter 的 unique_ptr 并存储到基类成员
+    m_plugin = std::unique_ptr<IPlugin>(plugin, [destroy_func](IPlugin* p) {
+        if (destroy_func) {
+            destroy_func(p);
+        }
+    });
+
     auto info = m_plugin->get_info();
     LOG_INFO("Created dynamic plugin wrapper for: {} from {}", info.name, m_source_path);
 }
