@@ -13,15 +13,18 @@ set(PLUGIN_OUTPUT_DIR "${CMAKE_BINARY_DIR}/plugins")
 # 创建 DLL
 add_library(${PROJECT_NAME} SHARED
     test_plugin_export.cpp
+    # ContentRegistry 源文件
+    ${CMAKE_SOURCE_DIR}/core/content/commands.cpp
 )
 
 # 包含目录
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}  # 为了找到 core/plugin/plugin.h
+    ${CMAKE_SOURCE_DIR}/lib/liblogger  # 为了找到 liblogger/logger.h
 )
 
 # 链接库（如果需要）
-# target_link_libraries(${PROJECT_NAME} PRIVATE dearts_core)
+target_link_libraries(${PROJECT_NAME} PRIVATE deartsdl_logger)
 
 # Windows 特定设置
 if(WIN32)

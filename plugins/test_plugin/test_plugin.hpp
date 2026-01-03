@@ -6,6 +6,11 @@
 #pragma once
 
 #include "core/plugin/plugin.h"
+#include "core/content/commands.h"
+#include "liblogger/logger.h"
+
+using namespace DearTs;
+using namespace DearTs::Core;
 
 namespace TestPlugin {
 
@@ -17,8 +22,8 @@ public:
     /**
      * @brief 获取插件信息
      */
-    [[nodiscard]] DearTs::Core::Plugin::PluginInfo get_info() const override {
-        return DearTs::Core::Plugin::PluginInfo{
+    [[nodiscard]] Plugin::PluginInfo get_info() const override {
+        return Plugin::PluginInfo{
             .name = "TestPlugin",
             .author = "DearTs Team",
             .description = "Test plugin for auto-discovery",
@@ -30,11 +35,11 @@ public:
     /**
      * @brief 插件加载时调用
      */
-    DearTs::Core::Result<void, std::string> on_load() override {
+    Result<void, std::string> on_load() override {
         LOG_INFO("TestPlugin: on_load() called");
 
         // 注册一个测试命令
-        Core::ContentRegistry::Commands::add(
+        ContentRegistry::Commands::add(
             "testplugin.hello",
             "测试插件问候",
             []() {
@@ -43,7 +48,7 @@ public:
         );
 
         LOG_INFO("TestPlugin: Registered test command 'testplugin.hello'");
-        return DearTs::Core::Result<void, std::string>::ok();
+        return Result<void, std::string>::ok();
     }
 
     /**

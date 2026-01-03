@@ -377,6 +377,9 @@ endif()
 add_subdirectory(main/gui)
 add_subdirectory(examples/toast_example)
 
+# Add test plugin (for auto-discovery testing)
+add_subdirectory(plugins/test_plugin)
+
 # ==================== 预编译头 (PCH) 配置 ====================
 # 预编译头配置模块位于 cmake/PCH.cmake
 #

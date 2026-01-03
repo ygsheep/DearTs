@@ -7,6 +7,7 @@
 #include "test_plugin.hpp"
 #include "core/plugin/plugin.h"
 
+using namespace DearTs;
 using namespace DearTs::Core::Plugin;
 
 // 导出函数：创建插件实例
