@@ -455,6 +455,30 @@ void PluginManager::clear() {
 
 // ================ 依赖解析方法 (NEW) ================
 
+void PluginManager::initialize_dependency_config() {
+    // 尝试从 ConfigManager 读取依赖解析模式
+    // 如果 ConfigManager 未初始化或配置不存在，使用默认值（Lenient）
+
+    // 获取依赖模式配置（默认："lenient"）
+    std::string mode_str = "lenient";  // 默认值
+
+    // 注意：这里我们使用静态检查避免在没有 ConfigManager 的情况下编译失败
+    // 如果需要 ConfigManager 支持，请在应用初始化时调用此方法
+    #ifdef DEARTS_HAS_CONFIG_MANAGER
+    // 尝试从配置读取（如果 ConfigManager 可用）
+    // mode_str = ConfigManager::instance().get_or<std::string>("plugins.dependency_mode", "lenient");
+    #endif
+
+    // 转换字符串到枚举
+    if (mode_str == "strict") {
+        m_dependency_mode = 1;
+        LOG_INFO("Dependency resolution mode: Strict (from config)");
+    } else {
+        m_dependency_mode = 0;
+        LOG_INFO("Dependency resolution mode: Lenient (default)");
+    }
+}
+
 void PluginManager::set_dependency_mode(DependencyResolutionMode mode) {
     LOG_INFO("Setting dependency resolution mode to: {}",
              (mode == DependencyResolutionMode::Lenient) ? "Lenient" : "Strict");

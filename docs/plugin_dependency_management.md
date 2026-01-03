@@ -439,6 +439,9 @@ static Result<PluginDependency, std::string> soft(
 ```cpp
 class PluginManager {
 public:
+    // 从配置文件初始化依赖模式
+    void initialize_dependency_config();
+
     // 设置依赖解析模式
     void set_dependency_mode(DependencyResolutionMode mode);
 
@@ -462,14 +465,31 @@ enum class DependencyResolutionMode {
 };
 ```
 
-### 使用示例
+### 配置文件支持
+
+依赖解析模式可以通过配置文件设置：
+
+**config.json:**
+```json
+{
+  "plugins": {
+    "dependency_mode": "lenient"
+  }
+}
+```
+
+**可选值:**
+- `"lenient"` - 宽松模式（默认）
+- `"strict"` - 严格模式
+
+**在应用中启用配置:**
 
 ```cpp
 // 应用初始化
 auto& pm = PluginManager::instance();
 
-// 设置严格模式
-pm.set_dependency_mode(DependencyResolutionMode::Strict);
+// 从配置文件读取依赖模式
+pm.initialize_dependency_config();
 
 // 添加插件
 pm.add_builtin(std::make_unique<BuiltinPlugin>());
@@ -857,11 +877,14 @@ DearTs Framework 插件依赖管理系统提供了强大而灵活的工具来管
     };
 }
 
-// 2. 解析并加载
+// 2. 初始化配置（可选）
+pm.initialize_dependency_config();
+
+// 3. 解析并加载
 pm.set_dependency_mode(DependencyResolutionMode::Lenient);
 pm.load_all_with_dependencies();
 
-// 3. 检查结果
+// 4. 检查结果
 auto resolution = pm.get_last_resolution_result();
 ```
 

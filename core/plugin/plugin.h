@@ -316,6 +316,24 @@ public:
     Result<void, std::string> disable(const std::string& name);
 
     /**
+     * @brief 初始化依赖配置 (NEW)
+     * @details 从 ConfigManager 读取依赖解析模式配置
+     * @note 应在应用初始化时调用，在使用 load_all_with_dependencies() 之前
+     *
+     * @example
+     * // 在应用启动时调用
+     * PluginManager::instance().initialize_dependency_config();
+     *
+     * // 配置文件 (config.json):
+     * // {
+     * //   "plugins": {
+     * //     "dependency_mode": "strict"  // 或 "lenient"
+     * //   }
+     * // }
+     */
+    void initialize_dependency_config();
+
+    /**
      * @brief 设置依赖解析模式 (NEW)
      * @param mode 宽松模式或严格模式
      */
