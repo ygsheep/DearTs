@@ -333,7 +333,7 @@ void Application::update_stats() {
         m_fps_frame_count = 0;
         m_fps_timer = current_time;
 
-        LOG_DEBUG("FPS: {:.2f} (Average: {:.2f})", m_current_fps, m_average_fps);
+        // LOG_DEBUG("FPS: {:.2f} (Average: {:.2f})", m_current_fps, m_average_fps);
     }
 }
 

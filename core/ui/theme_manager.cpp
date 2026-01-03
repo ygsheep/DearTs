@@ -369,4 +369,46 @@ void ThemeManager::notifyThemeChanged() {
     }
 }
 
+void ThemeManager::applyGlassmorphismStyle() {
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    // 玻璃态颜色
+    ImVec4 glass_bg = ImVec4(0.08f, 0.08f, 0.10f, m_glass_alpha);
+    ImVec4 accent = m_accent_color;
+
+    // 设置窗口背景
+    style.Colors[ImGuiCol_WindowBg] = glass_bg;
+    style.Colors[ImGuiCol_ChildBg] = ImVec4(0.1f, 0.1f, 0.12f, 0.5f);
+
+    // 按钮样式
+    style.Colors[ImGuiCol_Button] = accent;
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(accent.x + 0.1f, accent.y + 0.1f, accent.z + 0.1f, 0.9f);
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4(accent.x + 0.15f, accent.y + 0.15f, accent.z + 0.15f, 1.0f);
+
+    // 文本样式
+    style.Colors[ImGuiCol_Text] = ImVec4(0.95f, 0.95f, 0.98f, 1.0f);
+    style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.6f, 0.6f, 0.65f, 1.0f);
+
+    // 边框
+    style.Colors[ImGuiCol_Border] = ImVec4(0.3f, 0.3f, 0.35f, 0.3f);
+    style.Colors[ImGuiCol_Separator] = ImVec4(0.3f, 0.3f, 0.35f, 0.3f);
+
+    // 滚动条
+    style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.1f, 0.1f, 0.12f, 0.5f);
+    style.Colors[ImGuiCol_ScrollbarGrab] = accent;
+    style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(accent.x + 0.1f, accent.y + 0.1f, accent.z + 0.1f, 0.8f);
+
+    // 圆角
+    style.WindowRounding = m_border_radius;
+    style.ChildRounding = m_border_radius;
+    style.FrameRounding = m_border_radius - 2.0f;
+    style.PopupRounding = m_border_radius;
+    style.ScrollbarRounding = m_border_radius - 1.0f;
+    style.GrabRounding = m_border_radius - 2.0f;
+    style.TabRounding = m_border_radius - 2.0f;
+
+    LOG_INFO("ThemeManager: Applied glassmorphism style (alpha={:.2f}, radius={:.1f})",
+             m_glass_alpha, m_border_radius);
+}
+
 } // namespace DearTs::Core::UI

@@ -114,21 +114,26 @@ add_executable(${PROJECT_NAME}
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_plugin.cpp
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_view.cpp
     # Live2D 插件
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_model_instance.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_model_manager.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/widgets/live2d_settings_widget.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/views/live2d_settings_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_model_instance.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_model_manager.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/widgets/live2d_settings_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/views/live2d_settings_view.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/ilive2d_renderer.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/live2d_renderer_gl.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/live2d_renderer_gl.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/sdl_texture_uploader.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/sdl_texture_uploader.cpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_plugin.hpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_model_instance.hpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_model_manager.hpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/widgets/live2d_settings_widget.hpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/views/live2d_settings_view.hpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_plugin.cpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_model_instance.cpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_model_manager.cpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/widgets/live2d_settings_widget.cpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/views/live2d_settings_view.cpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/ilive2d_renderer.hpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/live2d_renderer_gl.hpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/live2d_renderer_gl.cpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/sdl_texture_uploader.hpp
+#    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/sdl_texture_uploader.cpp
+    # FFmpeg Plugin (仅在 FFmpeg 支持时)
+    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/include/ffmpeg_plugin.hpp>
+    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/include/ffmpeg_view.hpp>
+    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/source/ffmpeg_plugin.cpp>
+    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/source/ffmpeg_view.cpp>
     # Windows 资源文件（仅 Windows）
     ${CMAKE_SOURCE_DIR}/resources/dearts.rc
 )
@@ -158,6 +163,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/plugins/live2d/include/views
     ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer
     ${CMAKE_SOURCE_DIR}/plugins/settings/include
+    # FFmpeg Plugin 包含目录
+    ${CMAKE_SOURCE_DIR}/plugins/ffmpeg/include
     ${CMAKE_SOURCE_DIR}/third_party/SDL/include
     ${CMAKE_SOURCE_DIR}/third_party/SDL_image/include
     ${CMAKE_SOURCE_DIR}/third_party/freetype/include
@@ -211,6 +218,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         freetype
         lunasvg::lunasvg
         glew_s
+        # FFmpeg (如果可用)
+        $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:ffmpeg_interface>
 )
 
 # Windows 特定设置

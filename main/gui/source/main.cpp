@@ -25,7 +25,7 @@ using namespace DearTs;
  * @brief 初始化日志系统（从 ConfigManager 读取配置）
  */
 void init_logger() {
-    auto& logger = Logger::get_instance();
+    auto logger = Logger::get_instance();
     auto& config = Core::Config::ConfigManager::instance();
 
     // 先尝试加载配置文件（如果存在）
@@ -61,7 +61,7 @@ void init_logger() {
     std::string log_file_path = config.get_or<std::string>("logger.file_path", "logs/app.log");
 
     // 设置日志级别
-    logger.set_level(static_cast<LogLevel>(log_level));
+    logger->set_level(static_cast<LogLevel>(log_level));
 
     // 构建完整的日志文件路径
     std::filesystem::path log_file;
@@ -81,12 +81,12 @@ void init_logger() {
 
     // 启用文件输出（如果配置启用）
     if (file_enabled) {
-        logger.enable_file_output(log_file.string(), true);
+        logger->enable_file_output(log_file.string(), true);
     }
 
     LOG_INFO("========================================");
     LOG_INFO("日志系统初始化完成");
-    LOG_INFO("日志级别: {}", static_cast<int>(logger.get_level()));
+    LOG_INFO("日志级别: {}", static_cast<int>(logger->get_level()));
     if (file_enabled) {
         LOG_INFO("日志文件: {}", log_file.string());
     } else {

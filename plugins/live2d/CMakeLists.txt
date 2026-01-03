@@ -18,7 +18,7 @@ set(GLEW_DIR ${CMAKE_SOURCE_DIR}/third_party/glew)
 # Build static library to avoid DLL dependencies
 set(BUILD_UTILS OFF CACHE BOOL "Build GLEW utilities" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared GLEW library" FORCE)
-add_subdirectory(${GLEW_DIR}/build/cmake ${CMAKE_BINARY_DIR}/glew)
+#add_subdirectory(${GLEW_DIR}/build/cmake ${CMAKE_BINARY_DIR}/glew)
 
 # Platform-specific Live2D Core library
 if(WIN32)
@@ -92,6 +92,8 @@ set(PLUGIN_SOURCES
     ${CMAKE_SOURCE_DIR}/core/content/project_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
+    ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
 )
 
 # Plugin header files
