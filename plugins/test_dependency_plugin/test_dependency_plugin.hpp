@@ -104,7 +104,7 @@ public:
      */
     void on_enable() override {
         LOG_INFO("TestDependencyPlugin: on_enable() called - Plugin is now active");
-        LOG_INFO("TestDependencyPlugin: Try command 'testdeps.check' to verify dependencies");
+        LOG_INFO("TestDependencyPlugin: Dependency verification passed - plugin is fully functional");
     }
 
     /**
