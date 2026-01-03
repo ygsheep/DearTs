@@ -213,7 +213,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
         imgui_full
         implot
-        SDL3_shared
+        SDL3::SDL3-shared
         SDL3_image-static
         deartsdl_logger
         freetype
