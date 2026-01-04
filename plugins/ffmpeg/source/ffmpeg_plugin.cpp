@@ -26,8 +26,12 @@ Plugin::PluginInfo FFmpegPlugin::get_info() const {
 Result<void, std::string> FFmpegPlugin::on_load() {
     LOG_INFO("FFmpeg Plugin: Loading...");
 
+#if DEARTS_FFMPEG_SUPPORT
     // 注册视图
     ContentRegistry::Views::add<FFmpegView>();
+#else
+    LOG_WARN("FFmpeg Plugin: FFmpeg support is not available, skipping view registration");
+#endif
 
     LOG_INFO("FFmpeg Plugin: Loaded successfully");
     return Result<void, std::string>::ok();

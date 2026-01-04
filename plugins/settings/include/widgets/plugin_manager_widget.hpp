@@ -85,6 +85,16 @@ private:
     ImVec4 get_state_color(const std::string& state);
 
     /**
+     * @brief 获取状态的显示文本（PluginState 枚举版本）
+     */
+    const char* get_state_text_by_state(Core::Plugin::PluginState state);
+
+    /**
+     * @brief 获取状态的颜色（PluginState 枚举版本）
+     */
+    ImVec4 get_state_color_by_state(Core::Plugin::PluginState state);
+
+    /**
      * @brief 订阅插件事件
      */
     void subscribe_events();

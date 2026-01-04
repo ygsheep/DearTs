@@ -112,6 +112,7 @@ public:
         return m_focused;
     }
 
+
     /**
      * @brief 窗口是否刚刚打开
      */

@@ -104,16 +104,24 @@ void ViewWindow::draw(ImGuiWindowFlags extra_flags) {
     auto window_name = to_window_name(m_unlocalized_name);
     auto flags = get_window_flags() | extra_flags;
 
+    // 检查窗口是否被折叠（在 docking 系统中，折叠的窗口仍然打开但不可见）
+    bool is_collapsed = false;
+
     if (ImGui::Begin(window_name.c_str(), &m_window_open, flags)) {
-        m_focused = ImGui::IsWindowFocused();
+        // 获取窗口折叠状态（需要在 Begin 后检查）
+        is_collapsed = ImGui::IsWindowCollapsed();
 
-        // 绘制帮助文本（如果有）
-        draw_help_text();
+        if (!is_collapsed) {
+            m_focused = ImGui::IsWindowFocused();
 
-        // 绘制内容
-        ImGui::BeginChild("##content");
-        draw_content();
-        ImGui::EndChild();
+            // 绘制帮助文本（如果有）
+            draw_help_text();
+
+            // 绘制内容
+            ImGui::BeginChild("##content");
+            draw_content();
+            ImGui::EndChild();
+        }
     }
 
     ImGui::End();

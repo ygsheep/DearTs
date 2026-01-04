@@ -4,7 +4,7 @@
  * @details 基于 DearTs 框架的工具箱应用主程序
  */
 
-#include "../include/dearts_application.hpp"
+#include "dearts_application.hpp"
 #include "liblogger/logger.h"
 #include "core/config/config_manager.h"
 #include <SDL3/SDL_main.h>

@@ -43,16 +43,16 @@ public:
      * @brief 声明插件依赖
      * @details
      * 依赖列表：
-     * 1. BuiltinPlugin (Required) - 内置插件总是存在
+     * 1. Builtin (Required) - 内置插件总是存在
      * 2. TestPlugin (Optional) - 测试插件，可能不存在
-     * 3. Live2DPlugin (Soft) - Live2D 插件，可能不存在
+     * 3. Live2D (Soft) - Live2D 插件，可能不存在
      */
     [[nodiscard]] std::vector<Plugin::PluginDependency> get_dependencies() const override {
         // 使用工厂方法创建依赖
         std::vector<Plugin::PluginDependency> deps;
 
-        // 必需依赖：BuiltinPlugin（总是存在）
-        auto builtin_dep = Plugin::PluginDependency::required("BuiltinPlugin", ">=1.0.0");
+        // 必需依赖：Builtin（总是存在）
+        auto builtin_dep = Plugin::PluginDependency::required("Builtin", ">=1.0.0");
         if (builtin_dep.isOk()) {
             deps.push_back(builtin_dep.unwrap());
         }
@@ -63,8 +63,8 @@ public:
             deps.push_back(test_dep.unwrap());
         }
 
-        // 软依赖：Live2DPlugin（可能不存在）
-        auto live2d_dep = Plugin::PluginDependency::soft("Live2DPlugin", ">=1.0.0");
+        // 软依赖：Live2D（可能不存在）
+        auto live2d_dep = Plugin::PluginDependency::soft("Live2D", ">=1.0.0");
         if (live2d_dep.isOk()) {
             deps.push_back(live2d_dep.unwrap());
         }
@@ -85,9 +85,9 @@ public:
 
         LOG_INFO("TestDependencyPlugin: Plugin loaded successfully");
         LOG_INFO("TestDependencyPlugin: Dependencies:");
-        LOG_INFO("  - BuiltinPlugin (Required): ✓ Available");
+        LOG_INFO("  - Builtin (Required): ✓ Available");
         LOG_INFO("  - TestPlugin (Optional): May or may not be available");
-        LOG_INFO("  - Live2DPlugin (Soft): May or may not be available");
+        LOG_INFO("  - Live2D (Soft): May or may not be available");
 
         return Result<void, std::string>::ok();
     }

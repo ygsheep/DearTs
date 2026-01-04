@@ -31,7 +31,7 @@ namespace DearTs::Plugins::FFmpeg {
 // 构造/析构
 // ============================================================================
 
-FFmpegView::FFmpegView() : ViewWindow(Core::UI::UnlocalizedString("合并TS文件")) {
+FFmpegView::FFmpegView() : ViewWindow(Core::UI::UnlocalizedString("视频处理"), ICON_VIDEO) {
     // 设置默认打开
     m_window_open = true;
 

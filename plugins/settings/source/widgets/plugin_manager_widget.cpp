@@ -282,6 +282,174 @@ void PluginManagerWidget::draw_plugin_details() {
             }
         }
     }
+
+    // 依赖关系信息
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("依赖关系");
+
+    // 获取插件的依赖信息
+    auto* plugin_ptr = pm.get_plugin(plugin.name);
+    if (plugin_ptr) {
+        auto dependencies = plugin_ptr->get_dependencies();
+
+        if (dependencies.empty()) {
+            ImGui::TextDisabled("此插件没有依赖");
+        } else {
+            // 依赖列表表格
+            if (ImGui::BeginTable("DependenciesTable", 4,
+                                 ImGuiTableFlags_Borders |
+                                 ImGuiTableFlags_RowBg |
+                                 ImGuiTableFlags_SizingFixedFit |
+                                 ImGuiTableFlags_Resizable |
+                                 ImGuiTableFlags_ScrollY)) {
+                ImGui::TableSetupScrollFreeze(0, 1); // 固定表头
+                ImGui::TableSetupColumn("依赖名称", ImGuiTableColumnFlags_WidthFixed, 150.0f);
+                ImGui::TableSetupColumn("类型", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+                ImGui::TableSetupColumn("版本要求", ImGuiTableColumnFlags_WidthFixed, 120.0f);
+                ImGui::TableSetupColumn("状态", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+                ImGui::TableHeadersRow();
+
+                for (const auto& dep : dependencies) {
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text("%s", dep.plugin_name.c_str());
+
+                    ImGui::TableSetColumnIndex(1);
+                    const char* type_str = "";
+                    ImVec4 type_color = ImVec4(1, 1, 1, 1);
+                    switch (dep.type) {
+                        case Plugin::DependencyType::Required:
+                            type_str = "必需";
+                            type_color = ImVec4(1.0f, 0.3f, 0.3f, 1.0f); // 红色
+                            break;
+                        case Plugin::DependencyType::Optional:
+                            type_str = "可选";
+                            type_color = ImVec4(1.0f, 0.8f, 0.3f, 1.0f); // 橙色
+                            break;
+                        case Plugin::DependencyType::Soft:
+                            type_str = "软依赖";
+                            type_color = ImVec4(0.5f, 0.8f, 1.0f, 1.0f); // 蓝色
+                            break;
+                    }
+                    ImGui::TextColored(type_color, "%s", type_str);
+
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::Text("%s", dep.version_range.to_string().c_str());
+
+                    ImGui::TableSetColumnIndex(3);
+                    // 检查依赖状态
+                    auto dep_state_result = pm.get_plugin_state(dep.plugin_name);
+                    if (dep_state_result.isOk()) {
+                        auto dep_state = dep_state_result.unwrap();
+                        ImVec4 state_color = get_state_color_by_state(dep_state);
+                        const char* state_text = get_state_text_by_state(dep_state);
+                        ImGui::TextColored(state_color, "%s", state_text);
+                    } else {
+                        ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "未找到");
+                    }
+                }
+
+                ImGui::EndTable();
+            }
+        }
+    } else {
+        ImGui::TextColored(ImVec4(1, 0, 0, 1), "无法获取插件依赖信息");
+    }
+
+    // 依赖解析功能
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("依赖解析");
+
+    // 解析按钮
+    static bool show_resolution_result = false;
+    if (ImGui::Button("解析依赖关系")) {
+        // 触发依赖解析
+        auto plugins = pm.get_all_plugins_info();
+        std::unordered_map<std::string, Plugin::IPlugin*> plugin_map;
+        for (const auto& info : plugins) {
+            auto* plugin = pm.get_plugin(info.name);
+            if (plugin) {
+                plugin_map[info.name] = plugin;
+            }
+        }
+
+        auto mode = pm.get_dependency_mode();
+        auto result = Plugin::DependencyResolver::resolve(plugin_map, mode);
+
+        show_resolution_result = true;
+
+        // 显示结果
+        if (result.success) {
+            ImGui::TextColored(ImVec4(0.2f, 0.8f, 0.2f, 1.0f), "✓ 依赖解析成功");
+            ImGui::Text("解析模式: %s", (mode == Plugin::DependencyResolutionMode::Strict) ? "严格" : "宽松");
+            ImGui::Text("加载顺序: %zu 个插件", result.load_order.size());
+
+            // 显示加载顺序
+            if (ImGui::CollapsingHeader("加载顺序详情")) {
+                if (ImGui::BeginTable("LoadOrderTable", 3,
+                                     ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg)) {
+                    ImGui::TableSetupColumn("顺序");
+                    ImGui::TableSetupColumn("插件名称");
+                    ImGui::TableSetupColumn("目标状态");
+                    ImGui::TableHeadersRow();
+
+                    for (size_t i = 0; i < result.load_order.size(); i++) {
+                        const auto& entry = result.load_order[i];
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        ImGui::Text("%zu", i + 1);
+                        ImGui::TableSetColumnIndex(1);
+                        ImGui::Text("%s", entry.plugin_name.c_str());
+                        ImGui::TableSetColumnIndex(2);
+                        const char* state_str = "";
+                        switch (entry.target_state) {
+                            case Plugin::PluginState::Enabled: state_str = "启用"; break;
+                            case Plugin::PluginState::Loaded: state_str = "加载"; break;
+                            case Plugin::PluginState::Disabled: state_str = "禁用"; break;
+                            default: state_str = "未知"; break;
+                        }
+                        ImGui::Text("%s", state_str);
+                    }
+                    ImGui::EndTable();
+                }
+            }
+
+            // 被禁用的插件（宽松模式）
+            if (!result.disabled_plugins.empty()) {
+                if (ImGui::CollapsingHeader("被禁用的插件")) {
+                    for (const auto& name : result.disabled_plugins) {
+                        ImGui::Text("- %s (依赖未满足)", name.c_str());
+                    }
+                }
+            }
+        } else {
+            ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "✗ 依赖解析失败");
+
+            // 显示错误列表
+            if (!result.errors.empty()) {
+                if (ImGui::CollapsingHeader("错误详情")) {
+                    for (size_t i = 0; i < result.errors.size(); i++) {
+                        const auto& error = result.errors[i];
+                        ImGui::TextWrapped("%zu. %s", i + 1, error.to_string().c_str());
+
+                        // 显示循环依赖链
+                        if (!error.dependency_chain.empty() &&
+                            error.type == Plugin::DependencyErrorType::CircularDependency) {
+                            ImGui::Indent();
+                            ImGui::TextDisabled("循环依赖链:");
+                            for (const auto& name : error.dependency_chain) {
+                                ImGui::TextDisabled("  -> %s", name.c_str());
+                            }
+                            ImGui::Unindent();
+                        }
+                        ImGui::Spacing();
+                    }
+                }
+            }
+        }
+    }
 }
 
 void PluginManagerWidget::draw_dependency_graph() {
@@ -437,5 +605,28 @@ ImVec4 PluginManagerWidget::get_state_color(const std::string& state) {
     if (state == "Loaded") return ImVec4(0.2f, 0.6f, 0.8f, 1.0f);  // 蓝色
     if (state == "Unloaded") return ImVec4(0.9f, 0.5f, 0.0f, 1.0f); // 橙色
     if (state == "Error") return ImVec4(0.8f, 0.2f, 0.2f, 1.0f);    // 红色
+    return ImVec4(0.6f, 0.6f, 0.6f, 1.0f);                      // 默认灰色
+}
+
+// 重载版本：接受 PluginState 枚举
+const char* PluginManagerWidget::get_state_text_by_state(Plugin::PluginState state) {
+    switch (state) {
+        case Plugin::PluginState::Enabled: return "已启用";
+        case Plugin::PluginState::Disabled: return "已禁用";
+        case Plugin::PluginState::Loaded: return "已加载";
+        case Plugin::PluginState::Unloaded: return "未加载";
+        case Plugin::PluginState::Error: return "错误";
+    }
+    return "未知";
+}
+
+ImVec4 PluginManagerWidget::get_state_color_by_state(Plugin::PluginState state) {
+    switch (state) {
+        case Plugin::PluginState::Enabled: return ImVec4(0.2f, 0.8f, 0.2f, 1.0f);  // 绿色
+        case Plugin::PluginState::Disabled: return ImVec4(0.6f, 0.6f, 0.6f, 1.0f); // 灰色
+        case Plugin::PluginState::Loaded: return ImVec4(0.2f, 0.6f, 0.8f, 1.0f);  // 蓝色
+        case Plugin::PluginState::Unloaded: return ImVec4(0.9f, 0.5f, 0.0f, 1.0f); // 橙色
+        case Plugin::PluginState::Error: return ImVec4(0.8f, 0.2f, 0.2f, 1.0f);    // 红色
+    }
     return ImVec4(0.6f, 0.6f, 0.6f, 1.0f);                      // 默认灰色
 }

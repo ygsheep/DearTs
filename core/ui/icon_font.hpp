@@ -152,7 +152,7 @@ private:
 
 // 媒体
 #define ICON_IMAGE          "\xee\x97\x98"  // ICON_MS_IMAGE
-#define ICON_VIDEO          "\xee\x97\x99"  // ICON_MS_VIDEO_LIBRARY
+#define ICON_VIDEO          "\xee\xae\x87"  // ICON_MS_VIDEO_FILE
 #define ICON_AUDIO          "\xee\x97\x9a"  // ICON_MS_HEADSET
 #define ICON_VOLUME_UP      "\xee\x97\x9b"  // ICON_MS_VOLUME_UP
 #define ICON_VOLUME_DOWN    "\xee\x97\x9c"  // ICON_MS_VOLUME_DOWN

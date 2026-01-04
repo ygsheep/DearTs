@@ -800,7 +800,7 @@ void LoggerViewerView::export_logs(bool filtered_only) {
     int exported_count = 0;
     if (filtered_only) {
         // 导出筛选后的日志
-        for (size_t idx : m_filtered_indices) {
+        for (const size_t idx : m_filtered_indices) {
             const auto& entry = m_log_entries[idx];
             file << entry.raw_line << "\n";
             exported_count++;
@@ -1139,7 +1139,7 @@ void LoggerViewerView::subscribe_to_task_events() {
             std::lock_guard<std::mutex> lock(m_loading_mutex);
             if (m_loading_task && m_loading_task == e.task) {
                 m_is_loading = true;
-                m_loading_progress = 0.0f;
+                m_loading_progress = 0.0F;
                 m_loaded_entries = 0;
             }
         }
@@ -1150,7 +1150,7 @@ void LoggerViewerView::subscribe_to_task_events() {
         [this](const TaskProgressEvent& e) {
             std::lock_guard<std::mutex> lock(m_loading_mutex);
             if (m_loading_task && m_loading_task == e.task) {
-                m_loading_progress = e.progress_percent / 100.0f;
+                m_loading_progress = e.progress_percent / 100.0F;
             }
         }
     );
@@ -1161,13 +1161,7 @@ void LoggerViewerView::subscribe_to_task_events() {
             std::lock_guard<std::mutex> lock(m_loading_mutex);
             if (m_loading_task && m_loading_task == e.task) {
                 m_is_loading = false;
-                m_loading_progress = 1.0f;
-
-                // 显示成功提示 - 使用完整命名空间
-                DearTs::Plugins::Toast::ToastManager::instance().success(
-                    "加载完成",
-                    std::format("成功加载 {} 条日志", m_log_entries.size())
-                );
+                m_loading_progress = 1.0F;
             }
         }
     );
