@@ -31,7 +31,7 @@ namespace DearTs::Plugins::FFmpeg {
 // 构造/析构
 // ============================================================================
 
-FFmpegView::FFmpegView() : ViewWindow(Core::UI::UnlocalizedString("合并TS文件")) {
+FFmpegView::FFmpegView() : ViewWindow(Core::UI::UnlocalizedString("视频处理"), ICON_VIDEO) {
     // 设置默认打开
     m_window_open = true;
 
@@ -60,8 +60,6 @@ FFmpegView::FFmpegView() : ViewWindow(Core::UI::UnlocalizedString("合并TS文�
     m_task_completed_token = EventBus::instance().subscribe<TaskCompletedEvent>(
         [&](const TaskCompletedEvent& event) {
             LOG_INFO("FFmpegView: TaskCompletedEvent received, task: {}", event.task->getName());
-
-            auto& toast = Toast::ToastManager::instance();
 
             // 检查是否是我们的合并任务
             bool is_merge_task = (m_merge_task && event.task.get() == m_merge_task.get());

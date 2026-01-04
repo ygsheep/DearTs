@@ -7,6 +7,7 @@
 #include "ffmpeg_view.hpp"
 #include "liblogger/logger.h"
 #include "core/content/registry_base.h"
+#include "core/ui/view.h"
 
 using namespace DearTs::Core;
 
@@ -25,14 +26,23 @@ Plugin::PluginInfo FFmpegPlugin::get_info() const {
 Result<void, std::string> FFmpegPlugin::on_load() {
     LOG_INFO("FFmpeg Plugin: Loading...");
 
+#if DEARTS_FFMPEG_SUPPORT
     // 注册视图
     ContentRegistry::Views::add<FFmpegView>();
+#else
+    LOG_WARN("FFmpeg Plugin: FFmpeg support is not available, skipping view registration");
+#endif
 
     LOG_INFO("FFmpeg Plugin: Loaded successfully");
     return Result<void, std::string>::ok();
 }
 
 void FFmpegPlugin::on_unload() {
+    LOG_INFO("FFmpeg Plugin: Unloading...");
+
+    // 移除注册的视图（注意：视图名称是 "合并TS文件" 而不是 "FFmpeg"）
+    ContentRegistry::Views::remove("合并TS文件");
+
     LOG_INFO("FFmpeg Plugin: Unloaded");
 }
 

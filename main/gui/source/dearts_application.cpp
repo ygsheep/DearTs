@@ -318,7 +318,6 @@ void DearTsApplication::on_shutdown() {
     // 保存配置文件
     Core::Config::ConfigManager::instance().save_to_file("config.json");
 
-    // 清理资源
     // CommandPalette 现在由插件系统管理，无需手动清理
 
     // 卸载所有插件
@@ -545,7 +544,27 @@ void DearTsApplication::setup_commands_and_tools() {
         }
     });
 
+    // ============ 插件管理命令 ============
+    // 重新扫描插件目录
+    Commands::add("plugins.rescan", "重新扫描插件目录", []() {
+        auto& pm = Core::Plugin::PluginManager::instance();
+        auto& config = Core::Config::ConfigManager::instance();
+
+        std::string plugin_dir = config.get_or<std::string>("plugins.directory", "plugins");
+        LOG_INFO("Rescanning plugins in: {}", plugin_dir);
+
+        auto result = pm.load_from_directory(plugin_dir);
+
+        if (result.isOk()) {
+            size_t count = result.unwrap();
+            LOG_INFO("Rescan complete: {} new plugins loaded", count);
+        } else {
+            LOG_ERROR("Rescan failed: {}", result.error());
+        }
+    });
+
     LOG_INFO("视图切换命令已注册");
+    LOG_INFO("插件管理命令已注册");
 }
 
 void DearTsApplication::setup_shortcuts() {
@@ -604,6 +623,10 @@ void DearTsApplication::setup_views() {
 
 void DearTsApplication::setup_plugins() {
     auto& plugin_manager = Core::Plugin::PluginManager::instance();
+    auto& config = Core::Config::ConfigManager::instance();
+
+    // ============ Phase 1: 加载内置插件 ============
+    LOG_INFO("Loading builtin plugins...");
 
     // 添加内置插件
     auto builtin_plugin = std::make_unique<DearTs::Plugins::Builtin::BuiltinPlugin>();
@@ -665,12 +688,6 @@ void DearTsApplication::setup_plugins() {
         LOG_INFO("CommandPalettePlugin loaded successfully");
     }
 
-    if (result.isErr()) {
-        LOG_ERROR("Failed to load Live2DPlugin: {}", result.error());
-    } else {
-        LOG_INFO("Live2DPlugin loaded successfully");
-    }
-
 #if DEARTS_FFMPEG_SUPPORT
     // 添加 FFmpeg 插件
     auto ffmpeg_plugin = std::make_unique<DearTs::Plugins::FFmpeg::FFmpegPlugin>();
@@ -683,13 +700,30 @@ void DearTsApplication::setup_plugins() {
     }
 #endif
 
-    // 获取插件信息
-    auto plugin_infos = plugin_manager.get_all_plugins_info();
-    LOG_INFO("Plugin system initialized");
-    LOG_INFO("Built-in plugins: {}", plugin_infos.size());
+    // ============ Phase 2: 自动发现外部插件 ============
+    bool auto_load_enabled = config.get_or<bool>("plugins.auto_load", true);
 
-    // 可以从目录加载插件
-    // plugin_manager.load_from_directory("plugins");
+    if (auto_load_enabled) {
+        // 从配置读取插件目录（默认：plugins/）
+        std::string plugin_dir = config.get_or<std::string>("plugins.directory", "plugins");
+
+        LOG_INFO("Auto-discovering plugins in: {}", plugin_dir);
+
+        auto discovery_result = plugin_manager.load_from_directory(plugin_dir);
+
+        if (discovery_result.isOk()) {
+            size_t count = discovery_result.unwrap();
+            LOG_INFO("Auto-discovered {} external plugins", count);
+        } else {
+            LOG_WARN("Plugin auto-discovery failed: {}", discovery_result.error());
+        }
+    } else {
+        LOG_INFO("Plugin auto-load disabled by configuration");
+    }
+
+    // ============ Phase 3: 统计信息 ============
+    auto plugin_infos = plugin_manager.get_all_plugins_info();
+    LOG_INFO("Plugin system initialized: {} total plugins", plugin_infos.size());
 }
 
 void DearTsApplication::render_menu_bar() {
@@ -800,15 +834,190 @@ void DearTsApplication::render_tool_windows() {
 
     // 关于窗口
     if (m_show_about_window) {
-        ImGui::Begin("关于", &m_show_about_window);
-        ImGui::Text("DearTs 工具箱");
-        ImGui::Separator();
-        ImGui::Text("版本: 1.0.0");
-        ImGui::Text("基于 DearTs 框架");
-        ImGui::Text("ImGui 版本: {}", ImGui::GetVersion());
-        ImGui::Separator();
-        ImGui::Text("作者: DearTs Team");
+        // 计算居中位置
+        ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImVec2 viewport_size = viewport->WorkSize;
+        ImVec2 viewport_pos = viewport->WorkPos;
+
+        // 窗口大小
+        ImVec2 window_size(650, 600);
+        ImVec2 window_pos(
+            viewport_pos.x + (viewport_size.x - window_size.x) * 0.5f,
+            viewport_pos.y + (viewport_size.y - window_size.y) * 0.5f
+        );
+
+        // 设置背景遮罩 - 渲染半透明背景
+        ImGui::SetNextWindowPos(viewport_pos);
+        ImGui::SetNextWindowSize(viewport_size);
+        ImGui::SetNextWindowViewport(viewport->ID);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0.5f));
+
+        ImGuiWindowFlags bg_flags = ImGuiWindowFlags_NoTitleBar |
+                                   ImGuiWindowFlags_NoResize |
+                                   ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoScrollbar |
+                                   ImGuiWindowFlags_NoScrollWithMouse |
+                                   ImGuiWindowFlags_NoCollapse |
+                                   ImGuiWindowFlags_NoDocking;
+
+        // 背景遮罩层
+        if (ImGui::Begin("AboutWindow_Bg", nullptr, bg_flags)) {
+            // 点击遮罩层关闭窗口
+            if (ImGui::IsMouseClicked(0) && ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)) {
+                m_show_about_window = false;
+            }
+        }
         ImGui::End();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+
+        // 设置主窗口位置
+        ImGui::SetNextWindowPos(window_pos);
+        ImGui::SetNextWindowSize(window_size);
+        ImGui::SetNextWindowViewport(viewport->ID);
+
+        // 主窗口样式
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar |
+                                      ImGuiWindowFlags_NoResize |
+                                      ImGuiWindowFlags_NoMove |
+                                      ImGuiWindowFlags_NoCollapse |
+                                      ImGuiWindowFlags_NoDocking;
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(30, 30));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.15f, 0.15f, 0.15f, 0.98f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+
+        if (ImGui::Begin("AboutWindow", &m_show_about_window, window_flags)) {
+            // 标题
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+            float title_width = ImGui::CalcTextSize("DearTs 工具箱").x;
+            ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - title_width) * 0.5f);
+            ImGui::Text("DearTs 工具箱");
+            ImGui::PopStyleColor();
+
+            ImGui::Spacing();
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+            float version_width = ImGui::CalcTextSize("版本 1.0.0").x;
+            ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - version_width) * 0.5f);
+            ImGui::Text("版本 1.0.0");
+            ImGui::PopStyleColor();
+
+            ImGui::Spacing();
+            ImGui::TextDisabled("基于 DearTs Framework");
+            ImGui::Spacing();
+
+            // 分隔线
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            // 第三方库列表（可滚动）
+            ImGui::Text("  第三方库");
+            ImGui::Spacing();
+
+            // 辅助函数：绘制可点击的URL
+            auto clickable_url = [](const char* label, const char* url) {
+                ImGui::TextDisabled("%s", label);
+                ImGui::SameLine(0, 20);
+
+                ImVec2 p = ImGui::GetCursorScreenPos();
+                ImVec2 size = ImGui::CalcTextSize(url);
+
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.6f, 1.0f, 1.0f));
+                ImGui::Text("%s", url);
+                ImGui::PopStyleColor();
+
+                ImGuiID id = ImGui::GetID(url);
+
+                bool hovered = ImGui::IsItemHovered();
+                if (hovered) {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.8f, 1.0f, 1.0f));
+                    ImGui::Text(url);
+                    ImGui::PopStyleColor();
+                    // Underline
+                    ImVec2 min = p;
+                    ImVec2 max = ImVec2(p.x + size.x, p.y + size.y + 2);
+                    ImGui::GetWindowDrawList()->AddLine(
+                        ImVec2(min.x, min.y + 1),
+                        ImVec2(max.x, max.y - 2),
+                        ImGui::GetColorU32(ImGuiCol_Text),
+                        1.0f
+                    );
+                }
+
+                if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                    SDL_OpenURL(url);
+                }
+            };
+
+            if (ImGui::BeginChild("ThirdPartyLibs", ImVec2(0, 350), ImGuiChildFlags_Borders)) {
+                // 核心库
+                ImGui::Spacing();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+                ImGui::TextDisabled("【核心框架】");
+                ImGui::PopStyleColor();
+                clickable_url("SDL3 - 多媒体平台抽象层", "https://github.com/libsdl-org/SDL");
+                clickable_url("ImGui - 即时模式图形用户界面", "https://github.com/ocornut/imgui");
+                clickable_url("ImPlot - ImGui 绘图库", "https://github.com/epezent/implot");
+                ImGui::Spacing();
+
+                // 渲染相关
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+                ImGui::TextDisabled("【渲染与图形】");
+                ImGui::PopStyleColor();
+                clickable_url("FreeType - 字体渲染引擎", "https://freetype.org");
+                clickable_url("LunaSVG - SVG 渲染库", "https://github.com/sammycage/lunasvg");
+                clickable_url("GLEW - OpenGL 扩展加载库", "https://github.com/nigels-com/glew");
+                ImGui::Spacing();
+
+                // 数据处理
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+                ImGui::TextDisabled("【数据处理】");
+                ImGui::PopStyleColor();
+                clickable_url("nlohmann/json - JSON 解析库", "https://github.com/nlohmann/json");
+                clickable_url("cppjieba - 中文分词库", "https://github.com/yanyiwu/cppjieba");
+                ImGui::Spacing();
+
+                // 特殊功能
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+                ImGui::TextDisabled("【特殊功能】");
+                ImGui::PopStyleColor();
+                clickable_url("Live2D Cubism - 2D 角色动画", "https://www.live2d.com");
+                clickable_url("ImGui Test Engine - UI 测试框架", "https://github.com/ocornut/imgui_test_engine");
+                clickable_url("ImGui Node Editor - 节点编辑器", "https://github.com/thedmd/imgui-node-editor");
+                clickable_url("ImGui Markdown - Markdown 渲染", "https://github.com/juliettef/imgui_markdown");
+                ImGui::Spacing();
+
+                // 开发工具
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+                ImGui::TextDisabled("【开发工具】");
+                ImGui::PopStyleColor();
+                clickable_url("Google Test - 单元测试框架", "https://github.com/google/googletest");
+
+                ImGui::EndChild();
+            }
+
+            // 底部按钮
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            float button_width = 120;
+            ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - button_width) * 0.5f);
+
+            if (ImGui::Button("关闭", ImVec2(button_width, 40))) {
+                m_show_about_window = false;
+            }
+
+            ImGui::End();
+
+            ImGui::PopStyleColor(2);
+            ImGui::PopStyleVar(2);
+        } else {
+            ImGui::PopStyleColor(2);
+            ImGui::PopStyleVar(2);
+        }
     }
 
     // 任务和插件管理窗口

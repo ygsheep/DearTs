@@ -3,18 +3,19 @@
  * @brief 设置视图实现
  */
 
-#include "views/settings_view.hpp"
-#include "toast_settings_widget.hpp"
-#include "widgets/theme_settings_widget.hpp"
-#include "widgets/character_settings_widget.hpp"
+#include "../include/settings_view.hpp"
+#include "../include/widgets/toast_settings_widget.hpp"
+#include "../include/widgets/plugin_manager_widget.hpp"
 #include "core/config/config_manager.h"
-#include "core/ui/theme_manager.h"
-#include "core/ui/icon_font.hpp"
 #include "core/content/registry_base.h"
-#include "toast_manager.hpp"
+#include "core/ui/icon_font.hpp"
+#include "core/ui/theme_manager.h"
 #include "liblogger/logger.h"
-#include <imgui.h>
+#include "toast_manager.hpp"
+#include "widgets/character_settings_widget.hpp"
+#include "widgets/theme_settings_widget.hpp"
 #include <algorithm>
+#include <imgui.h>
 
 namespace DearTs::Plugins::Settings {
 using DearTs::Core::ContentRegistry::UnlocalizedString;
@@ -23,7 +24,8 @@ SettingsView::SettingsView()
     : ViewWindow(UnlocalizedString("设置"), ICON_SETTINGS)
     , m_toast_widget(std::make_unique<ToastSettingsWidget>())
     , m_theme_widget(std::make_unique<ThemeSettingsWidget>())
-    , m_character_widget(std::make_unique<CharacterSettingsWidget>()) {
+    , m_character_widget(std::make_unique<CharacterSettingsWidget>())
+    , m_plugin_manager_widget(std::make_unique<PluginManagerWidget>()) {
 }
 
 SettingsView::~SettingsView() = default;
@@ -98,6 +100,7 @@ void SettingsView::draw_sidebar() {
         ConfigCategory::Theme,
         ConfigCategory::Character,
         ConfigCategory::Toast,
+        ConfigCategory::PluginManager,
         ConfigCategory::Shortcuts,
         ConfigCategory::Advanced,
     };
@@ -137,6 +140,9 @@ void SettingsView::draw_config_panel() {
             break;
         case ConfigCategory::Toast:
             draw_toast_settings();
+            break;
+        case ConfigCategory::PluginManager:
+            draw_plugin_manager_settings();
             break;
         default:
             ImGui::Text("此分类暂无设置项");
@@ -396,11 +402,19 @@ const char* SettingsView::get_category_name(ConfigCategory category) const {
         case ConfigCategory::Theme:     return "主题";
         case ConfigCategory::Character: return "角色";
         case ConfigCategory::Toast:     return "气泡消息";
+        case ConfigCategory::PluginManager: return "插件管理器";
         case ConfigCategory::Shortcuts: return "快捷键";
         case ConfigCategory::Advanced:  return "高级";
         default:                        return "未知";
     }
 }
+
+void SettingsView::draw_plugin_manager_settings() {
+    if (m_plugin_manager_widget) {
+        m_plugin_manager_widget->render();
+    }
+}
+
 
 std::vector<std::string> SettingsView::filter_configs_by_category(ConfigCategory category) {
     // TODO: 实现配置过滤逻辑

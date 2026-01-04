@@ -8,18 +8,26 @@
 #include "core/utils/file_dialog.hpp"
 #include "core/ui/icon_font.hpp"
 #include "core/content/registry_base.h"
+#include "core/tasks/task_manager.h"
+#include "core/tasks/task_events.h"
+#include "core/event/event_bus.h"
+#include "plugins/toast_notification/include/toast_manager.hpp"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 #include <imgui.h>
 #include <implot.h>
 #include <cmath>
+#include <thread>
 
 namespace DearTs::Plugins::LoggerViewer {
 using DearTs::Core::ContentRegistry::UnlocalizedString;
 
 LoggerViewerView::LoggerViewerView()
     : ViewWindow(UnlocalizedString("日志查看器"), ICON_LOGS) {
+    // 订阅任务事件以显示 Toast 通知
+    subscribe_to_task_events();
+
     // 查找日志目录
     std::vector<std::filesystem::path> log_dirs = {
         "logs",
@@ -52,6 +60,12 @@ LoggerViewerView::LoggerViewerView()
         m_selected_log_index = 0;
         load_log_file(m_log_files[0]);
     }
+}
+
+LoggerViewerView::~LoggerViewerView() {
+    // 安全清理：在析构前重置任务指针，避免 Task 析构时触发日志死锁
+    // 注意：此时 Logger 可能已经开始析构，调用 LOG 可能导致死锁
+    m_loading_task.reset();
 }
 
 void LoggerViewerView::draw_content() {
@@ -132,49 +146,6 @@ bool LoggerViewerView::parse_dearts_log(const std::string& line, LogEntry& entry
     }
 
     return false;
-}
-
-void LoggerViewerView::load_log_file(const std::filesystem::path& path) {
-    m_current_log_path = path;
-    m_log_entries.clear();
-
-    if (!std::filesystem::exists(path)) {
-        LOG_WARN("Log file not found: {}", path.string());
-        return;
-    }
-
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        LOG_ERROR("Failed to open log file: {}", path.string());
-        return;
-    }
-
-    std::string line;
-    while (std::getline(file, line)) {
-        LogEntry entry;
-        if (parse_log_line(line, entry)) {
-            m_log_entries.push_back(entry);
-        } else if (!line.empty() && line[0] != '[') {
-            // 处理多行日志消息（附加到前一个条目）
-            if (!m_log_entries.empty()) {
-                m_log_entries.back().message += "\n" + line;
-            }
-        }
-    }
-
-    file.close();
-
-    LOG_INFO("Loaded {} log entries from {}", m_log_entries.size(), path.string());
-
-    // 记录文件修改时间
-    try {
-        m_last_write_time = std::filesystem::last_write_time(path);
-    } catch (...) {
-        // 忽略错误
-    }
-
-    update_statistics();
-    m_need_filter = true;
 }
 
 void LoggerViewerView::refresh_log() {
@@ -501,7 +472,22 @@ void LoggerViewerView::draw_toolbar() {
         }
     }
 
-    ImGui::Separator();
+    // 显示加载进度
+    if (m_is_loading) {
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.3f, 0.6f, 1.0f, 1.0f), "正在加载日志...");
+        ImGui::ProgressBar(m_loading_progress, ImVec2(200.0f, 0.0f));
+        ImGui::SameLine();
+        ImGui::Text("%.1f%%", m_loading_progress * 100);
+
+        // 取消按钮
+        if (ImGui::Button("取消##cancel_load")) {
+            cancel_current_task();
+        }
+        ImGui::Separator();
+    } else {
+        ImGui::Separator();
+    }
 }
 
 void LoggerViewerView::draw_filter_panel() {
@@ -814,7 +800,7 @@ void LoggerViewerView::export_logs(bool filtered_only) {
     int exported_count = 0;
     if (filtered_only) {
         // 导出筛选后的日志
-        for (size_t idx : m_filtered_indices) {
+        for (const size_t idx : m_filtered_indices) {
             const auto& entry = m_log_entries[idx];
             file << entry.raw_line << "\n";
             exported_count++;
@@ -1129,12 +1115,211 @@ void LoggerViewerView::browse_log_file() {
             m_selected_log_index = static_cast<int>(it - m_log_files.begin());
         }
 
-        // 加载文件
+        // 加载文件（会自动取消之前的任务）
         load_log_file(selected_path);
 
         LOG_INFO("Opened log file: {}", selected_path.string());
     } else if (!result.error_message.empty()) {
         LOG_ERROR("Failed to open file dialog: {}", result.error_message);
+    }
+}
+
+// ================ 异步加载相关实现 ================
+
+void LoggerViewerView::subscribe_to_task_events() {
+    using namespace Core::Tasks;
+    using namespace Core::Event;
+
+    auto& bus = EventBus::instance();
+
+    // 订阅任务开始事件
+    m_task_started_token = bus.subscribe<TaskStartedEvent>(
+        [this](const TaskStartedEvent& e) {
+            // 只处理我们自己的任务
+            std::lock_guard<std::mutex> lock(m_loading_mutex);
+            if (m_loading_task && m_loading_task == e.task) {
+                m_is_loading = true;
+                m_loading_progress = 0.0F;
+                m_loaded_entries = 0;
+            }
+        }
+    );
+
+    // 订阅任务进度事件
+    m_task_progress_token = bus.subscribe<TaskProgressEvent>(
+        [this](const TaskProgressEvent& e) {
+            std::lock_guard<std::mutex> lock(m_loading_mutex);
+            if (m_loading_task && m_loading_task == e.task) {
+                m_loading_progress = e.progress_percent / 100.0F;
+            }
+        }
+    );
+
+    // 订阅任务完成事件
+    m_task_completed_token = bus.subscribe<TaskCompletedEvent>(
+        [this](const TaskCompletedEvent& e) {
+            std::lock_guard<std::mutex> lock(m_loading_mutex);
+            if (m_loading_task && m_loading_task == e.task) {
+                m_is_loading = false;
+                m_loading_progress = 1.0F;
+            }
+        }
+    );
+
+    // 订阅任务失败事件
+    m_task_failed_token = bus.subscribe<TaskFailedEvent>(
+        [this](const TaskFailedEvent& e) {
+            std::lock_guard<std::mutex> lock(m_loading_mutex);
+            if (m_loading_task && m_loading_task == e.task) {
+                m_is_loading = false;
+                DearTs::Plugins::Toast::ToastManager::instance().error(
+                    "加载失败",
+                    e.error_message
+                );
+            }
+        }
+    );
+
+    // 订阅任务取消事件
+    m_task_cancelled_token = bus.subscribe<TaskCancelledEvent>(
+        [this](const TaskCancelledEvent& e) {
+            std::lock_guard<std::mutex> lock(m_loading_mutex);
+            if (m_loading_task && m_loading_task == e.task) {
+                m_is_loading = false;
+                DearTs::Plugins::Toast::ToastManager::instance().warning(
+                    "加载已取消",
+                    "日志文件加载已被取消"
+                );
+            }
+        }
+    );
+}
+
+void LoggerViewerView::cancel_current_task() {
+    std::lock_guard<std::mutex> lock(m_loading_mutex);
+    if (m_loading_task && m_loading_task->isRunning()) {
+        Core::Tasks::TaskManager::instance().cancel(m_loading_task);
+        LOG_INFO("Cancelled previous loading task");
+    }
+}
+
+void LoggerViewerView::load_log_file(const std::filesystem::path& path) {
+    using namespace Core::Tasks;
+
+    // 取消之前的任务
+    cancel_current_task();
+
+    m_current_log_path = path;
+
+    if (!std::filesystem::exists(path)) {
+        LOG_WARN("Log file not found: {}", path.string());
+        DearTs::Plugins::Toast::ToastManager::instance().error(
+            "文件不存在",
+            path.string()
+        );
+        return;
+    }
+
+    // 创建新的异步加载任务
+    {
+        std::lock_guard<std::mutex> lock(m_loading_mutex);
+        m_loading_task = TaskManager::instance().launch(
+            std::format("加载日志: {}", path.filename().string()),
+            [this, path](const std::atomic<bool>& should_cancel) {
+                // 获取当前任务指针用于更新进度
+                auto& tm = TaskManager::instance();
+                auto tasks = tm.getTasks();
+                std::shared_ptr<Task> current_task;
+                for (const auto& t : tasks) {
+                    if (t->isRunning()) {
+                        current_task = t;
+                        break;
+                    }
+                }
+
+                load_log_file_async(path, should_cancel, current_task);
+            }
+        );
+    }
+}
+
+void LoggerViewerView::load_log_file_async(
+    const std::filesystem::path& path,
+    const std::atomic<bool>& should_cancel,
+    std::shared_ptr<Core::Tasks::Task> task
+) {
+    // 临时存储加载的日志条目
+    std::vector<LogEntry> new_entries;
+
+    try {
+        // 获取文件大小用于进度估算
+        size_t file_size = std::filesystem::file_size(path);
+
+        std::ifstream file(path);
+        if (!file.is_open()) {
+            LOG_ERROR("Failed to open log file: {}", path.string());
+            return;
+        }
+
+        std::string line;
+        size_t bytes_read = 0;
+        size_t total_lines = 0;
+
+        // 分段读取文件
+        while (std::getline(file, line) && !should_cancel) {
+            LogEntry entry;
+            if (parse_log_line(line, entry)) {
+                new_entries.push_back(entry);
+            } else if (!line.empty() && line[0] != '[') {
+                // 处理多行日志消息
+                if (!new_entries.empty()) {
+                    new_entries.back().message += "\n" + line;
+                }
+            }
+
+            // 更新进度
+            bytes_read += line.size() + 1; // +1 for newline
+            total_lines++;
+
+            if (task) {
+                float progress = static_cast<float>(bytes_read) /
+                                static_cast<float>(file_size) * 100.0f;
+                task->setProgress(progress);
+            }
+
+            // 每处理 1000 行让出 CPU 时间
+            if (total_lines % 1000 == 0) {
+                std::this_thread::yield();
+            }
+        }
+
+        file.close();
+
+        if (should_cancel) {
+            LOG_INFO("Log loading cancelled: {}", path.string());
+            return;
+        }
+
+        // 在主线程中更新 UI 数据
+        std::lock_guard<std::mutex> lock(m_loading_mutex);
+        m_log_entries = std::move(new_entries);
+        m_loaded_entries = m_log_entries.size();
+
+        // 记录文件修改时间
+        try {
+            m_last_write_time = std::filesystem::last_write_time(path);
+        } catch (...) {
+            // 忽略错误
+        }
+
+        // 更新统计和筛选
+        update_statistics();
+        m_need_filter = true;
+
+        LOG_INFO("Loaded {} log entries from {}", m_log_entries.size(), path.string());
+
+    } catch (const std::exception& e) {
+        LOG_ERROR("Error loading log file: {}", e.what());
     }
 }
 

@@ -91,7 +91,7 @@ private:
 #define ICON_DELETE         "\xee\x97\x8c"  // ICON_MS_DELETE (使用 REMOVE 相同)
 #define ICON_EDIT           "\xee\xa3\x8b"  // ICON_MS_EDIT
 #define ICON_SAVE           "\xee\xa2\xb2"  // ICON_MS_SAVE
-#define ICON_COPY           "\xee\xa0\x9b"  // ICON_MS_COPY_ALL
+#define ICON_COPY           "\xee\x85\x8d"  // ICON_MS_COPY_ALL
 #define ICON_CUT            "\xee\xa0\x99"  // ICON_MS_CONTENT_CUT
 #define ICON_PASTE          "\xee\xa0\x9c"  // ICON_MS_CONTENT_PASTE
 
@@ -152,7 +152,7 @@ private:
 
 // 媒体
 #define ICON_IMAGE          "\xee\x97\x98"  // ICON_MS_IMAGE
-#define ICON_VIDEO          "\xee\x97\x99"  // ICON_MS_VIDEO_LIBRARY
+#define ICON_VIDEO          "\xee\xae\x87"  // ICON_MS_VIDEO_FILE
 #define ICON_AUDIO          "\xee\x97\x9a"  // ICON_MS_HEADSET
 #define ICON_VOLUME_UP      "\xee\x97\x9b"  // ICON_MS_VOLUME_UP
 #define ICON_VOLUME_DOWN    "\xee\x97\x9c"  // ICON_MS_VOLUME_DOWN

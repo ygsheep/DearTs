@@ -94,6 +94,12 @@ set(PLUGIN_SOURCES
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_loader.cpp
+    # Dependency management system (required by plugin.cpp)
+    ${CMAKE_SOURCE_DIR}/core/plugin/version.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/version_range.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_dependency.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/dependency_resolver.cpp
 )
 
 # Plugin header files

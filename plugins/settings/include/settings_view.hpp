@@ -15,6 +15,7 @@ namespace DearTs::Plugins::Settings {
 class ToastSettingsWidget;
 class ThemeSettingsWidget;
 class CharacterSettingsWidget;
+class PluginManagerWidget;
 }
 
 namespace DearTs::Plugins::Settings {
@@ -30,6 +31,7 @@ enum class ConfigCategory {
     Character,      ///< 角色设置
     Shortcuts,      ///< 快捷键设置
     Toast,          ///< 气泡消息设置
+    PluginManager,  ///< 插件管理器
     Advanced,       ///< 高级设置
 };
 
@@ -113,6 +115,11 @@ private:
     void draw_toast_settings();
 
     /**
+     * @brief 绘制插件管理器
+     */
+    void draw_plugin_manager_settings();
+
+    /**
      * @brief 绘制底部按钮栏
      */
     void draw_action_buttons();
@@ -164,6 +171,7 @@ private:
     std::unique_ptr<ToastSettingsWidget> m_toast_widget;    ///< Toast 设置组件
     std::unique_ptr<ThemeSettingsWidget> m_theme_widget;    ///< 主题设置组件
     std::unique_ptr<CharacterSettingsWidget> m_character_widget;  ///< 角色设置组件
+    std::unique_ptr<PluginManagerWidget> m_plugin_manager_widget;  ///< 插件管理器组件
 };
 
 } // namespace DearTs::Plugins::Settings

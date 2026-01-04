@@ -126,19 +126,25 @@ public:
       m_duplicate_window_ms(DEFAULT_DUPLICATE_WINDOW_MS) {
     }
     /**
-    * @brief 析构函数
-    */
+     * @brief 析构函数
+     */
     ~Logger() {
-        enable_file_output("", false);
-
+        // 停止写入线程
         if (m_writer_thread.joinable()) {
             m_writer_running.store(false, std::memory_order_relaxed);
             m_queue_cv.notify_all();
-            m_writer_thread.join();
+            m_writer_thread.detach();  // 使用 detach 避免阻塞
+        }
+
+        // 关闭文件流
+        {
+            std::lock_guard<std::mutex> file_lock(m_file_mutex);
+            if (m_file_stream.is_open()) {
+                m_file_stream.flush();
+                m_file_stream.close();
+            }
         }
     }
-
-    // 删除所有复制和移动操作
     Logger(const Logger&) = delete;
     Logger& operator=(const Logger&) = delete;
     Logger(Logger&&) = delete;

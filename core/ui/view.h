@@ -112,6 +112,7 @@ public:
         return m_focused;
     }
 
+
     /**
      * @brief 窗口是否刚刚打开
      */
@@ -276,6 +277,13 @@ template<std::derived_from<UI::View> T, typename... Args>
 void add(Args&&... args) {
     impl::add(std::make_unique<T>(std::forward<Args>(args)...));
 }
+
+/**
+ * @brief 移除视图
+ * @param unlocalized_name 视图的非本地化名称
+ * @return 成功返回 true，失败返回 false
+ */
+bool remove(const UnlocalizedString& unlocalized_name);
 
 /**
  * @brief 通过名称获取视图

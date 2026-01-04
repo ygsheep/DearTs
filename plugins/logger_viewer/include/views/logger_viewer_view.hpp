@@ -10,11 +10,17 @@
 #pragma once
 
 #include "core/ui/view.h"
+#include "core/tasks/task_manager.h"
+#include "core/tasks/task_events.h"
+#include "core/event/event_bus.h"
 #include <string>
 #include <vector>
 #include <filesystem>
 #include <regex>
 #include <unordered_map>
+#include <memory>
+#include <mutex>
+#include <atomic>
 
 namespace DearTs::Plugins::LoggerViewer {
 
@@ -79,7 +85,7 @@ struct TimeFilter {
 class LoggerViewerView : public Core::UI::ViewWindow {
 public:
     LoggerViewerView();
-    ~LoggerViewerView() override = default;
+    ~LoggerViewerView() override;
 
     /**
      * @brief 绘制视图内容
@@ -99,14 +105,36 @@ private:
     bool parse_dearts_log(const std::string& line, LogEntry& entry);
 
     /**
-     * @brief 加载日志文件
+     * @brief 加载日志文件（异步，使用 TaskManager）
      */
     void load_log_file(const std::filesystem::path& path);
+
+    /**
+     * @brief 异步加载日志文件的实际实现
+     * @param path 日志文件路径
+     * @param should_cancel 取消标志
+     * @param task 任务对象（用于更新进度）
+     */
+    void load_log_file_async(
+        const std::filesystem::path& path,
+        const std::atomic<bool>& should_cancel,
+        std::shared_ptr<Core::Tasks::Task> task
+    );
+
+    /**
+     * @brief 取消当前加载任务
+     */
+    void cancel_current_task();
 
     /**
      * @brief 刷新日志文件
      */
     void refresh_log();
+
+    /**
+     * @brief 订阅任务事件以显示 Toast 通知
+     */
+    void subscribe_to_task_events();
 
     /**
      * @brief 编译正则表达式模式
@@ -275,6 +303,21 @@ private:
     // 性能优化
     bool m_need_refresh = true;
     bool m_need_filter = true;
+
+    // 任务管理
+    std::shared_ptr<Core::Tasks::Task> m_loading_task;      // 当前加载任务
+    std::mutex m_loading_mutex;                             // 保护加载状态的互斥锁
+    std::atomic<bool> m_is_loading{false};                  // 是否正在加载
+    float m_loading_progress = 0.0f;                        // 加载进度 (0.0 - 1.0)
+    size_t m_loaded_entries = 0;                            // 已加载的条目数
+    size_t m_total_entries = 0;                             // 总条目数估计
+
+    // 任务事件订阅（RAII 自动取消订阅）
+    Core::Event::EventToken m_task_started_token;
+    Core::Event::EventToken m_task_progress_token;
+    Core::Event::EventToken m_task_completed_token;
+    Core::Event::EventToken m_task_failed_token;
+    Core::Event::EventToken m_task_cancelled_token;
 };
 
 } // namespace DearTs::Plugins::LoggerViewer

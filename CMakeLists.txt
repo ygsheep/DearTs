@@ -337,6 +337,7 @@ if(EXISTS ${IMGUI_DIR})
         message(WARNING "ImPlot not found in third_party/implot directory!")
     endif()
 
+
 else()
     message(FATAL_ERROR "ImGui not found in third_party/imgui directory!")
 endif()
@@ -376,6 +377,10 @@ endif()
 # Add GUI test application
 add_subdirectory(main/gui)
 add_subdirectory(examples/toast_example)
+
+# Add test plugin (for auto-discovery testing)
+add_subdirectory(plugins/test_plugin)
+add_subdirectory(plugins/test_dependency_plugin)
 
 # ==================== 预编译头 (PCH) 配置 ====================
 # 预编译头配置模块位于 cmake/PCH.cmake

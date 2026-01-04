@@ -160,6 +160,7 @@ struct ToastConfig {
     int position = static_cast<int>(ToastPosition::TopRight);  ///< Toast 位置（0-5）
     bool show_progress_bar = true;             ///< 是否显示进度条
     bool show_close_button = true;             ///< 是否显示关闭按钮
+    bool show_copy_button = true;              ///< 是否显示复制按钮
     bool pause_on_hover = true;                ///< 悬停时是否暂停计时
     bool click_to_close = false;               ///< 点击是否关闭
 };

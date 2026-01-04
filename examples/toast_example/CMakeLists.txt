@@ -33,6 +33,12 @@ target_sources(toast_example PRIVATE
     ${CMAKE_SOURCE_DIR}/core/content/project_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_loader.cpp
+    # Dependency management system (required by plugin.cpp)
+    ${CMAKE_SOURCE_DIR}/core/plugin/version.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/version_range.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_dependency.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/dependency_resolver.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/imgui_layer.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
