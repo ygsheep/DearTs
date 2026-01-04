@@ -4,12 +4,15 @@
  */
 
 #include "core/plugin/plugin.h"
+#include "core/event/event_bus.h"
 #include "core/plugin/plugin_loader.h"
 #include "core/plugin/dependency_resolver.h"
 #include "liblogger/logger.h"
 #include <format>
 
 namespace DearTs::Core::Plugin {
+
+    using namespace DearTs::Core::Event;
 
 // ================ PluginInfo ================
 
@@ -179,6 +182,9 @@ Result<void, std::string> PluginManager::add_builtin(std::unique_ptr<IPlugin> pl
     m_plugins[info.name] = std::move(wrapper);
 
     LOG_INFO("Added builtin plugin: {}", info.name);
+    
+    // 发布插件列表刷新事件
+    EventBus::instance().publish(PluginListRefreshEvent{m_plugins.size()});
     return Result<void, std::string>::ok();
 }
 
@@ -301,6 +307,9 @@ Result<void, std::string> PluginManager::load_from_file(const std::filesystem::p
     m_plugins[info.name] = std::move(wrapper);
 
     LOG_INFO("Successfully loaded plugin: {} from {}", info.name, path.filename().string());
+    
+    // 发布插件列表刷新事件
+    EventBus::instance().publish(PluginListRefreshEvent{m_plugins.size()});
     return Result<void, std::string>::ok();
 }
 
@@ -452,6 +461,18 @@ void PluginManager::clear() {
     LOG_INFO("Clearing all plugins...");
     m_plugins.clear();
 }
+[[nodiscard]] bool PluginManager::is_plugin_builtin(const std::string& name) const {
+    auto it = m_plugins.find(name);
+    if (it == m_plugins.end()) {
+        return false;  // 插件不存在，返回 false
+    }
+    
+    // 尝试转换为 DynamicPluginWrapper
+    // 如果转换成功，说明是动态插件；否则是内置插件
+    auto* dynamic_wrapper = dynamic_cast<DynamicPluginWrapper*>(it->second.get());
+    return (dynamic_wrapper == nullptr);  // nullptr 表示内置插件
+}
+
 
 // ================ 依赖解析方法 (NEW) ================
 

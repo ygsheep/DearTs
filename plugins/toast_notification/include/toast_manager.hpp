@@ -158,6 +158,11 @@ private:
     void draw_toast_content(ToastMessage& toast);
 
     /**
+     * @brief 复制文本到剪贴板
+     */
+    void copy_to_clipboard(const std::string& text);
+
+    /**
      * @brief 应用缓动函数
      */
     float ease_out_cubic(float x);

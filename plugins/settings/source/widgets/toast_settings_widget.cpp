@@ -3,7 +3,7 @@
  * @brief Toast 设置组件实现
  */
 
-#include "toast_settings_widget.hpp"
+#include "../../include/widgets/toast_settings_widget.hpp"
 
 #include "core/config/config_manager.h"
 #include "plugins/toast_notification/include/toast_manager.hpp"
@@ -180,7 +180,17 @@ void ToastSettingsWidget::render_interaction_settings() {
         mark_modified("toast_notification.show_close_button");
     }
     ImGui::SameLine();
-    ImGui::TextDisabled("(右上角 ✕ 按钮)");
+    ImGui::TextDisabled("(右上角关闭图标)");
+
+    // 显示复制按钮
+    bool show_copy_button = config.get_or<bool>("toast_notification.show_copy_button", true);
+    if (ImGui::Checkbox("显示复制按钮", &show_copy_button)) {
+        config.set("toast_notification.show_copy_button", show_copy_button);
+        toast_config.show_copy_button = show_copy_button;  // 实时更新 ToastManager
+        mark_modified("toast_notification.show_copy_button");
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("(复制消息内容到剪贴板)");
 
     // 悬停暂停
     bool pause_on_hover = config.get_or<bool>("toast_notification.pause_on_hover", true);

@@ -53,6 +53,13 @@ struct PluginInfo {
 };
 
 /**
+ * @brief 插件列表刷新事件
+ * @details 当插件列表发生变化时发布此事件（用于自动刷新UI）
+ */
+struct PluginListRefreshEvent {
+    size_t total_count;           ///< 当前插件总数
+};
+/**
  * @brief 插件基类
  *
  * 所有插件都应该继承此类并实现相应的虚函数
@@ -380,6 +387,16 @@ public:
      * @param name 插件名称
      */
     [[nodiscard]] Result<PluginState, std::string> get_plugin_state(const std::string& name) const;
+
+    /**
+     * @brief 清空所有插件
+    /**
+     * @brief 检查插件是否为内置插件
+     * @param name 插件名称
+     * @return 如果是内置插件返回 true，否则返回 false
+     */
+    [[nodiscard]] bool is_plugin_builtin(const std::string& name) const;
+
 
     /**
      * @brief 清空所有插件

@@ -5,9 +5,9 @@
  */
 
 #include "settings_plugin.hpp"
-#include "views/settings_view.hpp"
-#include "core/ui/view.h"
+#include "../include/settings_view.hpp"
 #include "core/content/registry_base.h"
+#include "core/ui/view.h"
 #include "liblogger/logger.h"
 
 using namespace DearTs::Core;
@@ -50,9 +50,9 @@ void SettingsPlugin::on_disable() {
 void SettingsPlugin::register_views() {
     LOG_INFO("SettingsPlugin: Registering views...");
 
-    // 注册设置视图
+    // 注册设置视图（插件管理器已集成到设置视图的 PluginManager 分类中）
     ContentRegistry::Views::add<SettingsView>();
-    LOG_INFO("  - Settings View registered");
+    LOG_INFO("  - Settings View registered (includes Plugin Manager)");
 
     // 默认不打开设置窗口（用户可以通过菜单或快捷键打开）
     // 如果想默认打开，取消下面的注释：

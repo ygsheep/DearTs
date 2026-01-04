@@ -174,6 +174,7 @@ void ToastPlugin::load_config() {
     config.position = m_config.get_or<int>("position", static_cast<int>(ToastPosition::TopRight));
     config.show_progress_bar = m_config.get_or<bool>("show_progress_bar", true);
     config.show_close_button = m_config.get_or<bool>("show_close_button", true);
+    config.show_copy_button = m_config.get_or<bool>("show_copy_button", true);
     config.pause_on_hover = m_config.get_or<bool>("pause_on_hover", true);
     config.click_to_close = m_config.get_or<bool>("click_to_close", false);
 

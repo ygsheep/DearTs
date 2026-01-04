@@ -7,6 +7,7 @@
 #include "ffmpeg_view.hpp"
 #include "liblogger/logger.h"
 #include "core/content/registry_base.h"
+#include "core/ui/view.h"
 
 using namespace DearTs::Core;
 
@@ -33,6 +34,11 @@ Result<void, std::string> FFmpegPlugin::on_load() {
 }
 
 void FFmpegPlugin::on_unload() {
+    LOG_INFO("FFmpeg Plugin: Unloading...");
+
+    // 移除注册的视图（注意：视图名称是 "合并TS文件" 而不是 "FFmpeg"）
+    ContentRegistry::Views::remove("合并TS文件");
+
     LOG_INFO("FFmpeg Plugin: Unloaded");
 }
 

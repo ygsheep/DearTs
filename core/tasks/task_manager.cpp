@@ -23,7 +23,8 @@ Task::Task(std::string name, TaskFunc func, float max_progress)
 }
 
 Task::~Task() {
-    LOG_DEBUG("Task destroyed: {}", m_name);
+    // 注意：析构函数中不能调用 LOG，可能导致死锁
+    // （Logger 可能在析构期间持有锁，导致无法获取 m_duplicate_mutex）
 }
 
 void Task::execute() {

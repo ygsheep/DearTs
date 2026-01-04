@@ -337,6 +337,7 @@ if(EXISTS ${IMGUI_DIR})
         message(WARNING "ImPlot not found in third_party/implot directory!")
     endif()
 
+
 else()
     message(FATAL_ERROR "ImGui not found in third_party/imgui directory!")
 endif()

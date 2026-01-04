@@ -4,6 +4,9 @@
 cmake_minimum_required(VERSION 3.20)
 project(DearTs)
 
+
+# FFmpeg Plugin Support
+option(DEARTS_FFMPEG_SUPPORT "Enable FFmpeg plugin support" ON)
 # Live2D SDK directories
 set(LIVE2D_SDK_DIR ${CMAKE_SOURCE_DIR}/third_party/Live2D)
 set(LIVE2D_CORE_DIR ${LIVE2D_SDK_DIR}/Core)
@@ -82,15 +85,19 @@ add_executable(${PROJECT_NAME}
     ${CMAKE_SOURCE_DIR}/plugins/builtin/source/builtin_plugin.cpp
     # Settings 插件
     ${CMAKE_SOURCE_DIR}/plugins/settings/include/settings_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/views/settings_view.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/include/settings_view.hpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/theme_settings_widget.hpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/character_settings_widget.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/plugin_manager_widget.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/dependency_graph_widget.hpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_plugin.cpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_view.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/toast_settings_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/toast_settings_widget.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/toast_settings_widget.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/toast_settings_widget.hpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/theme_settings_widget.cpp
     ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/character_settings_widget.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/plugin_manager_widget.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/dependency_graph_widget.cpp
     # LoggerViewer 插件
     ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/logger_viewer_plugin.hpp
     ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/views/logger_viewer_view.hpp
@@ -154,6 +161,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/lib/liblogger
     ${CMAKE_SOURCE_DIR}/plugins/builtin/include
     ${CMAKE_SOURCE_DIR}/plugins/settings/include
+    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets
     ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include
     ${CMAKE_SOURCE_DIR}/plugins/navigation/include
     ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include

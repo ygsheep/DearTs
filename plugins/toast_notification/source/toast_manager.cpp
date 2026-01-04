@@ -9,6 +9,10 @@
 #include <cmath>
 #include <imgui.h>
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 namespace DearTs::Plugins::Toast {
 
 // ================ ToastManager 实现 ================
@@ -205,25 +209,20 @@ void ToastManager::render() {
 }
 
 void ToastManager::cleanup_expired() {
+    // 第一步：标记已过期的 Toast 为退出状态（未悬停的）
+    for (auto& toast : m_toasts) {
+        if (toast.is_expired() && !toast.is_exiting && !toast.is_hovered) {
+            toast.is_exiting = true;
+        }
+    }
+
+    // 第二步：移除已完成退出动画的 Toast
     auto it = std::remove_if(m_toasts.begin(), m_toasts.end(),
         [](const ToastMessage& t) {
             return t.is_exiting && t.animation_progress <= 0.0f;
         });
 
     m_toasts.erase(it, m_toasts.end());
-
-    // 同时清理已过期且未悬停的 Toast
-    it = std::remove_if(m_toasts.begin(), m_toasts.end(),
-        [](const ToastMessage& t) {
-            return t.is_expired() && !t.is_exiting && !t.is_hovered;
-        });
-
-    // 标记这些 Toast 为退出状态
-    for (auto i = m_toasts.begin(); i != it; ++i) {
-        if (i->is_expired() && !i->is_exiting) {
-            i->is_exiting = true;
-        }
-    }
 }
 
 void ToastManager::remove(int id) {
@@ -241,9 +240,17 @@ void ToastManager::render_toast(ToastMessage& toast, const ImVec2& position) {
     // 设置固定的窗口大小，确保有足够的宽度显示内容
     float window_width = static_cast<float>(m_config.max_width);
 
-    // 设置窗口位置和大小
+    // 确保高度计算策略：在进入动画完成后固定高度
+    // 使用固定高度可以避免位置变化时高度跳变
+    float window_height = 0.0f;
+    if (!toast.is_entering && toast.size.y > 0.0f) {
+        // 进入动画完成后，使用已计算的高度保持稳定
+        window_height = toast.size.y;
+    }
+    // 否则（首次渲染或进入动画中），让 ImGui 自动计算高度
+
     ImGui::SetNextWindowPos(position, ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(window_width, 0), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(window_width, window_height), ImGuiCond_Always);
 
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar |
                                    ImGuiWindowFlags_NoResize |
@@ -266,7 +273,10 @@ void ToastManager::render_toast(ToastMessage& toast, const ImVec2& position) {
     std::string window_name = "Toast_" + std::to_string(toast.id);
     if (ImGui::Begin(window_name.c_str(), nullptr, window_flags)) {
         draw_toast_content(toast);
-        toast.size = ImGui::GetWindowSize();
+        // 只在进入动画完成后保存高度，确保位置稳定后的准确高度
+        if (!toast.is_entering && toast.size.y <= 0.0f) {
+            toast.size = ImGui::GetWindowSize();
+        }
     }
     ImGui::End();
 
@@ -311,16 +321,71 @@ void ToastManager::draw_toast_content(ToastMessage& toast) {
 
     ImGui::TextColored(type_color, "%s", toast.title.c_str());
 
-    // 关闭按钮
+    // 按钮区域（右侧对齐）
+    float button_size = 24.0f;  // 正方形按钮大小
+    float button_spacing = 4.0f;  // 按钮间距
+    float button_x = ImGui::GetWindowWidth() - 20;  // 从右边 20px 开始
+    if (m_config.show_copy_button) {
+        button_x -= button_size + button_spacing;
+    }
     if (m_config.show_close_button) {
-        ImGui::SameLine(ImGui::GetWindowWidth() - 30);
+        button_x -= button_size + button_spacing;
+    }
+
+    // 复制按钮（左侧）
+    if (m_config.show_copy_button) {
+        ImGui::SameLine(button_x);
 
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5f, 0.5f, 0.5f, 0.3f));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
 
-        if (ImGui::Button("✕")) {
-            toast.is_exiting = true;
+        // 使用图标字体显示复制图标
+        if (DearTs::Core::UI::IconFont::isLoaded()) {
+            ImGui::PushFont(DearTs::Core::UI::IconFont::getFont());
+            if (ImGui::Button(ICON_COPY, ImVec2(button_size, button_size))) {
+                // 复制到剪贴板
+                std::string text_to_copy = toast.title + "\n" + toast.message;
+                copy_to_clipboard(text_to_copy);
+            }
+            ImGui::PopFont();
+        } else {
+            // 图标字体未加载，使用文本
+            if (ImGui::Button("⧉", ImVec2(button_size, button_size))) {
+                std::string text_to_copy = toast.title + "\n" + toast.message;
+                copy_to_clipboard(text_to_copy);
+            }
+        }
+
+        ImGui::PopStyleColor(3);
+
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("复制");
+        }
+
+        button_x += button_size + button_spacing;
+    }
+
+    // 关闭按钮（右侧）
+    if (m_config.show_close_button) {
+        ImGui::SameLine(button_x);
+
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.5f, 0.5f, 0.5f, 0.3f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.5f, 0.5f, 0.5f, 0.5f));
+
+        // 使用图标字体显示关闭图标
+        if (DearTs::Core::UI::IconFont::isLoaded()) {
+            ImGui::PushFont(DearTs::Core::UI::IconFont::getFont());
+            if (ImGui::Button(ICON_CLOSE, ImVec2(button_size, button_size))) {
+                toast.is_exiting = true;
+            }
+            ImGui::PopFont();
+        } else {
+            // 图标字体未加载，使用文本
+            if (ImGui::Button("X", ImVec2(button_size, button_size))) {
+                toast.is_exiting = true;
+            }
         }
 
         ImGui::PopStyleColor(3);
@@ -332,8 +397,9 @@ void ToastManager::draw_toast_content(ToastMessage& toast) {
 
     ImGui::Separator();
 
-    // 消息内容 - 使用窗口宽度进行文本换行
-    float content_width = ImGui::GetContentRegionAvail().x;
+    // 消息内容 - 使用固定宽度进行文本换行，避免其他 Toast 消失时导致高度跳变
+    // 使用配置的最大宽度减去水平内边距，确保文本换行位置固定
+    float content_width = static_cast<float>(m_config.max_width - m_config.padding_x * 2);
     ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + content_width);
     ImGui::TextWrapped("%s", toast.message.c_str());
     ImGui::PopTextWrapPos();
@@ -364,6 +430,46 @@ float ToastManager::ease_out_back(float x) {
     const float c1 = 1.70158f;
     const float c3 = c1 + 1.0f;
     return 1.0f + c3 * std::pow(x - 1.0f, 3.0f) + c1 * std::pow(x - 1.0f, 2.0f);
+}
+
+void ToastManager::copy_to_clipboard(const std::string& text) {
+#ifdef _WIN32
+    // Windows 实现
+    if (!OpenClipboard(nullptr)) {
+        return;
+    }
+
+    // 转换为 UTF-16
+    int size = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, nullptr, 0);
+    if (size <= 0) {
+        CloseClipboard();
+        return;
+    }
+
+    HGLOBAL hglb = GlobalAlloc(GMEM_MOVEABLE, size * sizeof(wchar_t));
+    if (hglb == nullptr) {
+        CloseClipboard();
+        return;
+    }
+
+    wchar_t* lptstr = static_cast<wchar_t*>(GlobalLock(hglb));
+    if (lptstr == nullptr) {
+        GlobalFree(hglb);
+        CloseClipboard();
+        return;
+    }
+
+    MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, lptstr, size);
+    GlobalUnlock(hglb);
+
+    EmptyClipboard();
+    SetClipboardData(CF_UNICODETEXT, hglb);
+    CloseClipboard();
+#else
+    // Linux/macOS 实现（通过 ImGui 后续支持）
+    // TODO: 实现 X11/Wayland 和 macOS 的剪贴板支持
+    LOG_WARN("Copy to clipboard not yet implemented on this platform");
+#endif
 }
 
 } // namespace DearTs::Plugins::Toast

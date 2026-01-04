@@ -61,8 +61,6 @@ FFmpegView::FFmpegView() : ViewWindow(Core::UI::UnlocalizedString("合并TS文�
         [&](const TaskCompletedEvent& event) {
             LOG_INFO("FFmpegView: TaskCompletedEvent received, task: {}", event.task->getName());
 
-            auto& toast = Toast::ToastManager::instance();
-
             // 检查是否是我们的合并任务
             bool is_merge_task = (m_merge_task && event.task.get() == m_merge_task.get());
 

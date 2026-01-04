@@ -31,6 +31,7 @@ target_include_directories(ffmpeg_plugin PUBLIC
 # 链接 FFmpeg（如果可用）
 if(TARGET ffmpeg_interface)
     target_link_libraries(ffmpeg_plugin PUBLIC ffmpeg_interface)
+    target_compile_definitions(ffmpeg_plugin PRIVATE DEARTS_FFMPEG_SUPPORT=1)
     message(STATUS "FFmpeg Plugin: FFmpeg support enabled")
 else()
     message(WARNING "FFmpeg Plugin: FFmpeg not available, plugin will have limited functionality")

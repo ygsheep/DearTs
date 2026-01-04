@@ -278,6 +278,13 @@ void add(Args&&... args) {
 }
 
 /**
+ * @brief 移除视图
+ * @param unlocalized_name 视图的非本地化名称
+ * @return 成功返回 true，失败返回 false
+ */
+bool remove(const UnlocalizedString& unlocalized_name);
+
+/**
  * @brief 通过名称获取视图
  * @param unlocalized_name 视图的非本地化名称
  * @return 视图指针，如果不存在则返回nullptr

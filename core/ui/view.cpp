@@ -223,6 +223,23 @@ void add(std::unique_ptr<UI::View>&& view) {
 
 } // namespace impl
 
+bool remove(const UnlocalizedString& unlocalized_name) {
+    auto it = g_views.find(unlocalized_name);
+    if (it == g_views.end()) {
+        LOG_WARN("View '{}' not found, cannot remove", unlocalized_name.get());
+        return false;
+    }
+
+    // 如果是当前聚焦的视图，清除聚焦
+    if (g_focused_view == it->second.get()) {
+        g_focused_view = nullptr;
+    }
+
+    g_views.erase(it);
+    LOG_INFO("Removed view: {}", unlocalized_name.get());
+    return true;
+}
+
 UI::View* get_by_name(const UnlocalizedString& unlocalized_name) {
     auto it = g_views.find(unlocalized_name);
     if (it == g_views.end()) {
