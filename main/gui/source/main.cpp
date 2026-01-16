@@ -98,7 +98,7 @@ void init_logger() {
 /**
  * @brief 主函数
  */
-int main(int argc, char* argv[]) {
+int main(const int argc, char* argv[]) {
     (void)argc;  // 未使用参数
     (void)argv;  // 未使用参数
 

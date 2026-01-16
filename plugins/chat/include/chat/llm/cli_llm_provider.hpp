@@ -43,7 +43,7 @@ public:
         std::function<void(const LLMResponse&)> callback
     ) override;
 
-    [[nodiscard]] Result<LLMResponse, std::string> send(const LLMRequest& request) override;
+    [[nodiscard]] DearTs::Core::Result<LLMResponse, std::string> send(const LLMRequest& request) override;
 
     [[nodiscard]] std::vector<std::string> get_models() const override;
 
@@ -63,7 +63,7 @@ private:
     /**
      * @brief 执行命令
      */
-    [[nodiscard]] Result<std::string, std::string> execute_command(
+    [[nodiscard]] DearTs::Core::Result<std::string, std::string> execute_command(
         const std::string& command
     ) const;
 

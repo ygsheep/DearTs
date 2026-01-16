@@ -32,7 +32,7 @@ public:
         };
     }
 
-    [[nodiscard]] Result<void, std::string> on_load() override;
+    [[nodiscard]] DearTs::Core::Result<void, std::string> on_load() override;
 
     void on_unload() override;
     void on_enable() override;
@@ -49,7 +49,7 @@ public:
      * @brief 获取 LLM 管理器
      */
     [[nodiscard]] LLM::LLMManager* get_llm_manager() const {
-        return m_llm_manager.get();
+        return &LLM::LLMManager::instance();
     }
 
 private:
@@ -74,11 +74,11 @@ private:
     void cleanup_event_listeners();
 
     // 管理器
-    std::unique_ptr<ConversationManager> m_conversation_manager;
-    std::unique_ptr<LLM::LLMManager> m_llm_manager;
+    std::shared_ptr<ConversationManager> m_conversation_manager;
+    // LLMManager 是单例，使用 instance() 获取
 
     // 事件订阅 Token（RAII 自动清理）
-    std::vector<Event::EventToken> m_event_tokens;
+    std::vector<DearTs::Core::Event::EventToken> m_event_tokens;
 };
 
 } // namespace DearTs::Plugins::Chat

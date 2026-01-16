@@ -120,6 +120,11 @@ add_executable(${PROJECT_NAME}
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/include/command_palette_view.hpp
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_plugin.cpp
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_view.cpp
+    # Clipboard Parser 插件
+    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/include/clipboard_parser_plugin.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/include/views/clipboard_parser_view.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/source/clipboard_parser_plugin.cpp
+    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/source/views/clipboard_parser_view.cpp
     # Live2D 插件
 #    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_plugin.hpp
 #    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_model_instance.hpp
@@ -166,6 +171,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/plugins/navigation/include
     ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/include
+    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/include
     ${CMAKE_SOURCE_DIR}/plugins/live2d/include
     ${CMAKE_SOURCE_DIR}/plugins/live2d/include/widgets
     ${CMAKE_SOURCE_DIR}/plugins/live2d/include/views
@@ -180,6 +186,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
     ${CMAKE_SOURCE_DIR}/third_party/imgui/misc/freetype
     ${CMAKE_SOURCE_DIR}/third_party/implot
+    ${CMAKE_SOURCE_DIR}/third_party/cppjieba/include
+    ${CMAKE_SOURCE_DIR}/third_party/cppjieba/deps/limonp/include
     ${LIVE2D_CORE_DIR}/include
     ${LIVE2D_FRAMEWORK_DIR}/src
     ${GLEW_DIR}/include

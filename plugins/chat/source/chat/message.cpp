@@ -4,7 +4,7 @@
  */
 
 #include "chat/models/message.hpp"
-#include <fmt/format.h>
+#include <format>
 #include <cctype>
 
 namespace DearTs::Plugins::Chat {

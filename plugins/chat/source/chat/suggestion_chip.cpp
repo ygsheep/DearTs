@@ -4,7 +4,7 @@
  */
 
 #include "chat/ui/suggestion_chip.hpp"
-#include <fmt/format.h>
+#include <format>
 
 namespace DearTs::Plugins::Chat::UI {
 
@@ -74,7 +74,7 @@ bool SuggestionChip::draw_chip(
     const SuggestionChipStyle& style
 ) {
     // 构建标签
-    const std::string label = fmt::format("##suggestion_{}", suggestion.id);
+    const std::string label = std::format("##suggestion_{}", suggestion.id);
 
     // 计算大小
     const ImVec2 chip_size = calc_size(suggestion.content, style);
@@ -96,8 +96,9 @@ bool SuggestionChip::draw_chip(
     // 绘制文本（居中）
     if (style.show_index && index >= 0) {
         // 显示索引 + 内容
-        const std::string text = fmt::format("{}. {}", index + 1, suggestion.content);
-        const ImVec2 text_pos = ImGui::GetItemRectMin() + ImVec2(style.padding_x, style.padding_y);
+        const std::string text = std::format("{}. {}", index + 1, suggestion.content);
+        ImVec2 item_min = ImGui::GetItemRectMin();
+        const ImVec2 text_pos = ImVec2(item_min.x + style.padding_x, item_min.y + style.padding_y);
         ImGui::GetWindowDrawList()->AddText(
             ImGui::GetFont(),
             ImGui::GetFontSize(),
@@ -112,7 +113,8 @@ bool SuggestionChip::draw_chip(
         );
     } else {
         // 只显示内容
-        const ImVec2 text_pos = ImGui::GetItemRectMin() + ImVec2(style.padding_x, style.padding_y);
+        ImVec2 item_min = ImGui::GetItemRectMin();
+        const ImVec2 text_pos = ImVec2(item_min.x + style.padding_x, item_min.y + style.padding_y);
         ImGui::GetWindowDrawList()->AddText(
             ImGui::GetFont(),
             ImGui::GetFontSize(),
@@ -129,10 +131,11 @@ bool SuggestionChip::draw_chip(
 
     // 绘制置信度（如果启用）
     if (style.show_confidence && suggestion.confidence > 0.0f) {
-        const std::string conf_str = fmt::format("{:.0f}%", suggestion.confidence * 100);
-        const ImVec2 conf_pos = ImGui::GetItemRectMax() - ImVec2(
-            ImGui::CalcTextSize(conf_str.c_str()).x + 5,
-            ImGui::GetFontSize() + 2
+        const std::string conf_str = std::format("{:.0f}%", suggestion.confidence * 100);
+        const ImVec2 item_max = ImGui::GetItemRectMax();
+        const ImVec2 conf_pos = ImVec2(
+            item_max.x - (ImGui::CalcTextSize(conf_str.c_str()).x + 5),
+            item_max.y - (ImGui::GetFontSize() + 2)
         );
 
         ImGui::GetWindowDrawList()->AddText(

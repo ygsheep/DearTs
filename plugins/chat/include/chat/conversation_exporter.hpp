@@ -6,6 +6,7 @@
 #pragma once
 
 #include "chat/models/conversation.hpp"
+#include "core/result.h"
 #include <string>
 #include <fstream>
 
@@ -33,7 +34,7 @@ public:
      * @param output_path 输出文件路径
      * @return Result 包含成功或错误信息
      */
-    static Result<void, std::string> export_conversation(
+    static DearTs::Core::Result<void, std::string> export_conversation(
         const Conversation& conv,
         ExportFormat format,
         const std::string& output_path
@@ -42,7 +43,7 @@ public:
     /**
      * @brief 导出为 JSON
      */
-    static Result<void, std::string> export_json(
+    static DearTs::Core::Result<void, std::string> export_json(
         const Conversation& conv,
         const std::string& output_path
     );
@@ -50,7 +51,7 @@ public:
     /**
      * @brief 导出为 Markdown
      */
-    static Result<void, std::string> export_markdown(
+    static DearTs::Core::Result<void, std::string> export_markdown(
         const Conversation& conv,
         const std::string& output_path
     );
@@ -58,7 +59,7 @@ public:
     /**
      * @brief 导出为纯文本
      */
-    static Result<void, std::string> export_txt(
+    static DearTs::Core::Result<void, std::string> export_txt(
         const Conversation& conv,
         const std::string& output_path
     );
@@ -66,7 +67,7 @@ public:
     /**
      * @brief 导出为 HTML
      */
-    static Result<void, std::string> export_html(
+    static DearTs::Core::Result<void, std::string> export_html(
         const Conversation& conv,
         const std::string& output_path
     );

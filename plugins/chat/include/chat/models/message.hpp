@@ -47,6 +47,11 @@ struct Message {
     std::string reply_to_id;                                 // 回复的消息 ID
     int32_t token_count = 0;                                 // 估算的 token 数量
 
+    // 流式输出状态
+    bool is_streaming = false;                               // 是否正在流式输出
+    size_t displayed_chars = 0;                              // 已显示的字符数（用于打字机效果）
+    std::string pending_content;                             // 待显示的内容缓冲区
+
     // 构造函数
     Message() : timestamp(std::chrono::system_clock::now()) {}
 

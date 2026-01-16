@@ -6,6 +6,7 @@
 #include "chat/llm/http_llm_provider.hpp"
 #include "liblogger/logger.h"
 #include <nlohmann/json.hpp>
+#include <format>
 #include <fstream>
 #include <sstream>
 #include <future>
@@ -46,12 +47,20 @@ std::shared_ptr<Core::Tasks::Task> HTTPLLMProvider::send_async(
             // 在后台线程发送请求
             auto result = this->send(request);
 
-            if (cancel.is_cancelled()) {
+            if (cancel) {
                 return;
             }
 
-            // 调用回调（在主线程中通过 EventBus）
-            callback(result);
+            // 调用回调（检查结果状态）
+            if (result.isOk()) {
+                callback(result.unwrap());
+            } else {
+                // 创建失败响应
+                LLMResponse error_response;
+                error_response.is_complete = false;
+                error_response.error = result.error();
+                callback(error_response);
+            }
         },
         Core::Tasks::TaskType::Background
     );
@@ -59,7 +68,7 @@ std::shared_ptr<Core::Tasks::Task> HTTPLLMProvider::send_async(
     return task;
 }
 
-Result<LLMResponse, std::string> HTTPLLMProvider::send(const LLMRequest& request) {
+DearTs::Core::Result<LLMResponse, std::string> HTTPLLMProvider::send(const LLMRequest& request) {
     const auto start_time = std::chrono::steady_clock::now();
 
     try {
@@ -68,14 +77,14 @@ Result<LLMResponse, std::string> HTTPLLMProvider::send(const LLMRequest& request
 
         // 发送 HTTP 请求
         auto response_body = send_http_request("/chat/completions", request_body);
-        if (response_body.is_err()) {
-            return LLMResponse::failure(response_body.unwrap_err());
+        if (!response_body.isOk()) {
+            return DearTs::Core::Result<LLMResponse, std::string>::err(response_body.error());
         }
 
         // 解析响应
         auto response = parse_chat_completion_response(response_body.unwrap());
-        if (response.is_err()) {
-            return LLMResponse::failure(response.unwrap_err());
+        if (!response.isOk()) {
+            return DearTs::Core::Result<LLMResponse, std::string>::err(response.error());
         }
 
         auto llm_response = response.unwrap();
@@ -86,10 +95,10 @@ Result<LLMResponse, std::string> HTTPLLMProvider::send(const LLMRequest& request
             end_time - start_time
         );
 
-        return llm_response;
+        return DearTs::Core::Result<LLMResponse, std::string>::ok(llm_response);
 
     } catch (const std::exception& e) {
-        return LLMResponse::failure(fmt::format("HTTP request failed: {}", e.what()));
+        return DearTs::Core::Result<LLMResponse, std::string>::err(std::format("HTTP request failed: {}", e.what()));
     }
 }
 
@@ -97,7 +106,7 @@ std::vector<std::string> HTTPLLMProvider::get_models() const {
     // 尝试从 /models 端点获取可用模型
     try {
         auto response = send_http_request("/models", "");
-        if (response.is_ok()) {
+        if (response.isOk()) {
             json j = json::parse(response.unwrap());
             if (j.contains("data") && j["data"].is_array()) {
                 std::vector<std::string> models;
@@ -117,7 +126,7 @@ std::vector<std::string> HTTPLLMProvider::get_models() const {
     return {"llama3.2", "qwen2.5", "deepseek-r1", "gpt-4", "gpt-3.5-turbo"};
 }
 
-Result<std::string, std::string> HTTPLLMProvider::send_http_request(
+DearTs::Core::Result<std::string, std::string> HTTPLLMProvider::send_http_request(
     const std::string& endpoint,
     const std::string& json_body
 ) const {
@@ -138,7 +147,7 @@ Result<std::string, std::string> HTTPLLMProvider::send_http_request(
     urlComp.dwUrlPathLength = 256;
 
     if (!WinHttpCrackUrl(url_base.c_str(), url_base.length(), 0, &urlComp)) {
-        return Result<std::string, std::string>::err("Failed to parse URL");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to parse URL");
     }
 
     // 打开会话
@@ -151,7 +160,7 @@ Result<std::string, std::string> HTTPLLMProvider::send_http_request(
     );
 
     if (!hSession) {
-        return Result<std::string, std::string>::err("Failed to open WinHTTP session");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to open WinHTTP session");
     }
 
     // 连接服务器
@@ -165,7 +174,7 @@ Result<std::string, std::string> HTTPLLMProvider::send_http_request(
 
     if (!hConnect) {
         WinHttpCloseHandle(hSession);
-        return Result<std::string, std::string>::err("Failed to connect to server");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to connect to server");
     }
 
     // 创建请求
@@ -183,13 +192,13 @@ Result<std::string, std::string> HTTPLLMProvider::send_http_request(
     if (!hRequest) {
         WinHttpCloseHandle(hConnect);
         WinHttpCloseHandle(hSession);
-        return Result<std::string, std::string>::err("Failed to open request");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to open request");
     }
 
     // 添加请求头
     std::wstring headers = L"Content-Type: application/json\r\n";
     if (!m_api_key.empty()) {
-        headers += fmt::format(L"Authorization: Bearer {}\r\n", std::wstring(m_api_key.begin(), m_api_key.end()));
+        headers += std::format(L"Authorization: Bearer {}\r\n", std::wstring(m_api_key.begin(), m_api_key.end()));
     }
 
     WinHttpAddRequestHeaders(
@@ -212,7 +221,7 @@ Result<std::string, std::string> HTTPLLMProvider::send_http_request(
         WinHttpCloseHandle(hRequest);
         WinHttpCloseHandle(hConnect);
         WinHttpCloseHandle(hSession);
-        return Result<std::string, std::string>::err("Failed to send request");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to send request");
     }
 
     // 接收响应
@@ -220,7 +229,7 @@ Result<std::string, std::string> HTTPLLMProvider::send_http_request(
         WinHttpCloseHandle(hRequest);
         WinHttpCloseHandle(hConnect);
         WinHttpCloseHandle(hSession);
-        return Result<std::string, std::string>::err("Failed to receive response");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to receive response");
     }
 
     // 读取响应数据
@@ -240,13 +249,13 @@ Result<std::string, std::string> HTTPLLMProvider::send_http_request(
     WinHttpCloseHandle(hConnect);
     WinHttpCloseHandle(hSession);
 
-    return Result<std::string, std::string>::ok(response_data);
+    return DearTs::Core::Result<std::string, std::string>::ok(response_data);
 
 #else
     // 非 Windows 使用 libcurl
     CURL* curl = curl_easy_init();
     if (!curl) {
-        return Result<std::string, std::string>::err("Failed to initialize curl");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to initialize curl");
     }
 
     const std::string full_url = m_base_url + endpoint;
@@ -259,7 +268,7 @@ Result<std::string, std::string> HTTPLLMProvider::send_http_request(
     struct curl_slist* headers = nullptr;
     headers = curl_slist_append(headers, "Content-Type: application/json");
     if (!m_api_key.empty()) {
-        headers = curl_slist_append(headers, fmt::format("Authorization: Bearer {}", m_api_key).c_str());
+        headers = curl_slist_append(headers, std::format("Authorization: Bearer {}", m_api_key).c_str());
     }
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
@@ -279,10 +288,10 @@ Result<std::string, std::string> HTTPLLMProvider::send_http_request(
     curl_easy_cleanup(curl);
 
     if (res != CURLE_OK) {
-        return Result<std::string, std::string>::err(fmt::format("Curl request failed: {}", curl_easy_strerror(res)));
+        return DearTs::Core::Result<std::string, std::string>::err(std::format("Curl request failed: {}", curl_easy_strerror(res)));
     }
 
-    return Result<std::string, std::string>::ok(response_data);
+    return DearTs::Core::Result<std::string, std::string>::ok(response_data);
 #endif
 }
 
@@ -326,7 +335,7 @@ std::string HTTPLLMProvider::build_chat_completion_request(const LLMRequest& req
     return j.dump(2);
 }
 
-Result<LLMResponse, std::string> HTTPLLMProvider::parse_chat_completion_response(
+DearTs::Core::Result<LLMResponse, std::string> HTTPLLMProvider::parse_chat_completion_response(
     const std::string& json_body
 ) const {
     try {
@@ -335,7 +344,7 @@ Result<LLMResponse, std::string> HTTPLLMProvider::parse_chat_completion_response
         // 检查错误
         if (j.contains("error")) {
             std::string error_msg = j["error"];
-            return Result<LLMResponse, std::string>::err(error_msg);
+            return DearTs::Core::Result<LLMResponse, std::string>::err(error_msg);
         }
 
         // 提取内容
@@ -352,14 +361,14 @@ Result<LLMResponse, std::string> HTTPLLMProvider::parse_chat_completion_response
                     response.tokens_used = j["usage"]["total_tokens"].get<int>();
                 }
 
-                return Result<LLMResponse, std::string>::ok(response);
+                return DearTs::Core::Result<LLMResponse, std::string>::ok(response);
             }
         }
 
-        return Result<LLMResponse, std::string>::err("Invalid response format");
+        return DearTs::Core::Result<LLMResponse, std::string>::err("Invalid response format");
 
     } catch (const json::exception& e) {
-        return Result<LLMResponse, std::string>::err(fmt::format("JSON parse error: {}", e.what()));
+        return DearTs::Core::Result<LLMResponse, std::string>::err(std::format("JSON parse error: {}", e.what()));
     }
 }
 
@@ -367,7 +376,7 @@ bool HTTPLLMProvider::test_connection() const {
     try {
         // 发送一个简单的请求测试连接
         auto response = send_http_request("/models", "");
-        return response.is_ok();
+        return response.isOk();
     } catch (...) {
         return false;
     }

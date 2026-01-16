@@ -191,6 +191,15 @@ private:
 #define ICON_ANALYTICS      "\xee\xbc\xbe"  // ICON_MS_ANALYTICS
 #define ICON_NOTIFICATIONS  "\xee\x9f\xb5"  // ICON_MS_NOTIFICATIONS
 
+// Chat 相关图标
+#define ICON_SEND           "\xee\x85\xa3"  // ICON_MS_SEND
+#define ICON_AUTO_FIX_HIGH  "\xee\x99\xa3"  // ICON_MS_AUTO_FIX_HIGH
+#define ICON_DONE_ALL       "\xee\xa1\xb7"  // ICON_MS_DONE_ALL
+#define ICON_SMART_TOY      "\xef\x81\xac"  // ICON_MS_SMART_TOY
+#define ICON_MESSAGE        "\xee\x83\x89"  // ICON_MS_MESSAGE
+#define ICON_PUSH_PIN       "\xef\x84\x8d"  // ICON_MS_PUSH_PIN
+#define ICON_FILE_DOWNLOAD  "\xef\x82\x90"  // ICON_MS_FILE_DOWNLOAD
+
 // ========== Font Awesome Icons (备用) ==========
 #define FA_ICON_HOME         "\uf015"
 #define FA_ICON_SETTINGS     "\uf013"

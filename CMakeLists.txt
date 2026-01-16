@@ -227,6 +227,7 @@ include_directories(${CMAKE_SOURCE_DIR}/third_party/lunasvg/include)
 include_directories(${CMAKE_SOURCE_DIR}/third_party/json/include)
 include_directories(${CMAKE_SOURCE_DIR}/third_party/imgui)
 include_directories(${CMAKE_SOURCE_DIR}/third_party/imgui/backends)
+include_directories(${CMAKE_SOURCE_DIR}/third_party/imgui_markdown)  # Markdown rendering support
 
 # Setup ImGui (use third_party version)
 set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
@@ -376,6 +377,7 @@ endif()
 
 # Add GUI test application
 add_subdirectory(main/gui)
+add_subdirectory(main/chatmanager)
 add_subdirectory(examples/toast_example)
 
 # Add test plugin (for auto-discovery testing)
@@ -425,8 +427,10 @@ endif()
 # Add plugins
 # Note: builtin plugin is compiled directly into main executable, not as separate library
 # add_subdirectory(plugins/builtin)
+add_subdirectory(plugins/chat)
 add_subdirectory(plugins/toast_notification)
 add_subdirectory(plugins/command_palette)
+add_subdirectory(plugins/clipboard_parser)  # 剪切板智能解析插件
 add_subdirectory(plugins/live2d)
 add_subdirectory(plugins/ffmpeg)  # FFmpeg 视频处理插件
 

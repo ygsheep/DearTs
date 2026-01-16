@@ -6,7 +6,7 @@
 #include "chat/llm/python_llm_provider.hpp"
 #include "liblogger/logger.h"
 #include <nlohmann/json.hpp>
-#include <fmt/format.h>
+#include <format>
 #include <sstream>
 
 #ifdef _WIN32
@@ -85,7 +85,7 @@ bool PythonLLMProvider::is_available() const {
     return output.find("Python") != std::string::npos;
 #else
     // 使用 which 检查 Python
-    std::string command = fmt::format("which {}", m_python_path);
+    std::string command = std::format("which {}", m_python_path);
     FILE* pipe = popen(command.c_str(), "r");
     if (!pipe) return false;
 
@@ -107,8 +107,17 @@ std::shared_ptr<Core::Tasks::Task> PythonLLMProvider::send_async(
         "LLM Python Request",
         [this, request, callback](const auto& cancel) {
             auto result = this->send(request);
-            if (!cancel.is_cancelled()) {
-                callback(result);
+            if (!cancel) {
+                // 调用回调（检查结果状态）
+                if (result.isOk()) {
+                    callback(result.unwrap());
+                } else {
+                    // 创建失败响应
+                    LLMResponse error_response;
+                    error_response.is_complete = false;
+                    error_response.error = result.error();
+                    callback(error_response);
+                }
             }
         },
         Core::Tasks::TaskType::Background
@@ -117,7 +126,7 @@ std::shared_ptr<Core::Tasks::Task> PythonLLMProvider::send_async(
     return task;
 }
 
-Result<LLMResponse, std::string> PythonLLMProvider::send(const LLMRequest& request) {
+DearTs::Core::Result<LLMResponse, std::string> PythonLLMProvider::send(const LLMRequest& request) {
     const auto start_time = std::chrono::steady_clock::now();
 
     try {
@@ -134,8 +143,8 @@ Result<LLMResponse, std::string> PythonLLMProvider::send(const LLMRequest& reque
 
         // 执行 Python 脚本
         auto output = execute_python_script(json_input);
-        if (output.is_err()) {
-            return LLMResponse::failure(output.unwrap_err());
+        if (output.isErr()) {
+            return DearTs::Core::Result<LLMResponse, std::string>::err(output.error());
         }
 
         // 解析输出
@@ -154,10 +163,10 @@ Result<LLMResponse, std::string> PythonLLMProvider::send(const LLMRequest& reque
             end_time - start_time
         );
 
-        return response;
+        return DearTs::Core::Result<LLMResponse, std::string>::ok(response);
 
     } catch (const std::exception& e) {
-        return LLMResponse::failure(fmt::format("Python execution failed: {}", e.what()));
+        return DearTs::Core::Result<LLMResponse, std::string>::err(std::format("Python execution failed: {}", e.what()));
     }
 }
 
@@ -166,7 +175,7 @@ std::vector<std::string> PythonLLMProvider::get_models() const {
     return {"llama3.2", "qwen2.5", "deepseek-r1", "mistral", "gemma"};
 }
 
-Result<std::string, std::string> PythonLLMProvider::execute_python_script(
+DearTs::Core::Result<std::string, std::string> PythonLLMProvider::execute_python_script(
     const std::string& json_input
 ) const {
 #ifdef _WIN32
@@ -178,11 +187,11 @@ Result<std::string, std::string> PythonLLMProvider::execute_python_script(
     // 创建管道
     if (!CreatePipe(&hStdInRead, &hStdInWrite, &sa, 0) ||
         !CreatePipe(&hStdOutRead, &hStdOutWrite, &sa, 0)) {
-        return Result<std::string, std::string>::err("Failed to create pipes");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to create pipes");
     }
 
     // 设置命令行
-    std::string command = fmt::format("{} \"{}\"", m_python_path, m_script_path);
+    std::string command = std::format("{} \"{}\"", m_python_path, m_script_path);
 
     STARTUPINFOA si = {0};
     si.cb = sizeof(si);
@@ -210,7 +219,7 @@ Result<std::string, std::string> PythonLLMProvider::execute_python_script(
         CloseHandle(hStdInWrite);
         CloseHandle(hStdOutRead);
         CloseHandle(hStdOutWrite);
-        return Result<std::string, std::string>::err("Failed to create Python process");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to create Python process");
     }
 
     // 关闭不需要的句柄
@@ -224,7 +233,7 @@ Result<std::string, std::string> PythonLLMProvider::execute_python_script(
         CloseHandle(hStdOutRead);
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
-        return Result<std::string, std::string>::err("Failed to write to Python process");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to write to Python process");
     }
     CloseHandle(hStdInWrite);
 
@@ -243,20 +252,20 @@ Result<std::string, std::string> PythonLLMProvider::execute_python_script(
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
 
-    return Result<std::string, std::string>::ok(output);
+    return DearTs::Core::Result<std::string, std::string>::ok(output);
 
 #else
     // Linux/macOS: 使用 popen
-    std::string command = fmt::format("{} \"{}\"", m_python_path, m_script_path);
+    std::string command = std::format("{} \"{}\"", m_python_path, m_script_path);
     FILE* pipe = popen(command.c_str(), "w");
     if (!pipe) {
-        return Result<std::string, std::string>::err("Failed to open Python process");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to open Python process");
     }
 
     // 写入输入
     if (fputs(json_input.c_str(), pipe) == EOF) {
         pclose(pipe);
-        return Result<std::string, std::string>::err("Failed to write to Python process");
+        return DearTs::Core::Result<std::string, std::string>::err("Failed to write to Python process");
     }
 
     // 读取输出
@@ -268,12 +277,12 @@ Result<std::string, std::string> PythonLLMProvider::execute_python_script(
 
     const int exit_code = pclose(pipe);
     if (exit_code != 0) {
-        return Result<std::string, std::string>::err(
-            fmt::format("Python process exited with code {}", exit_code)
+        return DearTs::Core::Result<std::string, std::string>::err(
+            std::format("Python process exited with code {}", exit_code)
         );
     }
 
-    return Result<std::string, std::string>::ok(output);
+    return DearTs::Core::Result<std::string, std::string>::ok(output);
 #endif
 }
 

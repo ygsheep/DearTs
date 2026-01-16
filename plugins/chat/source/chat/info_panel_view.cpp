@@ -5,9 +5,11 @@
 
 #include "chat/views/info_panel_view.hpp"
 #include "chat/events/chat_events.hpp"
+#include "core/ui/imgui_extensions.h"
+#include "core/ui/icon_font.hpp"
 #include "liblogger/logger.h"
 #include <imgui.h>
-#include <fmt/format.h>
+#include <format>
 
 namespace DearTs::Plugins::Chat {
 
@@ -49,10 +51,10 @@ void InfoPanelView::draw_ai_settings() {
         ImGui::Text("Top-p 采样:");
         if (ImGui::SliderFloat("##top_p", &m_temperature, 0.0f, 1.0f, "%.2f")) {
             // 发布配置更新事件
-            EventBus::instance().publish(Events::ConfigUpdatedEvent{
+            DearTs::Core::Event::EventBus::instance().publish(Events::ConfigUpdatedEvent{
                 .config_key = "llm.top_p",
                 .old_value = "",
-                .new_value = fmt::format("{}", m_temperature)
+                .new_value = std::format("{}", m_temperature)
             });
         }
 
@@ -138,15 +140,15 @@ void InfoPanelView::draw_model_settings() {
             current_conv->temperature = m_temperature;
         }
 
-        EventBus::instance().publish(Events::ConfigUpdatedEvent{
+        DearTs::Core::Event::EventBus::instance().publish(Events::ConfigUpdatedEvent{
             .config_key = "llm.temperature",
             .old_value = "",
-            .new_value = fmt::format("{}", m_temperature)
+            .new_value = std::format("{}", m_temperature)
         });
     }
 
     ImGui::SameLine();
-    ImGui::HelpMarker("控制输出随机性，值越高越随机");
+    DearTs::Core::UI::ImGuiExt::HelpMarker("控制输出随机性，值越高越随机");
 
     // Max Tokens
     ImGui::Text("最大 Tokens:");
@@ -232,8 +234,8 @@ void InfoPanelView::draw_export_section() {
     const char* formats[] = {"JSON", "Markdown", "TXT"};
     for (int i = 0; i < 3; i++) {
         if (i > 0) ImGui::SameLine();
-        if (ImGui::RadioButton(formats[i], m_export_format == fmt::format("{}", formats[i])[0])) {
-            m_export_format = fmt::format("{}", formats[i]);
+        if (ImGui::RadioButton(formats[i], m_export_format == formats[i])) {
+            m_export_format = formats[i];
         }
     }
 
@@ -251,7 +253,7 @@ void InfoPanelView::draw_export_section() {
     ImGui::Separator();
 
     // 导出按钮
-    if (ImGui::Button(fmt::format("{} 导出", ICON_FILE_DOWNLOAD).c_str(), ImVec2(-1, 0))) {
+    if (ImGui::Button(std::format("{} 导出", ICON_FILE_DOWNLOAD).c_str(), ImVec2(-1, 0))) {
         export_conversation(m_export_format);
     }
 }
@@ -261,7 +263,7 @@ void InfoPanelView::change_llm_provider(const std::string& provider) {
     m_selected_provider = provider;
 
     // 发布 LLM 提供商切换事件
-    EventBus::instance().publish(Events::LLMProviderChangedEvent{
+    DearTs::Core::Event::EventBus::instance().publish(Events::LLMProviderChangedEvent{
         .old_provider = old_provider,
         .new_provider = provider
     });
@@ -274,7 +276,7 @@ void InfoPanelView::change_model(const std::string& model) {
     m_selected_model = model;
 
     // 发布模型切换事件
-    EventBus::instance().publish(Events::LLMModelChangedEvent{
+    DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelChangedEvent{
         .old_model = old_model,
         .new_model = model
     });
@@ -292,7 +294,7 @@ void InfoPanelView::export_conversation(const std::string& format) {
     if (!current_conv) return;
 
     // 发布导出请求事件
-    EventBus::instance().publish(Events::ExportRequestEvent{
+    DearTs::Core::Event::EventBus::instance().publish(Events::ExportRequestEvent{
         .conversation_id = current_conv->id,
         .format = format,
         .output_path = m_export_path

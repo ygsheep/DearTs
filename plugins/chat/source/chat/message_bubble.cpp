@@ -4,7 +4,9 @@
  */
 
 #include "chat/ui/message_bubble.hpp"
-#include <fmt/format.h>
+#include "chat/ui/markdown_renderer.hpp"
+#include "core/ui/icon_font.hpp"
+#include <format>
 #include <ctime>
 #include <iomanip>
 
@@ -29,24 +31,42 @@ void MessageBubble::draw(const Message& message, const MessageBubbleStyle* style
 }
 
 void MessageBubble::draw_user_message(const Message& message, const MessageBubbleStyle& style) {
-    // 计算气泡大小
-    const ImVec2 bubble_size = calc_size(message.content, style.max_width, style);
-
-    // 获取可用宽度
+    // 计算自适应宽度（80%）
     const float avail_width = ImGui::GetContentRegionAvail().x;
+    const float content_max_width = avail_width * style.max_width_percent;
+    const float actual_max_width = std::min(content_max_width, style.max_width);
+
+    // 计算气泡大小
+    const ImVec2 bubble_size = calc_size(message.content, actual_max_width, style);
+
+    // 计算位置（右对齐）
     const float x_offset = avail_width - bubble_size.x - 20;
 
     // 绘制气泡背景
-    const ImVec2 p_min = ImGui::GetCursorScreenPos() + ImVec2(x_offset, 0);
-    const ImVec2 p_max = p_min + bubble_size;
+    ImVec2 base_pos = ImGui::GetCursorScreenPos();
+    const ImVec2 p_min = ImVec2(base_pos.x + x_offset, base_pos.y);
+    const ImVec2 p_max = ImVec2(p_min.x + bubble_size.x, p_min.y + bubble_size.y);
 
-    // 圆角矩形（右上和右下圆角，左上和左下直角）
+    // 检测悬停
+    const bool is_hovered = style.enable_hover && ImGui::IsMouseHoveringRect(p_min, p_max);
+
+    // 选择边框颜色
+    const ImVec4 border_color = is_hovered ? style.user_border_hover_color : style.user_border_color;
+
+    // 圆角矩形（左上和左下圆角，右上和右下直角 - 向右发送的效果）
     draw_rounded_rect(p_min, p_max, style.user_corner_radius,
-                      style.user_bg_color, ImDrawFlags_RoundCornersTopRight | ImDrawFlags_RoundCornersBottomRight);
+                      style.user_bg_color, ImDrawFlags_RoundCornersTopLeft | ImDrawFlags_RoundCornersBottomLeft);
+
+    // 绘制边框
+    if (style.draw_border) {
+        draw_rounded_rect_border(p_min, p_max, style.user_corner_radius,
+                                 border_color, style.user_border_width,
+                                 ImDrawFlags_RoundCornersTopLeft | ImDrawFlags_RoundCornersBottomLeft);
+    }
 
     // 绘制文本
-    ImGui::SetCursorScreenPos(p_min + ImVec2(style.padding_x, style.padding_y));
-    ImGui::PushTextWrapPos(bubble_size.x - style.padding_x * 2);
+    ImGui::SetCursorScreenPos(ImVec2(p_min.x + style.padding_x, p_min.y + style.padding_y));
+    ImGui::PushTextWrapPos(p_min.x + bubble_size.x - style.padding_x);
     ImGui::PushStyleColor(ImGuiCol_Text, style.user_text_color);
     ImGui::Text("%s", message.content.c_str());
     ImGui::PopStyleColor();
@@ -68,23 +88,51 @@ void MessageBubble::draw_user_message(const Message& message, const MessageBubbl
 }
 
 void MessageBubble::draw_ai_message(const Message& message, const MessageBubbleStyle& style) {
+    // 计算自适应宽度（80%）
+    const float avail_width = ImGui::GetContentRegionAvail().x;
+    const float content_max_width = avail_width * style.max_width_percent;
+    const float actual_max_width = std::min(content_max_width, style.max_width);
+
     // 计算气泡大小
-    const ImVec2 bubble_size = calc_size(message.content, style.max_width, style);
+    const ImVec2 bubble_size = calc_size(message.content, actual_max_width, style);
 
     // 绘制气泡背景
-    const ImVec2 p_min = ImGui::GetCursorScreenPos() + ImVec2(20, 0);
-    const ImVec2 p_max = p_min + bubble_size;
+    ImVec2 base_pos = ImGui::GetCursorScreenPos();
+    const ImVec2 p_min = ImVec2(base_pos.x + 20, base_pos.y);
+    const ImVec2 p_max = ImVec2(p_min.x + bubble_size.x, p_min.y + bubble_size.y);
 
-    // 圆角矩形（左上和左下圆角，右上和右下直角）
+    // 检测悬停
+    const bool is_hovered = style.enable_hover && ImGui::IsMouseHoveringRect(p_min, p_max);
+
+    // 选择边框颜色
+    const ImVec4 border_color = is_hovered ? style.ai_border_hover_color : style.ai_border_color;
+
+    // 圆角矩形（右上和右下圆角，左上和左下直角 - 从左侧接收的效果）
     draw_rounded_rect(p_min, p_max, style.ai_corner_radius,
-                      style.ai_bg_color, ImDrawFlags_RoundCornersTopLeft | ImDrawFlags_RoundCornersBottomLeft);
+                      style.ai_bg_color, ImDrawFlags_RoundCornersTopRight | ImDrawFlags_RoundCornersBottomRight);
+
+    // 绘制边框
+    if (style.draw_border) {
+        draw_rounded_rect_border(p_min, p_max, style.ai_corner_radius,
+                                 border_color, style.ai_border_width,
+                                 ImDrawFlags_RoundCornersTopRight | ImDrawFlags_RoundCornersBottomRight);
+    }
 
     // 绘制文本
-    ImGui::SetCursorScreenPos(p_min + ImVec2(style.padding_x, style.padding_y));
-    ImGui::PushTextWrapPos(bubble_size.x - style.padding_x * 2);
-    ImGui::PushStyleColor(ImGuiCol_Text, style.ai_text_color);
-    ImGui::Text("%s", message.content.c_str());
-    ImGui::PopStyleColor();
+    ImGui::SetCursorScreenPos(ImVec2(p_min.x + style.padding_x, p_min.y + style.padding_y));
+    ImGui::PushTextWrapPos(p_min.x + bubble_size.x - style.padding_x);
+
+    // AI 消息支持 Markdown 渲染
+    if (style.enable_markdown) {
+        // Markdown 渲染器内部处理文本颜色
+        MarkdownRenderer::render(message.content);
+    } else {
+        // 纯文本渲染
+        ImGui::PushStyleColor(ImGuiCol_Text, style.ai_text_color);
+        ImGui::Text("%s", message.content.c_str());
+        ImGui::PopStyleColor();
+    }
+
     ImGui::PopTextWrapPos();
 
     // 绘制时间戳
@@ -132,7 +180,12 @@ void MessageBubble::draw_status_icon(MessageStatus status, ImVec2 pos) {
         ImGui::GetFont(),
         ImGui::GetFontSize() * 0.8f,
         pos,
-        IM_COL32(color.x * 255, color.y * 255, color.z * 255, color.w * 255),
+        IM_COL32(
+            static_cast<int>(color.x * 255),
+            static_cast<int>(color.y * 255),
+            static_cast<int>(color.z * 255),
+            static_cast<int>(color.w * 255)
+        ),
         icon
     );
 }
@@ -178,6 +231,15 @@ void MessageBubble::draw_rounded_rect(const ImVec2& p_min, const ImVec2& p_max,
     const ImU32 col = ImGui::ColorConvertFloat4ToU32(color);
 
     draw_list->AddRectFilled(p_min, p_max, col, radius, flags);
+}
+
+void MessageBubble::draw_rounded_rect_border(const ImVec2& p_min, const ImVec2& p_max,
+                                              float radius, const ImVec4& color,
+                                              float width, ImDrawFlags flags) {
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    const ImU32 col = ImGui::ColorConvertFloat4ToU32(color);
+
+    draw_list->AddRect(p_min, p_max, col, radius, flags, width);
 }
 
 std::vector<std::string> MessageBubble::wrap_text(const std::string& text, float max_width) {

@@ -46,6 +46,7 @@ struct Conversation {
     int unread_count = 0;                                    // 未读消息数
     bool is_pinned = false;                                  // 是否置顶
     bool is_archived = false;                                // 是否归档
+    std::string last_message_preview;                        // 最后一条消息预览
 
     // 构造函数
     Conversation()

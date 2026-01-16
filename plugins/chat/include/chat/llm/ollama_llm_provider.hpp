@@ -1,0 +1,112 @@
+/**
+ * @file ollama_llm_provider.hpp
+ * @brief Ollama LLM 提供商
+ * @details 支持本地 Ollama 服务的 LLM Provider，支持流式输出 (NDJSON)
+ */
+
+#pragma once
+
+#include "chat/llm/llm_interface.hpp"
+#include <string>
+#include <functional>
+
+namespace DearTs::Plugins::Chat::LLM {
+
+/**
+ * @brief Ollama LLM 提供商
+ * @details 连接到本地 Ollama 服务 (http://localhost:11434)
+ *          支持 NDJSON 流式输出和模型管理
+ */
+class OllamaLLMProvider : public ILLMProvider {
+public:
+    /**
+     * @brief 构造函数
+     * @param base_url Ollama 服务地址 (默认: http://localhost:11434)
+     * @param model 默认模型名称 (默认: llama3.2)
+     */
+    explicit OllamaLLMProvider(
+        const std::string& base_url = "http://localhost:11434",
+        const std::string& model = "llama3.2"
+    );
+
+    ~OllamaLLMProvider() override = default;
+
+    // ========== ILLMProvider 接口实现 ==========
+
+    [[nodiscard]] std::string get_name() const override { return "Ollama"; }
+
+    [[nodiscard]] bool is_available() const override;
+
+    [[nodiscard]] std::shared_ptr<Core::Tasks::Task> send_async(
+        const LLMRequest& request,
+        std::function<void(const LLMResponse&)> callback
+    ) override;
+
+    [[nodiscard]] DearTs::Core::Result<LLMResponse, std::string> send(
+        const LLMRequest& request
+    ) override;
+
+    [[nodiscard]] std::vector<std::string> get_models() const override;
+
+private:
+    // ========== 请求构建 ==========
+
+    /**
+     * @brief 构建聊天 API 请求 JSON
+     */
+    std::string build_chat_request(const LLMRequest& request) const;
+
+    // ========== 响应解析 ==========
+
+    /**
+     * @brief 解析 NDJSON 响应（非流式）
+     */
+    DearTs::Core::Result<LLMResponse, std::string> parse_response(
+        const std::string& ndjson_body
+    ) const;
+
+    /**
+     * @brief 解析单行 NDJSON
+     * @return 提取的内容文本，如果解析失败返回空字符串
+     */
+    std::string parse_ndjson_line(const std::string& line) const;
+
+    // ========== 流式处理 ==========
+
+    /**
+     * @brief 发送流式请求
+     * @param request LLM 请求
+     * @param on_chunk 内容块回调
+     * @return 成功返回 Result::ok()，失败返回错误信息
+     */
+    DearTs::Core::Result<void, std::string> send_streaming_request(
+        const LLMRequest& request,
+        const std::function<void(const std::string&)>& on_chunk
+    ) const;
+
+    // ========== HTTP 请求 ==========
+
+    /**
+     * @brief 发送 HTTP 请求
+     * @param endpoint API 端点 (如 /api/chat, /api/tags)
+     * @param json_body 请求 JSON 正文
+     * @param on_stream_chunk 流式数据回调（可选）
+     * @return 响应内容字符串或错误
+     */
+    DearTs::Core::Result<std::string, std::string> send_http_request(
+        const std::string& endpoint,
+        const std::string& json_body,
+        const std::function<void(const std::string&)>& on_stream_chunk = nullptr
+    ) const;
+
+    /**
+     * @brief 测试连接
+     */
+    bool test_connection() const;
+
+    // ========== 成员变量 ==========
+
+    std::string m_base_url;  // Ollama 服务地址
+};
+
+} // namespace DearTs::Plugins::Chat::LLM

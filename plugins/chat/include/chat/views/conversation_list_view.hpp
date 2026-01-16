@@ -6,6 +6,7 @@
 #pragma once
 
 #include "core/ui/view.h"
+#include "core/ui/icon_font.hpp"
 #include "core/event/event_bus.h"
 #include "chat/models/conversation.hpp"
 #include "chat/events/chat_events.hpp"
@@ -85,9 +86,9 @@ private:
     bool m_show_context_menu = false;
 
     // 事件订阅
-    Event::EventToken m_conv_created_token;
-    Event::EventToken m_conv_deleted_token;
-    Event::EventToken m_conv_selected_token;
+    DearTs::Core::Event::EventToken m_conv_created_token;
+    DearTs::Core::Event::EventToken m_conv_deleted_token;
+    DearTs::Core::Event::EventToken m_conv_selected_token;
 };
 
 } // namespace DearTs::Plugins::Chat

@@ -12,27 +12,126 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # 收集源文件
 set(CHATMANAGER_SOURCES
     source/main.cpp
+    source/application.cpp
 )
 
 set(CHATMANAGER_HEADERS
     include/chatmanager/application.hpp
 )
 
-# 创建可执行文件
-add_executable(ChatManager WIN32 ${CHATMANAGER_SOURCES} ${CHATMANAGER_HEADERS})
+# 创建可执行文件（不要使用 WIN32，因为我们使用标准 main 函数）
+if(WIN32)
+    # Windows: 添加资源文件（用于设置应用程序图标）
+    add_executable(ChatManager
+        ${CHATMANAGER_SOURCES}
+        ${CHATMANAGER_HEADERS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/chatmanager.rc
+    )
+else()
+    # 其他平台
+    add_executable(ChatManager ${CHATMANAGER_SOURCES} ${CHATMANAGER_HEADERS})
+endif()
 
 # 设置包含目录
 target_include_directories(ChatManager PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/main/chatmanager/include
     ${CMAKE_SOURCE_DIR}/plugins/chat/include
+    ${CMAKE_SOURCE_DIR}/plugins/builtin/include
     ${CMAKE_SOURCE_DIR}/core
+    ${CMAKE_SOURCE_DIR}/core/event
+    ${CMAKE_SOURCE_DIR}/core/content
+    ${CMAKE_SOURCE_DIR}/core/ui
+    ${CMAKE_SOURCE_DIR}/core/plugin
+    ${CMAKE_SOURCE_DIR}/core/config
+    ${CMAKE_SOURCE_DIR}/core/tasks
+    ${CMAKE_SOURCE_DIR}/core/utils
+    ${CMAKE_SOURCE_DIR}/core/app
+    ${CMAKE_SOURCE_DIR}/lib/liblogger
+    ${CMAKE_SOURCE_DIR}/third_party/SDL/include
+    ${CMAKE_SOURCE_DIR}/third_party/imgui
+    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
+    ${CMAKE_SOURCE_DIR}/third_party/json/include
 )
 
-# 链接库
+# 添加 DearTs 核心源文件（直接编译到可执行文件中）
+target_sources(ChatManager PRIVATE
+    # Content Registry
+    ${CMAKE_SOURCE_DIR}/core/content/settings.cpp
+    ${CMAKE_SOURCE_DIR}/core/content/commands.cpp
+    ${CMAKE_SOURCE_DIR}/core/content/tools.cpp
+    ${CMAKE_SOURCE_DIR}/core/content/callbacks.cpp
+    ${CMAKE_SOURCE_DIR}/core/content/project_manager.cpp
+    # Config
+    ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
+    # Plugin System
+    ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_loader.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/version.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/version_range.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_dependency.cpp
+    ${CMAKE_SOURCE_DIR}/core/plugin/dependency_resolver.cpp
+    # UI Components (needed by views)
+    ${CMAKE_SOURCE_DIR}/core/ui/imgui_extensions.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/icon_font.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/title_bar.cpp
+    # Task Manager
+    ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
+)
+
+# 收集 Builtin Plugin 源文件
+file(GLOB_RECURSE BUILTIN_PLUGIN_SOURCES
+    ${CMAKE_SOURCE_DIR}/plugins/builtin/source/*.cpp
+)
+file(GLOB_RECURSE BUILTIN_PLUGIN_HEADERS
+    ${CMAKE_SOURCE_DIR}/plugins/builtin/include/*.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/builtin/include/*.h
+)
+
+# 收集 Chat Plugin 源文件
+file(GLOB_RECURSE CHAT_PLUGIN_SOURCES
+    ${CMAKE_SOURCE_DIR}/plugins/chat/source/*.cpp
+)
+file(GLOB_RECURSE CHAT_PLUGIN_HEADERS
+    ${CMAKE_SOURCE_DIR}/plugins/chat/include/*.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/chat/include/*.h
+)
+
+# 添加插件源文件
+target_sources(ChatManager PRIVATE
+    ${BUILTIN_PLUGIN_SOURCES}
+    ${BUILTIN_PLUGIN_HEADERS}
+    ${CHAT_PLUGIN_SOURCES}
+    ${CHAT_PLUGIN_HEADERS}
+)
+
+# ImGui SDL3 GPU Backend
+target_sources(ChatManager PRIVATE
+    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_sdlgpu3.cpp
+)
+
+# 链接 DearTs Logger 库
 target_link_libraries(ChatManager PRIVATE
-    dearts_core
-    chat
+    deartsdl_logger
+)
+
+# 链接 SDL3（项目中的 SDL3 子目录）
+target_link_libraries(ChatManager PRIVATE
+    SDL3::SDL3-shared
+)
+
+# 链接 ImGui（项目中的 ImGui 库）
+target_link_libraries(ChatManager PRIVATE
+    imgui
+    imgui_sdl3
+)
+
+# 链接第三方库
+target_link_libraries(ChatManager PRIVATE
+    nlohmann_json::nlohmann_json
 )
 
 # 链接系统库
@@ -48,7 +147,22 @@ if(WIN32)
     # 链接 Windows 库
     target_link_libraries(ChatManager PRIVATE
         winhttp
+        setupapi
     )
+    target_compile_definitions(ChatManager PRIVATE
+        _CRT_SECURE_NO_WARNINGS
+        _USE_MATH_DEFINES
+    )
+    # Release 版本设置为 GUI 应用程序（无控制台窗口）
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        set_target_properties(ChatManager PROPERTIES
+            WIN32_EXECUTABLE TRUE
+        )
+        target_link_options(ChatManager PRIVATE
+            "/SUBSYSTEM:WINDOWS"
+            "/ENTRY:mainCRTStartup"
+        )
+    endif()
 endif()
 
 # 编译选项
@@ -57,6 +171,7 @@ if(MSVC)
         /W4
         /std:c++20
         /MP
+        /Zc:preprocessor
     )
 else()
     target_compile_options(ChatManager PRIVATE

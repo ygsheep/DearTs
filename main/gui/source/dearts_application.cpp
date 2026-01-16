@@ -8,6 +8,7 @@
 #include "toast_plugin.hpp"
 #include "builtin_plugin.hpp"
 #include "command_palette_plugin.hpp"
+#include "clipboard_parser_plugin.hpp"
 #include "core/content/callbacks.h"
 #include "core/content/commands.h"
 #include "core/event/event_bus.h"
@@ -396,9 +397,53 @@ bool DearTsApplication::setup_imgui() {
             LOG_INFO("成功加载中文字体: {} (大小: {:.1f}px)", font_path, font_size);
             font_loaded = true;
 
-            // 添加更大的字体用于标题（1.5倍大小）
+            // 将图标字体合并到主字体中
+            // Material Symbols 图标范围：U+E000–U+E8FF
+            static const ImWchar MaterialSymbolsRanges[] = {
+                0xE000, 0xE8FF, // Material Symbols Outlined
+                0,
+            };
+
+            // 配置图标字体合并
+            ImFontConfig icon_config;
+            icon_config.MergeMode = true;  // 关键：启用合并模式
+            icon_config.PixelSnapH = true;
+            icon_config.OversampleH = 2;
+            icon_config.OversampleV = 2;
+
+            // 尝试多个可能的图标字体路径
+            const char* icon_font_paths[] = {
+                "resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf",
+                "../resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf",
+                "../../resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf",
+            };
+
+            bool icon_merged = false;
+            for (const char* icon_path : icon_font_paths) {
+                if (io.Fonts->AddFontFromFileTTF(icon_path, font_size, &icon_config, MaterialSymbolsRanges) != nullptr) {
+                    LOG_INFO("成功合并图标字体到主字体: {}", icon_path);
+                    icon_merged = true;
+                    break;
+                }
+            }
+
+            if (!icon_merged) {
+                LOG_WARN("图标字体合并失败，图标可能无法在中文文本中显示");
+            }
+
+            // 添加更大的字体用于标题（1.5倍大小），同样合并图标字体
             font_config.MergeMode = false; // 不合并，创建独立的字体
-            io.Fonts->AddFontFromFileTTF(font_path, font_size * 1.5f, &font_config, io.Fonts->GetGlyphRangesChineseFull());
+            ImFont* title_font = io.Fonts->AddFontFromFileTTF(font_path, font_size * 1.5f, &font_config, io.Fonts->GetGlyphRangesChineseFull());
+            if (title_font != nullptr) {
+                // 将图标字体也合并到标题字体中
+                icon_config.MergeMode = true;
+                for (const char* icon_path : icon_font_paths) {
+                    if (io.Fonts->AddFontFromFileTTF(icon_path, font_size * 1.5f, &icon_config, MaterialSymbolsRanges) != nullptr) {
+                        LOG_INFO("成功合并图标字体到标题字体");
+                        break;
+                    }
+                }
+            }
             break;
         } else {
             LOG_DEBUG("尝试加载字体失败: {}", font_path);
@@ -411,12 +456,12 @@ bool DearTsApplication::setup_imgui() {
         io.Fonts->AddFontDefault();
     }
 
-    // 加载图标字体（Material Symbols）
-    LOG_INFO("正在加载图标字体...");
+    // 加载独立的图标字体（用于只有图标的情况）
+    LOG_INFO("正在加载独立图标字体...");
     if (Core::UI::IconFont::loadMaterialSymbols(18.0f)) {
-        LOG_INFO("成功加载 Material Symbols 图标字体");
+        LOG_INFO("成功加载 Material Symbols 独立图标字体");
     } else {
-        LOG_WARN("图标字体加载失败，部分图标可能显示为 ???");
+        LOG_WARN("独立图标字体加载失败，部分图标可能显示为 ???");
         LOG_INFO("提示：运行 download_icon_font.bat 下载图标字体");
     }
 
@@ -686,6 +731,16 @@ void DearTsApplication::setup_plugins() {
         LOG_ERROR("Failed to load CommandPalettePlugin: {}", result.error());
     } else {
         LOG_INFO("CommandPalettePlugin loaded successfully");
+    }
+
+    // 添加剪切板解析插件
+    auto clipboard_parser_plugin = std::make_unique<DearTs::Plugins::ClipboardParser::ClipboardParserPlugin>();
+    result = plugin_manager.add_builtin(std::move(clipboard_parser_plugin));
+
+    if (result.isErr()) {
+        LOG_ERROR("Failed to load ClipboardParserPlugin: {}", result.error());
+    } else {
+        LOG_INFO("ClipboardParserPlugin loaded successfully");
     }
 
 #if DEARTS_FFMPEG_SUPPORT

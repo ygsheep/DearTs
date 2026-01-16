@@ -5,6 +5,9 @@
 
 #pragma once
 
+#include "core/ui/title_bar.h"
+#include "core/ui/icon_font.hpp"
+
 namespace ChatManager {
 
 /**
@@ -75,6 +78,18 @@ private:
     void render_frame();
 
     /**
+     * @brief 渲染自定义标题栏
+     * @return 标题栏高度
+     */
+    float render_title_bar();
+
+    /**
+     * @brief 渲染 DockSpace
+     * @param title_bar_height 标题栏高度
+     */
+    void render_dock_space(float title_bar_height);
+
+    /**
      * @brief 清理资源
      */
     void cleanup();
@@ -85,7 +100,21 @@ private:
 
     // 窗口相关
     void* m_window = nullptr;           // SDL_Window*
+    void* m_gpu_device = nullptr;       // SDL_GPUDevice*
     void* m_imgui_context = nullptr;    // ImGuiContext*
+
+    // 视图可见性
+    bool m_show_conversation_list = true;
+    bool m_show_chat = true;
+    bool m_show_info_panel = true;
+
+    // 自定义标题栏
+    DearTs::Core::UI::TitleBar m_title_bar;
+
+    // 窗口拖拽状态
+    bool m_is_dragging = false;
+    ImVec2 m_drag_start_pos;
+    ImVec2 m_window_start_pos;
 };
 
 } // namespace ChatManager

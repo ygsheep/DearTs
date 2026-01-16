@@ -5,7 +5,7 @@
 
 #include "chat/models/conversation.hpp"
 #include "liblogger/logger.h"
-#include <fmt/format.h>
+#include <format>
 #include <algorithm>
 #include <random>
 

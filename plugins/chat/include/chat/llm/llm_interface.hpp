@@ -132,7 +132,7 @@ public:
      * @param request LLM 请求
      * @return Result 包含响应或错误信息
      */
-    [[nodiscard]] virtual Result<LLMResponse, std::string> send(
+    [[nodiscard]] virtual DearTs::Core::Result<LLMResponse, std::string> send(
         const LLMRequest& request
     ) = 0;
 
@@ -204,6 +204,15 @@ public:
     [[nodiscard]] static std::unique_ptr<ILLMProvider> create_cli_provider(
         const std::string& command_template
     );
+
+    /**
+     * @brief 创建 Ollama 提供商
+     * @details 连接到本地 Ollama 服务，支持 NDJSON 流式输出
+     */
+    [[nodiscard]] static std::unique_ptr<ILLMProvider> create_ollama_provider(
+        const std::string& base_url = "http://localhost:11434",
+        const std::string& model = "llama3.2"
+    );
 };
 
 /**
@@ -238,7 +247,7 @@ public:
     /**
      * @brief 发送同步请求
      */
-    [[nodiscard]] Result<LLMResponse, std::string> send(const LLMRequest& request);
+    [[nodiscard]] DearTs::Core::Result<LLMResponse, std::string> send(const LLMRequest& request);
 
 private:
     LLMManager() = default;

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "core/ui/view.h"
+#include "core/ui/icon_font.hpp"
 #include "core/event/event_bus.h"
 #include "chat/models/conversation.hpp"
 #include <memory>

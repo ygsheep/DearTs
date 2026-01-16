@@ -4,7 +4,8 @@
  */
 
 #include "chat/ui/chat_input.hpp"
-#include <fmt/format.h>
+#include "core/ui/icon_font.hpp"
+#include <format>
 #include <cstring>
 
 namespace DearTs::Plugins::Chat::UI {
@@ -126,7 +127,7 @@ bool ChatInput::draw_send_button() {
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, btn_active);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
-    const bool clicked = ImGui::Button(fmt::format("{} 发送", ICON_SEND).c_str(), ImVec2(100, 0));
+    const bool clicked = ImGui::Button(std::format("{} 发送", ICON_SEND).c_str(), ImVec2(100, 0));
 
     ImGui::PopStyleColor(4);
 
@@ -144,7 +145,7 @@ bool ChatInput::draw_ai_button() {
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.45f, 0.75f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
-    const bool clicked = ImGui::Button(fmt::format("{} AI 分析", ICON_AUTO_FIX_HIGH).c_str(), ImVec2(100, 0));
+    const bool clicked = ImGui::Button(std::format("{} AI 分析", ICON_AUTO_FIX_HIGH).c_str(), ImVec2(100, 0));
 
     ImGui::PopStyleColor(4);
 

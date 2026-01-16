@@ -5,6 +5,7 @@
 
 #include "chat/llm/llm_interface.hpp"
 #include "chat/llm/http_llm_provider.hpp"
+#include "chat/llm/ollama_llm_provider.hpp"
 #include "chat/llm/python_llm_provider.hpp"
 #include "chat/llm/cli_llm_provider.hpp"
 #include "liblogger/logger.h"
@@ -32,6 +33,13 @@ std::unique_ptr<ILLMProvider> LLMProviderFactory::create_cli_provider(
     const std::string& command_template
 ) {
     return std::make_unique<CLLILLMProvider>(command_template);
+}
+
+std::unique_ptr<ILLMProvider> LLMProviderFactory::create_ollama_provider(
+    const std::string& base_url,
+    const std::string& model
+) {
+    return std::make_unique<OllamaLLMProvider>(base_url, model);
 }
 
 // LLMManager 实现
@@ -64,9 +72,9 @@ std::shared_ptr<Core::Tasks::Task> LLMManager::send_async(
     return m_provider->send_async(request, callback);
 }
 
-Result<LLMResponse, std::string> LLMManager::send(const LLMRequest& request) {
+DearTs::Core::Result<LLMResponse, std::string> LLMManager::send(const LLMRequest& request) {
     if (!m_provider) {
-        return Result<LLMResponse, std::string>::err("No LLM provider configured");
+        return DearTs::Core::Result<LLMResponse, std::string>::err("No LLM provider configured");
     }
 
     return m_provider->send(request);

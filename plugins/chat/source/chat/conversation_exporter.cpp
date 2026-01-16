@@ -4,9 +4,10 @@
  */
 
 #include "chat/conversation_exporter.hpp"
+#include "core/result.h"
 #include "liblogger/logger.h"
 #include <nlohmann/json.hpp>
-#include <fmt/format.h>
+#include <format>
 #include <fstream>
 #include <iomanip>
 #include <ctime>
@@ -15,7 +16,7 @@ namespace DearTs::Plugins::Chat {
 
 using json = nlohmann::json;
 
-Result<void, std::string> ConversationExporter::export_conversation(
+DearTs::Core::Result<void, std::string> ConversationExporter::export_conversation(
     const Conversation& conv,
     ExportFormat format,
     const std::string& output_path
@@ -31,14 +32,14 @@ Result<void, std::string> ConversationExporter::export_conversation(
             case ExportFormat::HTML:
                 return export_html(conv, output_path);
             default:
-                return Result<void, std::string>::err("Unsupported export format");
+                return DearTs::Core::Result<void, std::string>::err("Unsupported export format");
         }
     } catch (const std::exception& e) {
-        return Result<void, std::string>::err(fmt::format("Export failed: {}", e.what()));
+        return DearTs::Core::Result<void, std::string>::err(std::format("Export failed: {}", e.what()));
     }
 }
 
-Result<void, std::string> ConversationExporter::export_json(
+DearTs::Core::Result<void, std::string> ConversationExporter::export_json(
     const Conversation& conv,
     const std::string& output_path
 ) {
@@ -70,28 +71,28 @@ Result<void, std::string> ConversationExporter::export_json(
         // 写入文件
         std::ofstream file(output_path);
         if (!file) {
-            return Result<void, std::string>::err("Failed to open file for writing");
+            return DearTs::Core::Result<void, std::string>::err("Failed to open file for writing");
         }
 
         file << j.dump(2);
         file.close();
 
         LOG_INFO("Exported conversation {} to JSON: {}", conv.id, output_path);
-        return Result<void, std::string>::ok();
+        return DearTs::Core::Result<void, std::string>::ok();
 
     } catch (const json::exception& e) {
-        return Result<void, std::string>::err(fmt::format("JSON error: {}", e.what()));
+        return DearTs::Core::Result<void, std::string>::err(std::format("JSON error: {}", e.what()));
     }
 }
 
-Result<void, std::string> ConversationExporter::export_markdown(
+DearTs::Core::Result<void, std::string> ConversationExporter::export_markdown(
     const Conversation& conv,
     const std::string& output_path
 ) {
     try {
         std::ofstream file(output_path);
         if (!file) {
-            return Result<void, std::string>::err("Failed to open file for writing");
+            return DearTs::Core::Result<void, std::string>::err("Failed to open file for writing");
         }
 
         // 标题
@@ -121,21 +122,21 @@ Result<void, std::string> ConversationExporter::export_markdown(
         file.close();
 
         LOG_INFO("Exported conversation {} to Markdown: {}", conv.id, output_path);
-        return Result<void, std::string>::ok();
+        return DearTs::Core::Result<void, std::string>::ok();
 
     } catch (const std::exception& e) {
-        return Result<void, std::string>::err(fmt::format("Markdown export error: {}", e.what()));
+        return DearTs::Core::Result<void, std::string>::err(std::format("Markdown export error: {}", e.what()));
     }
 }
 
-Result<void, std::string> ConversationExporter::export_txt(
+DearTs::Core::Result<void, std::string> ConversationExporter::export_txt(
     const Conversation& conv,
     const std::string& output_path
 ) {
     try {
         std::ofstream file(output_path);
         if (!file) {
-            return Result<void, std::string>::err("Failed to open file for writing");
+            return DearTs::Core::Result<void, std::string>::err("Failed to open file for writing");
         }
 
         // 标题
@@ -155,21 +156,21 @@ Result<void, std::string> ConversationExporter::export_txt(
         file.close();
 
         LOG_INFO("Exported conversation {} to TXT: {}", conv.id, output_path);
-        return Result<void, std::string>::ok();
+        return DearTs::Core::Result<void, std::string>::ok();
 
     } catch (const std::exception& e) {
-        return Result<void, std::string>::err(fmt::format("TXT export error: {}", e.what()));
+        return DearTs::Core::Result<void, std::string>::err(std::format("TXT export error: {}", e.what()));
     }
 }
 
-Result<void, std::string> ConversationExporter::export_html(
+DearTs::Core::Result<void, std::string> ConversationExporter::export_html(
     const Conversation& conv,
     const std::string& output_path
 ) {
     try {
         std::ofstream file(output_path);
         if (!file) {
-            return Result<void, std::string>::err("Failed to open file for writing");
+            return DearTs::Core::Result<void, std::string>::err("Failed to open file for writing");
         }
 
         // HTML 头部
@@ -231,10 +232,10 @@ Result<void, std::string> ConversationExporter::export_html(
         file.close();
 
         LOG_INFO("Exported conversation {} to HTML: {}", conv.id, output_path);
-        return Result<void, std::string>::ok();
+        return DearTs::Core::Result<void, std::string>::ok();
 
     } catch (const std::exception& e) {
-        return Result<void, std::string>::err(fmt::format("HTML export error: {}", e.what()));
+        return DearTs::Core::Result<void, std::string>::err(std::format("HTML export error: {}", e.what()));
     }
 }
 
@@ -280,7 +281,7 @@ std::string ConversationExporter::escape_json(const std::string& str) {
             case '\t': result += "\\t"; break;
             default:
                 if (static_cast<unsigned char>(c) < 0x20) {
-                    result += fmt::format("\\u{:04x}", static_cast<unsigned char>(c));
+                    result += std::format("\\u{:04x}", static_cast<unsigned char>(c));
                 } else {
                     result += c;
                 }

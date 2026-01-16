@@ -4,9 +4,10 @@
  */
 
 #include "chat/views/conversation_list_view.hpp"
+#include "core/ui/icon_font.hpp"
 #include "liblogger/logger.h"
 #include <imgui.h>
-#include <fmt/format.h>
+#include <format>
 
 namespace DearTs::Plugins::Chat {
 
@@ -122,11 +123,14 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
     // 会话项
     const auto& title = conv->get_display_title();
     const auto& preview = conv->get_last_message_preview();
-    const auto current_conv = m_conversation_manager->get_current_conversation();
 
-    if (ImGui::Selectable(fmt::format("##{}", conv->id).c_str(), is_selected, ImGuiSelectableFlags_None, ImVec2(0, 60))) {
+    if (ImGui::Selectable(std::format("##{}", conv->id).c_str(), is_selected, ImGuiSelectableFlags_None, ImVec2(0, 60))) {
         select_conversation(conv);
     }
+
+    // 保存 Selectable 的位置和大小
+    const ImVec2 item_min = ImGui::GetItemRectMin();
+    const ImVec2 item_size = ImGui::GetItemRectSize();
 
     // 检测悬停
     if (ImGui::IsItemHovered()) {
@@ -136,7 +140,7 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
     }
 
     // 右键菜单
-    if (ImGui::BeginPopupContextItem(fmt::format("context_{}", conv->id).c_str())) {
+    if (ImGui::BeginPopupContextItem(std::format("context_{}", conv->id).c_str())) {
         if (ImGui::MenuItem("删除会话")) {
             delete_conversation(conv->id);
         }
@@ -154,8 +158,8 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
 
     ImGui::PopStyleColor(2);
 
-    // 绘制内容（在 Selectable 之后）
-    ImGui::SameLine(0, 0);
+    // 获取窗口绘制列表
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
     // 图标
     const char* icon = ICON_MESSAGE;
@@ -165,36 +169,75 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
         icon = ICON_GROUP;
     }
 
-    ImGui::SetCursorPos(ImVec2(ImGui::GetCursorStartPos().x + 10, ImGui::GetCursorStartPos().y + 10));
-    ImGui::TextColored(ImVec4(0.4f, 0.6f, 1.0f, 1.0f), "%s", icon);
+    const ImVec2 icon_pos(item_min.x + 10, item_min.y + 10);
+    draw_list->AddText(icon_pos, IM_COL32(100, 150, 255, 255), icon);
 
-    // 标题
-    ImGui::SetCursorPos(ImVec2(ImGui::GetCursorStartPos().x + 35, ImGui::GetCursorStartPos().y + 8));
+    // 限制文本宽度
+    const float max_text_width = item_size.x - 55;
 
-    if (conv->unread_count > 0) {
-        ImGui::TextColored(ImVec4(1.0f, 1.0f, 1.0f, 1.0f), "%s", title.c_str());
-        ImGui::SameLine();
+    // 标题（截断过长的标题）
+    const ImVec2 title_pos(item_min.x + 35, item_min.y + 8);
+    std::string display_title = title;
+    const ImVec2 title_size = ImGui::CalcTextSize(title.c_str());
 
-        // 未读徽章
-        const std::string badge = fmt::format(" {}", conv->unread_count);
-        ImGui::SetCursorPosX(ImGui::GetCursorPosX() - 5);
-        ImGui::TextColored(ImVec4(0.2f, 0.6f, 1.0f, 1.0f), "%s", badge.c_str());
-    } else {
-        ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "%s", title.c_str());
+    if (title_size.x > max_text_width) {
+        // 二分查找截断点
+        size_t left = 0, right = title.length();
+        while (left < right) {
+            size_t mid = (left + right + 1) / 2;
+            std::string test = title.substr(0, mid) + "…";
+            if (ImGui::CalcTextSize(test.c_str()).x <= max_text_width) {
+                left = mid;
+            } else {
+                right = mid - 1;
+            }
+        }
+        display_title = title.substr(0, left) + "…";
     }
 
-    // 预览文本
-    ImGui::SetCursorPos(ImVec2(ImGui::GetCursorStartPos().x + 35, ImGui::GetCursorStartPos().y + 30));
+    // 绘制标题
+    ImU32 title_color = conv->unread_count > 0 ? IM_COL32(255, 255, 255, 255) : IM_COL32(200, 200, 200, 255);
+    draw_list->AddText(title_pos, title_color, display_title.c_str());
+
+    // 未读徽章
+    if (conv->unread_count > 0) {
+        const std::string badge = std::format(" {}", conv->unread_count);
+        const ImVec2 badge_pos(title_pos.x + ImGui::CalcTextSize(display_title.c_str()).x - 5, title_pos.y);
+        draw_list->AddText(badge_pos, IM_COL32(50, 150, 255, 255), badge.c_str());
+    }
+
+    // 预览文本（截断）
+    const ImVec2 preview_pos(item_min.x + 35, item_min.y + 30);
+    std::string display_preview;
 
     if (!preview.empty()) {
-        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "%s", preview.c_str());
+        display_preview = preview;
+        if (display_preview.length() > 50) {
+            display_preview = preview.substr(0, 50) + "…";
+        }
+
+        // 进一步截断以适应宽度
+        const ImVec2 preview_size = ImGui::CalcTextSize(display_preview.c_str());
+        if (preview_size.x > max_text_width) {
+            size_t left = 0, right = display_preview.length();
+            while (left < right) {
+                size_t mid = (left + right + 1) / 2;
+                std::string test = display_preview.substr(0, mid) + "…";
+                if (ImGui::CalcTextSize(test.c_str()).x <= max_text_width) {
+                    left = mid;
+                } else {
+                    right = mid - 1;
+                }
+            }
+            display_preview = display_preview.substr(0, left) + "…";
+        }
     } else {
-        ImGui::TextColored(ImVec4(0.4f, 0.4f, 0.4f, 1.0f), "暂无消息");
+        display_preview = "暂无消息";
     }
 
-    // 时间戳
-    ImGui::SetCursorPos(ImVec2(ImGui::GetCursorStartPos().x + 10, ImGui::GetCursorStartPos().y + 42));
+    draw_list->AddText(preview_pos, IM_COL32(128, 128, 128, 255), display_preview.c_str());
 
+    // 时间戳
     const auto now = std::chrono::system_clock::now();
     const auto diff = std::chrono::duration_cast<std::chrono::hours>(now - conv->updated_at).count();
 
@@ -202,19 +245,20 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
     if (diff < 1) {
         time_str = "刚刚";
     } else if (diff < 24) {
-        time_str = fmt::format("{}小时前", diff);
+        time_str = std::format("{}小时前", diff);
     } else if (diff < 24 * 7) {
-        time_str = fmt::format("{}天前", diff / 24);
+        time_str = std::format("{}天前", diff / 24);
     } else {
-        time_str = fmt::format("{:%m-%d}", conv->updated_at);
+        time_str = std::format("{:%m-%d}", conv->updated_at);
     }
 
-    ImGui::TextColored(ImVec4(0.4f, 0.4f, 0.4f, 1.0f), "%s", time_str.c_str());
+    const ImVec2 time_pos(item_min.x + 10, item_min.y + 42);
+    draw_list->AddText(time_pos, IM_COL32(128, 128, 128, 255), time_str.c_str());
 
     // 置顶标记
     if (conv->is_pinned) {
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x - 20);
-        ImGui::TextColored(ImVec4(0.8f, 0.6f, 0.2f, 1.0f), "%s", ICON_PUSH_PIN);
+        const ImVec2 pin_pos(item_min.x + item_size.x - 25, item_min.y + 10);
+        draw_list->AddText(pin_pos, IM_COL32(200, 150, 50, 255), ICON_PUSH_PIN);
     }
 }
 
@@ -241,7 +285,7 @@ void ConversationListView::select_conversation(const std::shared_ptr<Conversatio
     conv->unread_count = 0;
 
     // 发布事件
-    EventBus::instance().publish(Events::ConversationSelectedEvent{ conv });
+    DearTs::Core::Event::EventBus::instance().publish(Events::ConversationSelectedEvent{ conv });
 }
 
 void ConversationListView::refresh_list() {

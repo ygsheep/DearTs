@@ -7,6 +7,7 @@
 
 #include "chat/models/ai_suggestion.hpp"
 #include <string>
+#include <functional>
 #include <imgui.h>
 
 namespace DearTs::Plugins::Chat::UI {

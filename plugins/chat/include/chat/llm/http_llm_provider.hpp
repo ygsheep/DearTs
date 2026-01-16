@@ -42,7 +42,7 @@ public:
         std::function<void(const LLMResponse&)> callback
     ) override;
 
-    [[nodiscard]] Result<LLMResponse, std::string> send(const LLMRequest& request) override;
+    [[nodiscard]] DearTs::Core::Result<LLMResponse, std::string> send(const LLMRequest& request) override;
 
     [[nodiscard]] std::vector<std::string> get_models() const override;
 
@@ -71,7 +71,7 @@ private:
     /**
      * @brief 发送 HTTP POST 请求
      */
-    [[nodiscard]] Result<std::string, std::string> send_http_request(
+    [[nodiscard]] DearTs::Core::Result<std::string, std::string> send_http_request(
         const std::string& endpoint,
         const std::string& json_body
     ) const;
@@ -84,7 +84,7 @@ private:
     /**
      * @brief 解析聊天完成响应
      */
-    [[nodiscard]] Result<LLMResponse, std::string> parse_chat_completion_response(
+    [[nodiscard]] DearTs::Core::Result<LLMResponse, std::string> parse_chat_completion_response(
         const std::string& json_body
     ) const;
 
