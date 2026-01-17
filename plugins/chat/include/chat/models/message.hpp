@@ -52,6 +52,9 @@ struct Message {
     size_t displayed_chars = 0;                              // 已显示的字符数（用于打字机效果）
     std::string pending_content;                             // 待显示的内容缓冲区
 
+    // 展开状态（用于独立 Markdown 窗口）
+    bool expanded = false;                                   // 是否展开到独立窗口
+
     // 构造函数
     Message() : timestamp(std::chrono::system_clock::now()) {}
 

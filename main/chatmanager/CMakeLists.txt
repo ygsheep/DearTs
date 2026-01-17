@@ -74,6 +74,7 @@ target_sources(ChatManager PRIVATE
     # UI Components (needed by views)
     ${CMAKE_SOURCE_DIR}/core/ui/imgui_extensions.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/icon_font.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/theme_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
@@ -186,6 +187,10 @@ set_target_properties(ChatManager PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
+# 资源目录配置
+set(RESOURCE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
+set(RESOURCE_DEST_DIR ${CMAKE_BINARY_DIR}/bin/resources)
+
 # 安装规则
 install(TARGETS ChatManager
     RUNTIME DESTINATION bin
@@ -193,3 +198,20 @@ install(TARGETS ChatManager
 
 # 复制必要的资源文件（如果有）
 # install(DIRECTORY resources/ DESTINATION bin/resources)
+
+# 复制所有资源文件到输出目录（仅在文件真正变化时复制）
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        # 使用 copy_if_different 避免不必要的时间戳更新
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/fonts
+        # 复制字体文件（仅在变化时）
+        COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        ${RESOURCE_SOURCE_DIR}/fonts
+        ${RESOURCE_DEST_DIR}/fonts
+
+        # 复制 SDL3_image.dll（根据架构选择）
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/$<IF:$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>,x64,x86>/SDL3_image.dll
+        ${CMAKE_BINARY_DIR}/bin/SDL3_image.dll
+
+        COMMENT "Copying resources to output directory (if changed)"
+)

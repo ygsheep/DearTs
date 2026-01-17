@@ -16,10 +16,10 @@ namespace DearTs::Plugins::Chat::UI {
  */
 struct MessageBubbleStyle {
     // 用户消息样式（右侧）
-    ImVec4 user_bg_color = ImVec4(0.13f, 0.6f, 0.95f, 1.0f);
+    ImVec4 user_bg_color = ImVec4(0, 0, 0, 0);  // 透明背景
     ImVec4 user_text_color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-    ImVec4 user_border_color = ImVec4(0.1f, 0.45f, 0.75f, 1.0f);      // 浅色边框
-    ImVec4 user_border_hover_color = ImVec4(0.2f, 0.7f, 1.0f, 1.0f);   // 悬停高亮边框
+    ImVec4 user_border_color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);     // 灰色边框
+    ImVec4 user_border_hover_color = ImVec4(0.7f, 0.7f, 0.7f, 1.0f);  // 悬停高亮边框
     float user_corner_radius = 12.0f;
     float user_border_width = 1.5f;
 
@@ -29,7 +29,7 @@ struct MessageBubbleStyle {
     ImVec4 ai_border_color = ImVec4(0.25f, 0.25f, 0.3f, 1.0f);        // 浅色边框
     ImVec4 ai_border_hover_color = ImVec4(0.4f, 0.4f, 0.5f, 1.0f);     // 悬停高亮边框
     float ai_corner_radius = 12.0f;
-    float ai_border_width = 1.5f;
+    float ai_border_width = 0.0f;  // 移除边框
 
     // 系统消息样式
     ImVec4 system_text_color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
@@ -75,6 +75,13 @@ public:
     static void draw(const Message& message, const MessageBubbleStyle* style = nullptr);
 
     /**
+     * @brief 绘制消息气泡（非 const 版本，用于需要修改消息状态的场景）
+     * @param message 消息对象（非 const，可修改 expanded 等状态）
+     * @param style 气泡样式（可选，使用默认样式）
+     */
+    static void draw(Message& message, const MessageBubbleStyle* style = nullptr);
+
+    /**
      * @brief 绘制用户消息（右侧）
      */
     static void draw_user_message(const Message& message, const MessageBubbleStyle& style);
@@ -82,7 +89,7 @@ public:
     /**
      * @brief 绘制 AI 消息（左侧）
      */
-    static void draw_ai_message(const Message& message, const MessageBubbleStyle& style);
+    static void draw_ai_message(Message& message, const MessageBubbleStyle& style);
 
     /**
      * @brief 绘制系统消息（居中）
@@ -105,6 +112,12 @@ public:
      */
     static ImVec2 calc_size(const std::string& content, float max_width, const MessageBubbleStyle& style);
 
+    /**
+     * @brief 渲染独立的 Markdown 查看窗口
+     * @param message 消息对象（需要使用非 const 引用以访问 expanded 状态）
+     */
+    static void render_expanded_markdown_window(Message& message);
+
 private:
     /**
      * @brief 绘制圆角矩形（填充）
@@ -118,6 +131,15 @@ private:
     static void draw_rounded_rect_border(const ImVec2& p_min, const ImVec2& p_max,
                                          float radius, const ImVec4& color,
                                          float width, ImDrawFlags flags = 0);
+
+    /**
+     * @brief 计算 Markdown 内容的高度
+     * @param content Markdown 文本
+     * @param width 可用宽度
+     * @param padding 内边距
+     * @return 计算出的内容高度
+     */
+    static float calc_markdown_height(const std::string& content, float width, float padding);
 
     /**
      * @brief 自动换行文本

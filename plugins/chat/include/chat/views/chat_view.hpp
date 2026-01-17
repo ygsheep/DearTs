@@ -1,6 +1,6 @@
 /**
  * @file chat_view.hpp
- * @brief 聊天视图（中间面板）
+ * @brief 聊天视图（消息显示区域）
  */
 
 #pragma once
@@ -9,7 +9,6 @@
 #include "core/ui/icon_font.hpp"
 #include "core/event/event_bus.h"
 #include "chat/models/conversation.hpp"
-#include "chat/models/ai_suggestion.hpp"
 #include "chat/ui/message_bubble.hpp"
 #include <memory>
 
@@ -20,7 +19,7 @@ using Core::UI::ViewWindow;
 
 /**
  * @brief 聊天视图
- * @details 显示消息历史、输入框、AI 建议等
+ * @details 显示消息历史，支持滚动和虚拟滚动优化
  */
 class ChatView : public ViewWindow {
 public:
@@ -37,39 +36,8 @@ public:
 private:
     /**
      * @brief 绘制消息区域
-     * @param height 消息区域的固定高度
      */
-    void draw_message_area(float height);
-
-    /**
-     * @brief 绘制 AI 建议区域
-     */
-    void draw_suggestions();
-
-    /**
-     * @brief 绘制输入区域
-     */
-    void draw_input_area();
-
-    /**
-     * @brief 绘制单个建议芯片
-     */
-    void draw_suggestion_chip(const AISuggestion& suggestion);
-
-    /**
-     * @brief 发送消息
-     */
-    void send_message();
-
-    /**
-     * @brief 处理 AI 建议点击
-     */
-    void on_suggestion_clicked(const AISuggestion& suggestion);
-
-    /**
-     * @brief 请求 AI 分析
-     */
-    void request_ai_analysis();
+    void draw_message_area();
 
     /**
      * @brief 滚动到底部
@@ -79,21 +47,9 @@ private:
     // 成员变量
     std::shared_ptr<ConversationManager> m_conversation_manager;
 
-    // 输入
-    char m_input_buffer[4096] = "";
-    bool m_input_focused = false;
-    bool m_enter_was_down = false;  // 跟踪 Enter 键上一帧状态
-
-    // AI 建议
-    std::vector<AISuggestion> m_suggestions;
-    bool m_analyzing = false;
-    bool m_show_suggestions = true;
-
     // 状态
     bool m_should_scroll_to_bottom = true;
     bool m_auto_scroll = true;
-    bool m_sending = false;  // 防止重复发送
-    double m_last_send_time = 0.0;  // 上次发送时间（秒）
 
     // 消息气泡样式
     UI::MessageBubbleStyle m_bubble_style;
@@ -102,7 +58,6 @@ private:
     DearTs::Core::Event::EventToken m_message_sent_token;
     DearTs::Core::Event::EventToken m_message_received_token;
     DearTs::Core::Event::EventToken m_conv_selected_token;
-    DearTs::Core::Event::EventToken m_suggestions_ready_token;
     DearTs::Core::Event::EventToken m_scroll_to_bottom_token;
 };
 

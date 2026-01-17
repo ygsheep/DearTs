@@ -8,6 +8,7 @@
 #include "core/event/event_bus.h"
 #include "core/content/commands.h"
 #include "core/ui/view.h"
+#include "core/ui/theme_manager.h"
 #include "chat/chat_plugin.hpp"
 #include "chat/ui/markdown_renderer.hpp"
 #include "plugins/builtin/include/builtin_plugin.hpp"
@@ -126,17 +127,30 @@ bool Application::initialize() {
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 
-    // 设置 ImGui 样式
-    ImGui::StyleColorsDark();
+    // ==================== 使用 ThemeManager 设置主题 ====================
+    LOG_INFO("Applying ChatManager theme...");
 
-    // 自定义样式
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 8.0f;
-    style.FrameRounding = 4.0f;
-    style.PopupRounding = 4.0f;
-    style.ScrollbarRounding = 4.0f;
-    style.GrabRounding = 4.0f;
-    style.TabRounding = 4.0f;
+    auto& theme_manager = Core::UI::ThemeManager::instance();
+
+    // 设置暗色主题
+    theme_manager.setTheme(Core::UI::Theme::Dark);
+
+    // 应用 ImGui 样式
+    theme_manager.applyImGuiStyle();
+
+    // 应用玻璃态效果（现代化外观）
+    theme_manager.setGlassAlpha(0.85f);
+    theme_manager.setBorderRadius(12.0f);
+    theme_manager.setAccentColor(ImVec4(0.855f, 0.467f, 0.337f, 1.0f));  // Claude Primary (#DA7656)
+    theme_manager.applyGlassmorphismStyle();
+
+    // 注册主题变更回调（支持运行时切换主题）
+    theme_manager.onThemeChanged([](Core::UI::Theme new_theme) {
+        LOG_INFO("Theme changed to: {}", Core::UI::ThemeManager::getThemeName(new_theme));
+        // 主题变更后，ChatManager 组件会自动从 ThemeManager 获取新颜色
+    });
+
+    LOG_INFO("ChatManager theme applied successfully");
 
     // 加载字体
     LOG_INFO("开始加载字体...");
@@ -186,9 +200,7 @@ bool Application::initialize() {
             icon_config.OversampleV = 2;
 
             const char* icon_font_paths[] = {
-                "resources/fonts/MaterialSymbolsOutlined.ttf",
                 "resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf",
-                "../../resources/fonts/MaterialSymbolsOutlined.ttf",
                 "../../resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf",
             };
 
@@ -203,8 +215,39 @@ bool Application::initialize() {
     }
 
     if (!font_loaded) {
-        LOG_WARN("未能加载中文字体，使用默认字体（尝试了 {} 个路径）", sizeof(font_paths) / sizeof(font_paths[0]));
-        io.Fonts->AddFontDefault();
+        LOG_WARN("未能加载 resources/fonts 中的中文字体，尝试使用系统字体...");
+
+        // Windows 平台系统字体回退
+        const char* system_font_paths[] = {
+            "C:/Windows/Fonts/msyh.ttc",      // Microsoft YaHei (微软雅黑)
+            "C:/Windows/Fonts/msyhbd.ttc",    // Microsoft YaHei Bold
+            "C:/Windows/Fonts/simhei.ttf",    // SimHei (黑体)
+            "C:/Windows/Fonts/simsun.ttc",    // SimSun (宋体)
+            "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",  // Linux WenQuanYi Zen Hei
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  // Linux Liberation Sans
+        };
+
+        for (const char* font_path : system_font_paths) {
+            ImFont* font = io.Fonts->AddFontFromFileTTF(
+                font_path,
+                font_size,
+                &font_config,
+                io.Fonts->GetGlyphRangesChineseFull()
+            );
+
+            if (font != nullptr) {
+                io.FontDefault = font;
+                LOG_INFO("成功加载系统字体: {} (大小: {:.1f}px)", font_path, font_size);
+                font_loaded = true;
+                break;
+            }
+        }
+
+        // 如果系统字体也加载失败，使用默认字体
+        if (!font_loaded) {
+            LOG_WARN("未能加载系统字体，使用 ImGui 默认字体（可能无法正确显示中文）");
+            io.Fonts->AddFontDefault();
+        }
     }
 
     // 加载独立图标字体（用于纯图标按钮）
@@ -323,7 +366,7 @@ bool Application::initialize_window() {
 
     m_window = SDL_CreateWindow(
         "ChatManager",  // 无边框模式下标题由自定义标题栏绘制
-        1280, 800,
+        1600, 900,
         window_flags
     );
 
@@ -332,7 +375,7 @@ bool Application::initialize_window() {
         return false;
     }
 
-    LOG_INFO("Borderless window created: 1280x800");
+    LOG_INFO("Borderless window created: 1600x900");
     return true;
 }
 
