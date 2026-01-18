@@ -6,12 +6,17 @@
 #include "chat/chat_plugin.hpp"
 #include "chat/views/conversation_list_view.hpp"
 #include "chat/views/chat_view.hpp"
+#include "chat/views/input_view.hpp"
 #include "chat/views/info_panel_view.hpp"
 #include "chat/ui/markdown_renderer.hpp"
 #include "chat/llm/llm_interface.hpp"
+#include "chat/llm/ollama_llm_provider.hpp"
 #include "chat/events/chat_events.hpp"
+#include "core/tasks/task_manager.h"
 #include "liblogger/logger.h"
 #include <memory>
+#include <thread>
+#include <chrono>
 
 namespace DearTs::Plugins::Chat {
 
@@ -26,6 +31,8 @@ DearTs::Core::Result<void, std::string> ChatPlugin::on_load() {
     };
     UI::MarkdownRenderer::initialize(md_config);
     LOG_INFO("MarkdownRenderer initialized");
+
+    // 字体已在 application.cpp 中配置，这里不需要重复设置
 
     // 创建管理器
     m_conversation_manager = std::make_shared<ConversationManager>();
@@ -82,6 +89,78 @@ void ChatPlugin::on_unload() {
 
 void ChatPlugin::on_enable() {
     LOG_INFO("Chat plugin enabled");
+
+    // 检查当前 LLM 提供商是否为 Ollama，如果是则在后台刷新模型列表
+    auto* provider = LLM::LLMManager::instance().get_provider();
+    if (provider && provider->get_name() == "Ollama") {
+        LOG_INFO("Ollama provider detected, launching background model list refresh");
+
+        // 使用任务系统在后台刷新模型列表
+        DearTs::Core::Tasks::TaskManager::instance().launch(
+            "Refresh Ollama Models",
+            [this](const std::atomic<bool>& should_cancel) {
+                // 稍微延迟一下，避免在启动时阻塞
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+                if (should_cancel) {
+                    LOG_INFO("Ollama model refresh cancelled");
+                    return;
+                }
+
+                // 执行刷新
+                auto* provider = LLM::LLMManager::instance().get_provider();
+                if (!provider) {
+                    LOG_ERROR("No LLM provider set during background refresh");
+                    return;
+                }
+
+                // 检查是否是 Ollama 提供商
+                if (provider->get_name() != "Ollama") {
+                    LOG_WARN("Provider changed during background refresh, not Ollama: {}", provider->get_name());
+                    return;
+                }
+
+                // 尝试转换为 OllamaLLMProvider
+                auto* ollama_provider = dynamic_cast<LLM::OllamaLLMProvider*>(provider);
+                if (!ollama_provider) {
+                    LOG_ERROR("Failed to cast provider to OllamaLLMProvider");
+                    return;
+                }
+
+                // 获取模型列表
+                try {
+                    std::vector<std::string> models = ollama_provider->get_models();
+                    LOG_INFO("Background refresh retrieved {} models from Ollama", models.size());
+
+                    // 发布模型列表更新事件（使用默认 URL）
+                    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
+                        .models = models,
+                        .base_url = "http://localhost:11434"
+                    });
+
+                    // 发布连接状态事件（成功）
+                    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+                        .is_connected = true,
+                        .base_url = "http://localhost:11434",
+                        .error_message = ""
+                    });
+
+                } catch (const std::exception& e) {
+                    LOG_ERROR("Background Ollama model refresh failed: {}", e.what());
+
+                    // 发布连接状态事件（失败）
+                    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+                        .is_connected = false,
+                        .base_url = "http://localhost:11434",
+                        .error_message = e.what()
+                    });
+                }
+            },
+            DearTs::Core::Tasks::TaskType::Background  // 后台任务，不影响 UI
+        );
+
+        LOG_INFO("Launched background task to refresh Ollama models");
+    }
 }
 
 void ChatPlugin::on_disable() {
@@ -93,6 +172,7 @@ void ChatPlugin::register_views() {
     using namespace DearTs::Core;
     ContentRegistry::Views::add<ConversationListView>(m_conversation_manager);
     ContentRegistry::Views::add<ChatView>(m_conversation_manager);
+    ContentRegistry::Views::add<InputView>(m_conversation_manager);
     ContentRegistry::Views::add<InfoPanelView>(m_conversation_manager);
 
     // 设置视图默认打开状态
@@ -102,8 +182,14 @@ void ChatPlugin::register_views() {
     auto* chat = ContentRegistry::Views::get_by_name("聊天");
     if (chat) chat->get_window_open_state() = true;
 
+    auto* input = ContentRegistry::Views::get_by_name("输入");
+    if (input) input->get_window_open_state() = true;
+
     auto* info = ContentRegistry::Views::get_by_name("信息");
     if (info) info->get_window_open_state() = true;
+
+    // 保存 InfoPanelView 指针用于后续更新
+    m_info_panel = dynamic_cast<InfoPanelView*>(info);
 
     LOG_INFO("Registered Chat views");
 }
@@ -306,6 +392,17 @@ void ChatPlugin::setup_event_listeners() {
         }
     ));
 
+    // 订阅 Ollama 模型列表更新事件
+    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::OllamaModelsUpdatedEvent>(
+        [this](const Events::OllamaModelsUpdatedEvent& e) {
+            if (e.models.empty()) {
+                // 空列表表示请求刷新，执行实际的刷新
+                handle_ollama_models_refresh(e.base_url);
+            }
+            // 注意：非空列表的更新由 InfoPanelView 直接处理，不需要这里再处理
+        }
+    ));
+
     LOG_INFO("Set up Chat event listeners");
 }
 
@@ -313,6 +410,107 @@ void ChatPlugin::cleanup_event_listeners() {
     // EventToken 的 RAII 会自动取消订阅
     m_event_tokens.clear();
     LOG_INFO("Cleaned up Chat event listeners");
+}
+
+void ChatPlugin::handle_ollama_models_refresh(const std::string& base_url) {
+    LOG_INFO("Refreshing Ollama models from {}", base_url);
+
+    // 获取当前 LLM 提供商
+    auto* provider = LLM::LLMManager::instance().get_provider();
+    if (!provider) {
+        LOG_ERROR("No LLM provider set");
+        return;
+    }
+
+    // 检查是否是 Ollama 提供商
+    if (provider->get_name() != "Ollama") {
+        LOG_WARN("Current provider is not Ollama: {}", provider->get_name());
+        return;
+    }
+
+    // 尝试转换为 OllamaLLMProvider
+    auto* ollama_provider = dynamic_cast<LLM::OllamaLLMProvider*>(provider);
+    if (!ollama_provider) {
+        LOG_ERROR("Failed to cast provider to OllamaLLMProvider");
+        return;
+    }
+
+    // 获取模型列表
+    try {
+        std::vector<std::string> models = ollama_provider->get_models();
+        LOG_INFO("Retrieved {} models from Ollama", models.size());
+
+        // 发布模型列表更新事件
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
+            .models = models,
+            .base_url = base_url
+        });
+
+        // 发布连接状态事件（成功）
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            .is_connected = true,
+            .base_url = base_url,
+            .error_message = ""
+        });
+
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to get Ollama models: {}", e.what());
+
+        // 发布连接状态事件（失败）
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            .is_connected = false,
+            .base_url = base_url,
+            .error_message = e.what()
+        });
+    }
+}
+
+void ChatPlugin::handle_ollama_connection_test(const std::string& base_url) {
+    LOG_INFO("Testing Ollama connection to {}", base_url);
+
+    // 获取当前 LLM 提供商
+    auto* provider = LLM::LLMManager::instance().get_provider();
+    if (!provider) {
+        LOG_ERROR("No LLM provider set");
+        return;
+    }
+
+    // 检查是否是 Ollama 提供商
+    if (provider->get_name() != "Ollama") {
+        LOG_WARN("Current provider is not Ollama: {}", provider->get_name());
+
+        // 发布失败状态
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            .is_connected = false,
+            .base_url = base_url,
+            .error_message = "Provider is not Ollama"
+        });
+        return;
+    }
+
+    // 尝试转换为 OllamaLLMProvider
+    auto* ollama_provider = dynamic_cast<LLM::OllamaLLMProvider*>(provider);
+    if (!ollama_provider) {
+        LOG_ERROR("Failed to cast provider to OllamaLLMProvider");
+
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            .is_connected = false,
+            .base_url = base_url,
+            .error_message = "Failed to access Ollama provider"
+        });
+        return;
+    }
+
+    // 测试连接
+    bool connected = ollama_provider->is_available();
+    LOG_INFO("Ollama connection test result: {}", connected ? "Connected" : "Failed");
+
+    // 发布连接状态事件
+    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+        .is_connected = connected,
+        .base_url = base_url,
+        .error_message = connected ? "" : "Connection failed"
+    });
 }
 
 } // namespace DearTs::Plugins::Chat

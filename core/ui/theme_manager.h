@@ -151,6 +151,19 @@ public:
      */
     void applyGlassmorphismStyle();
 
+    // ==================== ChatManager 主题支持 ====================
+
+    /**
+     * @brief 应用 ChatManager 专用主题颜色
+     * @details 设置聊天界面特定的颜色映射
+     */
+    void applyChatManagerTheme();
+
+    /**
+     * @brief 获取 ChatManager 颜色键名
+     */
+    [[nodiscard]] static const char* getChatColorName(size_t index);
+
 private:
     ThemeManager();
     ~ThemeManager() = default;

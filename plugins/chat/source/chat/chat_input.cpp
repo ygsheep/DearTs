@@ -4,6 +4,7 @@
  */
 
 #include "chat/ui/chat_input.hpp"
+#include "chat/ui/chat_theme.hpp"
 #include "core/ui/icon_font.hpp"
 #include <format>
 #include <cstring>
@@ -15,7 +16,15 @@ ChatInput::ChatInput() {
 }
 
 bool ChatInput::draw(const char* placeholder, const ChatInputStyle* style_ptr) {
+    // 使用 ChatTheme 创建默认样式
     ChatInputStyle default_style;
+    default_style.bg_color = ChatTheme::getInputBg();
+    default_style.border_color = ChatTheme::getInputBorder();
+    default_style.focused_border_color = ChatTheme::getInputFocus();
+    default_style.text_color = ImVec4(0.95f, 0.95f, 0.95f, 1.0f);
+    default_style.placeholder_color = ChatTheme::getInputPlaceholder();
+    default_style.corner_radius = ChatTheme::getBorderRadius() - 2.0f;  // 稍小的圆角
+
     const ChatInputStyle& style = style_ptr ? *style_ptr : default_style;
 
     bool should_send = false;
@@ -117,9 +126,10 @@ bool ChatInput::draw_send_button() {
         btn_hovered = ImVec4(0.25f, 0.25f, 0.25f, 0.5f);
         btn_active = ImVec4(0.3f, 0.3f, 0.3f, 0.5f);
     } else {
-        btn_color = ImVec4(0.13f, 0.75f, 0.5f, 1.0f);
-        btn_hovered = ImVec4(0.15f, 0.8f, 0.55f, 1.0f);
-        btn_active = ImVec4(0.1f, 0.7f, 0.45f, 1.0f);
+        // Claude Primary theme colors (#DA7656)
+        btn_color = ImVec4(0.855f, 0.467f, 0.337f, 1.0f);   // #DA7656
+        btn_hovered = ImVec4(0.741f, 0.365f, 0.227f, 1.0f);  // #BD5D3A
+        btn_active = ImVec4(0.650f, 0.300f, 0.180f, 1.0f);
     }
 
     ImGui::PushStyleColor(ImGuiCol_Button, btn_color);
@@ -140,9 +150,10 @@ bool ChatInput::draw_send_button() {
 }
 
 bool ChatInput::draw_ai_button() {
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.13f, 0.5f, 0.8f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.15f, 0.55f, 0.85f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.1f, 0.45f, 0.75f, 1.0f));
+    // Claude secondary color (darker primary for secondary action)
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.741f, 0.365f, 0.227f, 1.0f));  // #BD5D3A
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.855f, 0.467f, 0.337f, 1.0f));  // #DA7656
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.650f, 0.300f, 0.180f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
 
     const bool clicked = ImGui::Button(std::format("{} AI 分析", ICON_AUTO_FIX_HIGH).c_str(), ImVec2(100, 0));

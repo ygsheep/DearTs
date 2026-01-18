@@ -13,6 +13,9 @@
 
 namespace DearTs::Plugins::Chat {
 
+// 前向声明
+class InfoPanelView;
+
 /**
  * @brief Chat 插件主类
  */
@@ -52,6 +55,20 @@ public:
         return &LLM::LLMManager::instance();
     }
 
+    /**
+     * @brief 获取信息面板视图
+     */
+    [[nodiscard]] InfoPanelView* get_info_panel() const {
+        return m_info_panel;
+    }
+
+    /**
+     * @brief 设置信息面板视图
+     */
+    void set_info_panel(InfoPanelView* panel) {
+        m_info_panel = panel;
+    }
+
 private:
     /**
      * @brief 注册视图
@@ -73,8 +90,19 @@ private:
      */
     void cleanup_event_listeners();
 
+    /**
+     * @brief 处理 Ollama 模型列表刷新
+     */
+    void handle_ollama_models_refresh(const std::string& base_url);
+
+    /**
+     * @brief 处理 Ollama 连接测试
+     */
+    void handle_ollama_connection_test(const std::string& base_url);
+
     // 管理器
     std::shared_ptr<ConversationManager> m_conversation_manager;
+    InfoPanelView* m_info_panel = nullptr;  // 信息面板视图指针
     // LLMManager 是单例，使用 instance() 获取
 
     // 事件订阅 Token（RAII 自动清理）

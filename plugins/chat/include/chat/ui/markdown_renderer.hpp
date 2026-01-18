@@ -74,14 +74,6 @@ public:
 
 private:
     /**
-     * @brief 预处理代码块
-     * @details 将 ``` 代码块转换为带背景的等宽文本
-     * @param markdown 原始 Markdown 文本
-     * @return 处理后的文本
-     */
-    static std::string preprocess_code_blocks(const std::string& markdown);
-
-    /**
      * @brief 渲染带背景的代码块
      * @param code 代码内容
      * @param language 语言标识（可选）

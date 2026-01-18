@@ -4,6 +4,7 @@
  */
 
 #include "chat/ui/markdown_renderer.hpp"
+#include "chat/ui/chat_theme.hpp"
 #include "liblogger/logger.h"
 #include <regex>
 #include <sstream>
@@ -37,6 +38,87 @@ void MarkdownRenderer::initialize(const MarkdownRendererConfig& config) {
     LOG_INFO("MarkdownRenderer: Initialized");
 }
 
+/**
+ * @brief Markdown 段落类型
+ */
+enum class MarkdownSegmentType {
+    Regular,   // 普通 Markdown（标题、列表、粗体等）
+    CodeBlock  // 代码块
+};
+
+/**
+ * @brief Markdown 段落
+ */
+struct MarkdownSegment {
+    MarkdownSegmentType type;
+    std::string content;      // 对于 Regular 是 markdown，对于 CodeBlock 是代码
+    std::string language;     // 仅用于 CodeBlock：语言标识
+};
+
+/**
+ * @brief 解析 Markdown 为段落列表
+ */
+static std::vector<MarkdownSegment> parse_markdown_segments(const std::string& markdown) {
+    std::vector<MarkdownSegment> segments;
+    std::string current_segment;
+    bool in_code_block = false;
+    std::string code_language;
+    std::string code_content;
+
+    std::istringstream stream(markdown);
+    std::string line;
+
+    while (std::getline(stream, line)) {
+        // 检测代码块开始
+        if (!in_code_block && line.find("```") == 0) {
+            // 先保存当前段落（如果有）
+            if (!current_segment.empty()) {
+                segments.push_back({MarkdownSegmentType::Regular, current_segment, ""});
+                current_segment.clear();
+            }
+
+            in_code_block = true;
+            code_language = line.substr(3);  // 获取语言标识（如果有）
+            // 去除语言标识前的空格
+            while (!code_language.empty() && code_language[0] == ' ') {
+                code_language.erase(0, 1);
+            }
+            code_content.clear();
+            continue;
+        }
+
+        // 检测代码块结束
+        if (in_code_block && line.find("```") == 0) {
+            in_code_block = false;
+
+            // 添加代码块段落
+            segments.push_back({MarkdownSegmentType::CodeBlock, code_content, code_language});
+            continue;
+        }
+
+        // 在代码块内，收集内容
+        if (in_code_block) {
+            if (!code_content.empty()) {
+                code_content += "\n";
+            }
+            code_content += line;
+        } else {
+            // 普通文本
+            current_segment += line + "\n";
+        }
+    }
+
+    // 处理剩余内容
+    if (in_code_block) {
+        // 代码块未闭合
+        segments.push_back({MarkdownSegmentType::CodeBlock, code_content, code_language});
+    } else if (!current_segment.empty()) {
+        segments.push_back({MarkdownSegmentType::Regular, current_segment, ""});
+    }
+
+    return segments;
+}
+
 void MarkdownRenderer::render(const std::string& markdown) {
     if (!s_initialized) {
         LOG_WARN("MarkdownRenderer: Not initialized, rendering as plain text");
@@ -48,11 +130,19 @@ void MarkdownRenderer::render(const std::string& markdown) {
         return;
     }
 
-    // 预处理代码块
-    std::string processed = preprocess_code_blocks(markdown);
+    // 解析 Markdown 为段落
+    std::vector<MarkdownSegment> segments = parse_markdown_segments(markdown);
 
-    // 使用 imgui_markdown 渲染
-    ImGui::Markdown(processed.c_str(), processed.length(), s_md_config);
+    // 逐段渲染
+    for (const auto& segment : segments) {
+        if (segment.type == MarkdownSegmentType::CodeBlock) {
+            // 渲染代码块
+            render_code_block(segment.content, segment.language);
+        } else {
+            // 使用 imgui_markdown 渲染普通 Markdown
+            ImGui::Markdown(segment.content.c_str(), segment.content.length(), s_md_config);
+        }
+    }
 }
 
 void MarkdownRenderer::cleanup() {
@@ -66,72 +156,15 @@ void MarkdownRenderer::set_fonts(ImFont* h1_font, ImFont* h2_font, ImFont* h3_fo
     s_h3_font = h3_font;
     s_code_font = code_font;
 
-    // 更新配置
-    if (s_initialized) {
-        s_md_config.headingFormats[0] = { s_h1_font, true };
-        s_md_config.headingFormats[1] = { s_h2_font, true };
-        s_md_config.headingFormats[2] = { s_h3_font, true };
-    }
+    // 总是更新配置（无论是否已初始化）
+    // 因为 set_fonts() 可能在 initialize() 之前被调用
+    s_md_config.headingFormats[0] = { s_h1_font, true };
+    s_md_config.headingFormats[1] = { s_h2_font, true };
+    s_md_config.headingFormats[2] = { s_h3_font, true };
 }
 
 const MarkdownRendererConfig& MarkdownRenderer::get_config() {
     return s_config;
-}
-
-std::string MarkdownRenderer::preprocess_code_blocks(const std::string& markdown) {
-    // 检测并处理代码块
-    // 策略：使用占位符替换代码块，在渲染时单独处理
-
-    std::string result;
-    std::istringstream stream(markdown);
-    std::string line;
-    bool in_code_block = false;
-    std::string code_content;
-    std::string code_language;
-    size_t block_index = 0;
-
-    while (std::getline(stream, line)) {
-        // 检测代码块开始
-        if (!in_code_block && line.find("```") == 0) {
-            in_code_block = true;
-            code_language = line.substr(3);  // 获取语言标识（如果有）
-            code_content.clear();
-            continue;
-        }
-
-        // 检测代码块结束
-        if (in_code_block && line.find("```") == 0) {
-            in_code_block = false;
-
-            // 生成占位符
-            std::string placeholder = "___CODE_BLOCK_" + std::to_string(block_index) + "___";
-            result += "\n" + placeholder + "\n";
-
-            // 存储代码块内容（这里简化处理，实际可能需要更复杂的存储机制）
-            // 对于流式输出，我们需要一个全局的代码块存储
-
-            block_index++;
-            continue;
-        }
-
-        // 在代码块内，收集内容
-        if (in_code_block) {
-            if (!code_content.empty()) {
-                code_content += "\n";
-            }
-            code_content += line;
-        } else {
-            // 普通文本
-            result += line + "\n";
-        }
-    }
-
-    // 如果代码块未闭合，继续输出
-    if (in_code_block) {
-        result += code_content + "\n";
-    }
-
-    return result;
 }
 
 void MarkdownRenderer::render_code_block(const std::string& code, const std::string& language) {
@@ -152,7 +185,11 @@ void MarkdownRenderer::render_code_block(const std::string& code, const std::str
     );
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
-    const ImU32 bg_color = ImGui::ColorConvertFloat4ToU32(s_config.code_bg_color);
+
+    // 从 ChatTheme 获取代码块颜色
+    ImVec4 code_bg = ChatTheme::getCodeBlockBg();
+    ImVec4 code_text = ChatTheme::getCodeBlockText();
+    const ImU32 bg_color = ImGui::ColorConvertFloat4ToU32(code_bg);
 
     draw_list->AddRectFilled(
         p_min,
@@ -161,8 +198,9 @@ void MarkdownRenderer::render_code_block(const std::string& code, const std::str
         s_config.code_corner_radius
     );
 
-    // 绘制边框
-    const ImU32 border_color = ImGui::ColorConvertFloat4ToU32(ImVec4(0.3f, 0.3f, 0.35f, 1.0f));
+    // 绘制边框（使用更暗的背景色作为边框）
+    ImVec4 border_color_vec = ChatTheme::darkenColor(code_bg, 0.1f);
+    const ImU32 border_color = ImGui::ColorConvertFloat4ToU32(border_color_vec);
     draw_list->AddRect(
         p_min,
         p_max,
@@ -175,7 +213,9 @@ void MarkdownRenderer::render_code_block(const std::string& code, const std::str
     // 绘制语言标识（如果有）
     if (!language.empty()) {
         ImGui::SetCursorScreenPos(ImVec2(p_min.x + s_config.code_padding, p_min.y + s_config.code_padding));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.7f, 1.0f));
+        // 使用更淡的文本颜色作为语言标签
+        ImVec4 label_color = ChatTheme::withAlpha(code_text, 0.7f);
+        ImGui::PushStyleColor(ImGuiCol_Text, label_color);
         ImGui::Text("%s", language.c_str());
         ImGui::PopStyleColor();
 
@@ -186,7 +226,7 @@ void MarkdownRenderer::render_code_block(const std::string& code, const std::str
     }
 
     // 绘制代码内容
-    ImGui::PushStyleColor(ImGuiCol_Text, s_config.code_text_color);
+    ImGui::PushStyleColor(ImGuiCol_Text, code_text);
     ImGui::PushTextWrapPos(ImGui::GetContentRegionAvail().x - s_config.code_padding);
     ImGui::Text("%s", code.c_str());
     ImGui::PopTextWrapPos();

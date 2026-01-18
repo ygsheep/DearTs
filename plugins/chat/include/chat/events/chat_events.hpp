@@ -176,6 +176,23 @@ struct LLMModelChangedEvent {
     std::string new_model;
 };
 
+/**
+ * @brief Ollama 模型列表更新事件
+ */
+struct OllamaModelsUpdatedEvent {
+    std::vector<std::string> models;
+    std::string base_url;
+};
+
+/**
+ * @brief Ollama 连接状态事件
+ */
+struct OllamaConnectionStatusEvent {
+    bool is_connected;
+    std::string base_url;
+    std::string error_message;
+};
+
 // ============================================================================
 // 配置相关事件
 // ============================================================================

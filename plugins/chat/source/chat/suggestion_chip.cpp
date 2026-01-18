@@ -4,16 +4,28 @@
  */
 
 #include "chat/ui/suggestion_chip.hpp"
+#include "chat/ui/chat_theme.hpp"
 #include <format>
 
 namespace DearTs::Plugins::Chat::UI {
+
+// 创建主题感知的默认样式
+static SuggestionChipStyle create_themed_style() {
+    SuggestionChipStyle style;
+    style.bg_color = ChatTheme::getSuggestionBg();
+    style.bg_hovered_color = ChatTheme::getSuggestionHover();
+    style.bg_active_color = ChatTheme::getSuggestionHover();  // 使用悬停颜色作为激活颜色
+    style.text_color = ChatTheme::getSuggestionText();
+    style.corner_radius = ChatTheme::getBorderRadius() - 2.0f;
+    return style;
+}
 
 bool SuggestionChip::draw(
     const AISuggestion& suggestion,
     int index,
     const SuggestionChipStyle* style_ptr
 ) {
-    SuggestionChipStyle default_style;
+    SuggestionChipStyle default_style = create_themed_style();
     const SuggestionChipStyle& style = style_ptr ? *style_ptr : default_style;
 
     return draw_chip(suggestion, index, style);
@@ -24,7 +36,7 @@ void SuggestionChip::draw_list(
     std::function<void(const AISuggestion&)> on_click,
     const SuggestionChipStyle* style_ptr
 ) {
-    SuggestionChipStyle default_style;
+    SuggestionChipStyle default_style = create_themed_style();
     const SuggestionChipStyle& style = style_ptr ? *style_ptr : default_style;
 
     if (suggestions.empty()) {
@@ -53,7 +65,7 @@ void SuggestionChip::draw_list_vertical(
     std::function<void(const AISuggestion&)> on_click,
     const SuggestionChipStyle* style_ptr
 ) {
-    SuggestionChipStyle default_style;
+    SuggestionChipStyle default_style = create_themed_style();
     const SuggestionChipStyle& style = style_ptr ? *style_ptr : default_style;
 
     if (suggestions.empty()) {

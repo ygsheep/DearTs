@@ -51,13 +51,8 @@ bool IconFont::loadMaterialSymbols(float size_in_pixels) {
     // 尝试多个可能的字体文件路径
     const char* possible_paths[] = {
         // 优先使用 Material Symbols Outlined（非可变字体，兼容性更好）
-        "resources/fonts/MaterialSymbolsOutlined.ttf",
         "resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf",
-        "../../resources/fonts/MaterialSymbolsOutlined.ttf",
         "../../resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf",
-        // 其他备用路径
-        "MaterialSymbolsOutlined.ttf",
-        "MaterialSymbolsOutlined.woff2",
     };
 
     for (const char* path : possible_paths) {
