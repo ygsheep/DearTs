@@ -1031,8 +1031,580 @@ TitleBar::instance().add_button(
 
 ---
 
+## 插件依赖管理系统
+
+### 概述
+
+DearTs Framework 提供完整的插件依赖管理功能，支持：
+- 三种依赖类型（必需、可选、软依赖）
+- 语义化版本范围约束（SemVer 2.0.0 + npm 风格）
+- 自动拓扑排序确定加载顺序
+- 循环依赖检测
+- 版本冲突验证
+
+### PluginDependency - 插件依赖声明
+
+```cpp
+struct PluginDependency {
+    std::string plugin_name;      // 依赖的插件名称
+    VersionRange version_range;   // 版本范围
+    DependencyType type;          // 依赖类型
+
+    // 工厂方法
+    static Result<PluginDependency, std::string> required(
+        std::string name,
+        std::string version_range
+    );
+
+    static Result<PluginDependency, std::string> optional(
+        std::string name,
+        std::string version_range
+    );
+
+    static Result<PluginDependency, std::string> soft(
+        std::string name,
+        std::string version_range
+    );
+};
+```
+
+### 依赖类型
+
+```cpp
+enum class DependencyType {
+    Required,   // 必需依赖 - 缺失或版本不匹配时加载失败
+    Optional,   // 可选依赖 - 缺失时警告，继续加载
+    Soft        // 软依赖 - 缺失时静默忽略
+};
+```
+
+### 在插件中声明依赖
+
+```cpp
+class MyPlugin : public IPlugin {
+public:
+    // 新增：声明插件依赖
+    std::vector<PluginDependency> get_dependencies() const override {
+        return {
+            // 必需依赖：CorePlugin >= 2.0.0
+            PluginDependency::required("CorePlugin", ">=2.0.0").unwrap(),
+
+            // 可选依赖：UIPlugin ^1.5.0
+            PluginDependency::optional("UIPlugin", "^1.5.0").unwrap(),
+
+            // 软依赖：AnalyticsPlugin ~1.2.0
+            PluginDependency::soft("AnalyticsPlugin", "~1.2.0").unwrap()
+        };
+    }
+};
+```
+
+### 版本范围语法（npm 风格）
+
+| 语法 | 说明 | 示例 | 匹配版本 |
+|------|------|------|----------|
+| `1.2.3` | 精确版本 | `1.2.3` | `1.2.3` |
+| `^1.2.3` | 兼容版本 | `^1.2.3` | `>=1.2.3 <2.0.0` |
+| `~1.2.3` | 补丁级更新 | `~1.2.3` | `>=1.2.3 <1.3.0` |
+| `1.2.*` | 通配符 | `1.2.*` | `>=1.2.0 <1.3.0` |
+| `>=1.2.3` | 大于等于 | `>=1.2.3` | `1.2.3`, `1.3.0`, `2.0.0` |
+| `>1.2.3` | 大于 | `>1.2.3` | `1.2.4`, `1.3.0`, `2.0.0` |
+| `<=1.2.3` | 小于等于 | `<=1.2.3` | `1.2.3`, `1.2.2`, `1.0.0` |
+| `<1.2.3` | 小于 | `<1.2.3` | `1.2.2`, `1.1.0`, `0.9.0` |
+| `1.2.3 - 2.3.4` | 范围 | `1.2.3 - 2.3.4` | `>=1.2.3 <=2.3.4` |
+| 复合 | 组合条件 | `>=1.0.0 <2.0.0` | `1.0.0` - `1.999.999` |
+
+---
+
+## PluginManager 依赖管理 API
+
+### 1. 设置依赖解析模式
+
+```cpp
+void set_dependency_mode(DependencyResolutionMode mode)
+```
+
+**参数**:
+- `mode` - 依赖解析模式
+
+**模式说明**:
+```cpp
+enum class DependencyResolutionMode {
+    Lenient,    // 宽松模式 - 跳过缺失的可选依赖，继续加载
+    Strict      // 严格模式 - 遇到依赖错误立即停止
+};
+```
+
+**示例**:
+```cpp
+// 设置严格模式
+PluginManager::instance().set_dependency_mode(
+    DependencyResolutionMode::Strict
+);
+```
+
+---
+
+### 2. 获取依赖解析模式
+
+```cpp
+DependencyResolutionMode get_dependency_mode() const
+```
+
+**返回值**: 当前的依赖解析模式
+
+---
+
+### 3. 获取最后一次依赖解析结果
+
+```cpp
+DependencyResolutionResult get_last_resolution_result() const
+```
+
+**返回值**: 依赖解析结果详情
+
+**结果结构**:
+```cpp
+struct DependencyResolutionResult {
+    bool success;                           // 是否成功
+    std::vector<PluginLoadOrder> orders;    // 加载顺序
+    std::vector<std::string> errors;        // 错误列表
+    std::vector<std::string> warnings;      // 警告列表
+};
+```
+
+**示例**:
+```cpp
+auto result = PluginManager::instance().get_last_resolution_result();
+
+if (!result.success) {
+    for (const auto& error : result.errors) {
+        LOG_ERROR("Dependency error: {}", error);
+    }
+}
+
+for (const auto& warning : result.warnings) {
+    LOG_WARN("Dependency warning: {}", warning);
+}
+```
+
+---
+
+### 4. 使用依赖关系加载所有插件
+
+```cpp
+Result<void, std::string> load_all_with_dependencies()
+```
+
+**说明**: 自动解析依赖关系并按正确顺序加载所有已添加的插件
+
+**示例**:
+```cpp
+// 1. 添加所有插件
+PluginManager::instance().add_builtin(std::make_unique<CorePlugin>());
+PluginManager::instance().add_builtin(std::make_unique<UIPlugin>());
+PluginManager::instance().add_builtin(std::make_unique<MyPlugin>());
+
+// 2. 解析依赖并按正确顺序加载
+auto result = PluginManager::instance().load_all_with_dependencies();
+
+if (result.isErr()) {
+    LOG_ERROR("Failed to load plugins: {}", result.error());
+} else {
+    LOG_INFO("All plugins loaded successfully");
+}
+```
+
+---
+
+### 5. 初始化依赖配置
+
+```cpp
+void initialize_dependency_config()
+```
+
+**说明**: 初始化依赖配置系统（通常在应用启动时调用一次）
+
+---
+
+### 6. 检查插件是否为内置插件
+
+```cpp
+bool is_plugin_builtin(const std::string& name) const
+```
+
+**参数**:
+- `name` - 插件名称
+
+**返回值**:
+- 内置插件: `true`
+- 动态加载插件: `false`
+
+**示例**:
+```cpp
+bool is_builtin = PluginManager::instance().is_plugin_builtin("MyPlugin");
+if (is_builtin) {
+    LOG_INFO("This is a builtin plugin");
+}
+```
+
+---
+
+## 版本控制系统
+
+### Version 类
+
+语义化版本 2.0.0 实现：
+
+```cpp
+class Version {
+public:
+    uint32_t major = 0;      // 主版本号
+    uint32_t minor = 0;      // 次版本号
+    uint32_t patch = 0;      // 修订号
+    std::string prerelease;  // 预发布标识（如 "alpha", "beta.1"）
+    std::string build;       // 构建元数据
+
+    // 解析版本字符串
+    static Result<Version, std::string> parse(const std::string& version_str);
+
+    // 版本比较（C++20 spaceship operator）
+    auto operator<=>(const Version& other) const = default;
+
+    // 转换为字符串
+    std::string to_string() const;
+};
+```
+
+**示例**:
+```cpp
+// 解析版本
+auto v1 = Version::parse("1.2.3");
+auto v2 = Version::parse("2.0.0-alpha.1+build.123");
+
+if (v1.isOk()) {
+    Version version = v1.unwrap();
+    LOG_INFO("Version: {}.{}.{}", version.major, version.minor, version.patch);
+}
+
+// 版本比较
+if (Version::parse("1.2.3") < Version::parse("1.2.4")) {
+    LOG_INFO("1.2.3 is older");
+}
+```
+
+### VersionRange 类
+
+版本范围规范实现：
+
+```cpp
+class VersionRange {
+public:
+    // 解析版本范围
+    static Result<VersionRange, std::string> parse(const std::string& range_str);
+
+    // 检查版本是否在范围内
+    bool satisfies(const Version& version) const;
+
+    // 转换为字符串
+    std::string to_string() const;
+};
+```
+
+**示例**:
+```cpp
+// 解析版本范围
+auto range = VersionRange::parse("^1.2.3");
+if (range.isOk()) {
+    VersionRange vr = range.unwrap();
+
+    // 检查版本是否满足
+    Version v1 = Version::parse("1.2.5").unwrap();
+    Version v2 = Version::parse("2.0.0").unwrap();
+
+    LOG_INFO("1.2.5 satisfies: {}", vr.satisfies(v1)); // true
+    LOG_INFO("2.0.0 satisfies: {}", vr.satisfies(v2)); // false
+}
+```
+
+---
+
+## 动态库加载系统
+
+### 跨平台抽象
+
+```cpp
+class DynamicLibraryLoader {
+public:
+    virtual ~DynamicLibraryLoader() = default;
+
+    virtual Result<void, std::string> load(const std::filesystem::path& path) = 0;
+    virtual Result<void*, std::string> get_symbol(const char* name) = 0;
+    virtual void unload() = 0;
+
+    static std::unique_ptr<DynamicLibraryLoader> create();
+};
+```
+
+### 平台特定实现
+
+**Windows**:
+```cpp
+class WindowsLibraryLoader : public DynamicLibraryLoader {
+    HMODULE m_handle = nullptr;
+
+    Result<void, std::string> load(const std::filesystem::path& path) override {
+        m_handle = LoadLibraryW(path.c_str());
+        if (!m_handle) {
+            return Result::err("Failed to load library");
+        }
+        return Result::ok();
+    }
+
+    Result<void*, std::string> get_symbol(const char* name) override {
+        void* symbol = (void*)GetProcAddress(m_handle, name);
+        if (!symbol) {
+            return Result::err("Symbol not found");
+        }
+        return Result::ok(symbol);
+    }
+
+    void unload() override {
+        if (m_handle) {
+            FreeLibrary(m_handle);
+            m_handle = nullptr;
+        }
+    }
+};
+```
+
+**Linux/macOS**:
+```cpp
+class UnixLibraryLoader : public DynamicLibraryLoader {
+    void* m_handle = nullptr;
+
+    Result<void, std::string> load(const std::filesystem::path& path) override {
+        m_handle = dlopen(path.c_str(), RTLD_LAZY);
+        if (!m_handle) {
+            return Result::err(std::string(dlerror()));
+        }
+        return Result::ok();
+    }
+
+    Result<void*, std::string> get_symbol(const char* name) override {
+        void* symbol = dlsym(m_handle, name);
+        if (!symbol) {
+            return Result::err(std::string(dlerror()));
+        }
+        return Result::ok(symbol);
+    }
+
+    void unload() override {
+        if (m_handle) {
+            dlclose(m_handle);
+            m_handle = nullptr;
+        }
+    }
+};
+```
+
+---
+
+## 依赖管理示例
+
+### 示例 1：带依赖的插件
+
+```cpp
+class AdvancedAnalyticsPlugin : public IPlugin {
+public:
+    PluginInfo get_info() const override {
+        return PluginInfo{
+            .name = "AdvancedAnalytics",
+            .author = "Data Team",
+            .description = "Advanced analytics with charting",
+            .version = "1.0.0",
+            .api_version = "1.0.0"
+        };
+    }
+
+    // 声明依赖
+    std::vector<PluginDependency> get_dependencies() const override {
+        return {
+            // 必需：基础数据插件
+            PluginDependency::required("BaseData", ">=2.0.0").unwrap(),
+
+            // 可选：图表插件（用于可视化）
+            PluginDependency::optional("ChartPlugin", "^1.5.0").unwrap(),
+
+            // 软依赖：日志插件（用于调试）
+            PluginDependency::soft("DebugLogger", ">=1.0.0").unwrap()
+        };
+    }
+
+    Result<void, std::string> on_load() override {
+        LOG_INFO("AdvancedAnalytics: Loading...");
+
+        // 检查可选依赖是否可用
+        auto* chart_plugin = PluginManager::instance().get_plugin("ChartPlugin");
+        if (chart_plugin) {
+            LOG_INFO("Chart plugin available - enabling visualization");
+            m_hasCharting = true;
+        } else {
+            LOG_WARN("Chart plugin not available - visualization disabled");
+        }
+
+        // 注册命令
+        ContentRegistry::Commands::register_handler(
+            "analytics.analyze",
+            "Analyze Data",
+            [this]() { performAnalysis(); }
+        );
+
+        return Result::ok();
+    }
+
+private:
+    bool m_hasCharting = false;
+};
+```
+
+### 示例 2：严格模式依赖解析
+
+```cpp
+void load_plugins_strict() {
+    auto& pm = PluginManager::instance();
+
+    // 设置严格模式
+    pm.set_dependency_mode(DependencyResolutionMode::Strict);
+
+    // 添加插件
+    pm.add_builtin(std::make_unique<BaseDataPlugin>());
+    pm.add_builtin(std::make_unique<ChartPlugin>());
+    pm.add_builtin(std::make_unique<AdvancedAnalyticsPlugin>());
+
+    // 解析依赖并加载
+    auto result = pm.load_all_with_dependencies();
+
+    if (result.isErr()) {
+        LOG_ERROR("Failed to load plugins: {}", result.error());
+
+        // 检查详细错误
+        auto resolution = pm.get_last_resolution_result();
+        for (const auto& error : resolution.errors) {
+            LOG_ERROR("  - {}", error);
+        }
+    } else {
+        LOG_INFO("All plugins loaded successfully");
+
+        // 检查警告
+        auto resolution = pm.get_last_resolution_result();
+        for (const auto& warning : resolution.warnings) {
+            LOG_WARN("  - {}", warning);
+        }
+    }
+}
+```
+
+### 示例 3：依赖图可视化
+
+```cpp
+// 获取依赖图（调试用）
+auto graph = DependencyResolver::visualize_dependency_graph(plugins);
+LOG_INFO("Dependency Graph:\n{}", graph);
+```
+
+输出示例：
+```
+Dependency Graph:
+BaseData (2.0.0)
+  ├─ No dependencies
+ChartPlugin (1.5.2)
+  ├─ BaseData (>=2.0.0) ✓
+AdvancedAnalytics (1.0.0)
+  ├─ BaseData (>=2.0.0) ✓
+  ├─ ChartPlugin (^1.5.0) ✓ (optional)
+  └─ DebugLogger (>=1.0.0) ✗ (soft)
+
+Load Order:
+1. BaseData
+2. ChartPlugin
+3. AdvancedAnalytics
+```
+
+---
+
+## API 快速参考（更新）
+
+### PluginManager 方法
+
+| 方法 | 说明 | 新增 |
+|------|------|------|
+| `instance()` | 获取单例 | |
+| `add_builtin(plugin)` | 添加内置插件 | |
+| `load_from_file(path)` | 从文件加载动态插件 | ✅ |
+| `load_from_directory(dir)` | 从目录加载所有插件 | |
+| `unload(name)` | 卸载插件 | |
+| `enable(name)` | 启用插件 | |
+| `disable(name)` | 禁用插件 | |
+| `reload(name)` | 重载插件 | |
+| `get_plugin(name)` | 获取插件指针 | |
+| `get_all_plugins_info()` | 获取所有插件信息 | |
+| `get_plugin_state(name)` | 获取插件状态 | |
+| `is_plugin_builtin(name)` | 检查是否为内置插件 | ✅ |
+| `clear()` | 清空所有插件 | |
+| `set_dependency_mode(mode)` | 设置依赖解析模式 | ✅ |
+| `get_dependency_mode()` | 获取依赖解析模式 | ✅ |
+| `get_last_resolution_result()` | 获取依赖解析结果 | ✅ |
+| `load_all_with_dependencies()` | 使用依赖关系加载所有插件 | ✅ |
+| `initialize_dependency_config()` | 初始化依赖配置 | ✅ |
+
+### IPlugin 方法
+
+| 方法 | 说明 | 新增 |
+|------|------|------|
+| `get_info()` | 获取插件信息（必须实现） | |
+| `get_dependencies()` | 获取插件依赖列表 | ✅ |
+| `on_load()` | 插件加载时调用 | |
+| `on_unload()` | 插件卸载时调用 | |
+| `on_enable()` | 插件启用时调用 | |
+| `on_disable()` | 插件禁用时调用 | |
+
+### 新增类型
+
+| 类型 | 说明 | 头文件 |
+|------|------|--------|
+| `PluginDependency` | 插件依赖声明 | `plugin_dependency.h` |
+| `DependencyType` | 依赖类型枚举 | `plugin_dependency.h` |
+| `DependencyResolutionMode` | 依赖解析模式 | `dependency_resolver.h` |
+| `DependencyResolutionResult` | 依赖解析结果 | `dependency_resolver.h` |
+| `Version` | 语义化版本 | `version.h` |
+| `VersionRange` | 版本范围 | `version_range.h` |
+| `DynamicLibraryLoader` | 动态库加载器 | `plugin_loader.h` |
+
+---
+
+## 更新日志
+
+### Version 2.0.0 (当前)
+- ✅ 添加插件依赖管理系统
+- ✅ 添加语义化版本控制（SemVer 2.0.0）
+- ✅ 添加 npm 风格版本范围支持
+- ✅ 添加跨平台动态库加载
+- ✅ 添加依赖解析和拓扑排序
+- ✅ 添加循环依赖检测
+- ✅ 添加版本冲突验证
+
+### Version 1.0.0
+- ✅ 基础插件系统
+- ✅ 生命周期管理
+- ✅ API 版本检查
+- ✅ 内置插件支持
+
+---
+
 **文件**: `core/plugin/plugin.h`
 **源码**: `core/plugin/plugin.cpp`
+**新增**: `plugin_dependency.h/cpp`, `dependency_resolver.h/cpp`, `version.h/cpp`, `version_range.h/cpp`, `plugin_loader.h/cpp`
 **相关**: Result 类型, Logger, EventBus, Content Registry, TaskManager, ConfigManager
 **插件指南**: `docs/plugin_system_guide.md`
 **快速开始**: `plugins/QUICKSTART.md`

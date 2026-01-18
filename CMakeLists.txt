@@ -5,8 +5,10 @@ project(DearTs VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-#set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
+# 禁用 vcpkg manifest 模式（使用已手动安装的 sqlite3）
+set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 
+message("vcpkg Path: $ENV{VCPKG_ROOT}")
 # ==================== CCache 配置 ====================
 # CCache 是一个编译器缓存工具，可以显著加快重复编译速度
 #
@@ -427,6 +429,7 @@ endif()
 # Add plugins
 # Note: builtin plugin is compiled directly into main executable, not as separate library
 # add_subdirectory(plugins/builtin)
+add_subdirectory(plugins/memory_core)    # Memory Core: 持久化和 RAG 服务
 add_subdirectory(plugins/chat)
 add_subdirectory(plugins/toast_notification)
 add_subdirectory(plugins/command_palette)

@@ -6,17 +6,82 @@
 #include "chat/views/info_panel_view.hpp"
 #include "chat/events/chat_events.hpp"
 #include "chat/ui/measure_context.hpp"
+#include "memory_core/memory/memory_manager.hpp"
+#include "memory_core/persistence/database.hpp"
+#include "memory_core/events/memory_events.hpp"
 #include "core/ui/imgui_extensions.h"
 #include "core/ui/icon_font.hpp"
 #include "liblogger/logger.h"
 #include <imgui.h>
 #include <format>
+#include <fstream>
+#include <unordered_map>
+#include <nlohmann/json.hpp>
 
 namespace DearTs::Plugins::Chat {
+
+// ============ 配置管理实现 ============
+
+void InfoPanelView::load_config() {
+    // 加载 LLM 配置
+    m_selected_provider = m_config.get_or<std::string>("llm.provider", "ollama");
+    m_selected_model = m_config.get_or<std::string>("llm.model", "llama3.2");
+    m_ollama_base_url = m_config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+    m_temperature = m_config.get_or<double>("llm.temperature", 0.7);
+    m_max_tokens = m_config.get_or<int>("llm.max_tokens", 2048);
+
+    // 加载 Memory 配置
+    m_memory_debug_data.auto_refresh = m_config.get_or<bool>("memory.auto_refresh", true);
+    m_memory_debug_data.max_results = m_config.get_or<int>("memory.max_results", 5);
+    m_memory_debug_data.min_similarity = m_config.get_or<double>("memory.min_similarity", 0.5);
+
+    // 加载导出配置
+    m_export_format = m_config.get_or<std::string>("export.format", "json");
+    m_export_path = m_config.get_or<std::string>("export.path", "");
+
+    // 加载 UI 配置
+    m_show_advanced = m_config.get_or<bool>("ui.show_advanced", false);
+
+    LOG_INFO("Configuration loaded for InfoPanelView");
+}
+
+void InfoPanelView::save_config() {
+    // 使用防抖（500ms），避免频繁保存
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_config_save).count();
+    if (elapsed < 500) {
+        return;  // 距离上次保存不足 500ms，跳过
+    }
+    m_last_config_save = now;
+
+    // 保存 LLM 配置
+    m_config.set("llm.provider", m_selected_provider);
+    m_config.set("llm.model", m_selected_model);
+    m_config.set("llm.ollama_base_url", m_ollama_base_url);
+    m_config.set("llm.temperature", m_temperature);
+    m_config.set("llm.max_tokens", m_max_tokens);
+
+    // 保存 Memory 配置
+    m_config.set("memory.auto_refresh", m_memory_debug_data.auto_refresh);
+    m_config.set("memory.max_results", m_memory_debug_data.max_results);
+    m_config.set("memory.min_similarity", m_memory_debug_data.min_similarity);
+
+    // 保存导出配置
+    m_config.set("export.format", m_export_format);
+    m_config.set("export.path", m_export_path);
+
+    // 保存 UI 配置
+    m_config.set("ui.show_advanced", m_show_advanced);
+
+    LOG_DEBUG("Configuration saved for InfoPanelView");
+}
 
 InfoPanelView::InfoPanelView(std::shared_ptr<ConversationManager> manager)
     : ViewWindow(UnlocalizedString("信息"), ICON_INFO)
     , m_conversation_manager(std::move(manager)) {
+    // 加载配置
+    load_config();
+    // 设置事件监听
     setup_event_listeners();
 }
 
@@ -45,6 +110,89 @@ void InfoPanelView::setup_event_listeners() {
             LOG_INFO("InfoPanelView: Ollama connection status: {}", e.is_connected ? "Connected" : "Failed");
         }
     ));
+
+#ifdef SQLITE3_FOUND
+    // ========== Memory Core 事件订阅 ==========
+    using namespace MemoryCore::Events;
+
+    // RAG 查询完成事件
+    m_event_tokens.push_back(
+        DearTs::Core::Event::EventBus::instance().subscribe<RAGQueryCompletedEvent>(
+            [this](const RAGQueryCompletedEvent& e) {
+                // 更新查询结果
+                m_memory_debug_data.last_query_results.clear();
+                for (const auto& item : e.results) {
+                    m_memory_debug_data.last_query_results.push_back({
+                        .content = item.content,
+                        .source_conversation_id = item.source_conversation_id,
+                        .similarity = item.similarity,
+                        .memory_type = item.memory_type,
+                        .timestamp = item.timestamp
+                    });
+                }
+                m_memory_debug_data.last_query = e.query;
+
+                // 更新事件统计
+                auto& stats = m_memory_debug_data.event_stats["RAGQueryCompleted"];
+                stats.count++;
+                stats.last_triggered = std::chrono::system_clock::now();
+
+                // 添加事件日志
+                m_memory_debug_data.event_log.push_back({
+                    .timestamp = format_current_time(),
+                    .message = std::format("RAG 查询完成: {} 条结果", e.results.size()),
+                    .color = ImVec4(0.3f, 1.0f, 0.3f, 1.0f)
+                });
+
+                // 限制日志大小
+                if (m_memory_debug_data.event_log.size() > MemoryDebugData::MAX_LOG_ENTRIES) {
+                    m_memory_debug_data.event_log.erase(m_memory_debug_data.event_log.begin());
+                }
+
+                LOG_DEBUG("InfoPanelView: RAG query completed with {} results", e.results.size());
+            }
+        )
+    );
+
+    // 记忆提取完成事件
+    m_event_tokens.push_back(
+        DearTs::Core::Event::EventBus::instance().subscribe<MemoryExtractedEvent>(
+            [this](const MemoryExtractedEvent& e) {
+                // 更新事件统计
+                auto& stats = m_memory_debug_data.event_stats["MemoryExtracted"];
+                stats.count++;
+                stats.last_triggered = std::chrono::system_clock::now();
+
+                // 添加事件日志
+                m_memory_debug_data.event_log.push_back({
+                    .timestamp = format_current_time(),
+                    .message = std::format("提取了 {} 条记忆", e.memories.size()),
+                    .color = ImVec4(0.3f, 0.7f, 1.0f, 1.0f)
+                });
+
+                if (m_memory_debug_data.event_log.size() > MemoryDebugData::MAX_LOG_ENTRIES) {
+                    m_memory_debug_data.event_log.erase(m_memory_debug_data.event_log.begin());
+                }
+
+                LOG_DEBUG("InfoPanelView: Memory extracted: {} memories", e.memories.size());
+            }
+        )
+    );
+
+    // 消息保存完成事件
+    m_event_tokens.push_back(
+        DearTs::Core::Event::EventBus::instance().subscribe<MessageSavedEvent>(
+            [this](const MessageSavedEvent& e) {
+                // 更新事件统计
+                auto& stats = m_memory_debug_data.event_stats["MessageSaved"];
+                stats.count++;
+                stats.last_triggered = std::chrono::system_clock::now();
+
+                LOG_DEBUG("InfoPanelView: Message saved: {}", e.message_uuid);
+            }
+        )
+    );
+#endif
 }
 
 void InfoPanelView::draw_content() {
@@ -66,6 +214,12 @@ void InfoPanelView::draw_content() {
 
         if (ImGui::BeginTabItem("调试")) {
             draw_debug_section();
+            ImGui::EndTabItem();
+        }
+
+        // 新增：Memory Debug 选项卡
+        if (ImGui::BeginTabItem("Memory")) {
+            draw_memory_debug();
             ImGui::EndTabItem();
         }
 
@@ -94,7 +248,9 @@ void InfoPanelView::draw_ai_settings() {
     if (ImGui::CollapsingHeader("高级设置")) {
         // Top-p
         ImGui::Text("Top-p 采样:");
-        if (ImGui::SliderFloat("##top_p", &m_temperature, 0.0f, 1.0f, "%.2f")) {
+        float temp_float = static_cast<float>(m_temperature);
+        if (ImGui::SliderFloat("##top_p", &temp_float, 0.0f, 1.0f, "%.2f")) {
+            m_temperature = static_cast<double>(temp_float);
             // 发布配置更新事件
             DearTs::Core::Event::EventBus::instance().publish(Events::ConfigUpdatedEvent{
                 .config_key = "llm.top_p",
@@ -266,7 +422,9 @@ void InfoPanelView::draw_model_settings() {
 
     // Temperature
     ImGui::Text("温度:");
-    if (ImGui::SliderFloat("##temperature", &m_temperature, 0.0f, 2.0f, "%.2f")) {
+    float temp_float2 = static_cast<float>(m_temperature);
+    if (ImGui::SliderFloat("##temperature", &temp_float2, 0.0f, 2.0f, "%.2f")) {
+        m_temperature = static_cast<double>(temp_float2);
         // 发布配置更新事件
         auto current_conv = m_conversation_manager->get_current_conversation();
         if (current_conv) {
@@ -278,6 +436,9 @@ void InfoPanelView::draw_model_settings() {
             .old_value = "",
             .new_value = std::format("{}", m_temperature)
         });
+
+        // 保存配置
+        save_config();
     }
 
     ImGui::SameLine();
@@ -292,6 +453,9 @@ void InfoPanelView::draw_model_settings() {
         if (current_conv) {
             current_conv->max_tokens = m_max_tokens;
         }
+
+        // 保存配置
+        save_config();
     }
 }
 
@@ -401,6 +565,9 @@ void InfoPanelView::change_llm_provider(const std::string& provider) {
         .new_provider = provider
     });
 
+    // 保存配置
+    save_config();
+
     LOG_INFO("Changed LLM provider from {} to {}", old_provider, provider);
 }
 
@@ -418,6 +585,9 @@ void InfoPanelView::change_model(const std::string& model) {
     if (current_conv) {
         current_conv->llm_model = model;
     }
+
+    // 保存配置
+    save_config();
 
     LOG_INFO("Changed LLM model from {} to {}", old_model, model);
 }
@@ -667,6 +837,314 @@ void InfoPanelView::add_test_message(const std::string& content, MessageRole rol
     DearTs::Core::Event::EventBus::instance().publish(Events::ScrollToBottomEvent{
         .conversation_id = current_conv->id
     });
+}
+
+// ========== Memory Debug UI 实现 ==========
+
+void InfoPanelView::draw_memory_debug() {
+#ifdef SQLITE3_FOUND
+    // 顶部操作栏
+    if (ImGui::Button("刷新")) {
+        refresh_memory_debug_data();
+    }
+    ImGui::SameLine();
+    ImGui::Checkbox("自动刷新", &m_memory_debug_data.auto_refresh);
+    ImGui::SameLine();
+    if (ImGui::Button("导出统计")) {
+        export_memory_debug_stats();
+    }
+
+    // 自动刷新（每 5 秒）
+    if (m_memory_debug_data.auto_refresh) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_last_refresh).count();
+        if (elapsed >= 5) {
+            refresh_memory_debug_data();
+            m_last_refresh = now;
+        }
+    }
+
+    ImGui::Separator();
+
+    // 1. 记忆统计
+    if (ImGui::CollapsingHeader("记忆统计", ImGuiTreeNodeFlags_DefaultOpen)) {
+        draw_memory_stats_section();
+    }
+
+    // 2. 数据库状态
+    if (ImGui::CollapsingHeader("数据库状态")) {
+        draw_database_status_section();
+    }
+
+    // 3. RAG 查询
+    if (ImGui::CollapsingHeader("RAG 查询测试")) {
+        draw_rag_query_section();
+    }
+
+    // 4. 事件监控
+    if (ImGui::CollapsingHeader("事件监控")) {
+        draw_event_monitor_section();
+    }
+
+    // 5. 一致性管理
+    if (ImGui::CollapsingHeader("一致性管理")) {
+        draw_consistency_section();
+    }
+
+#else
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
+        "Memory Core 功能未启用");
+    ImGui::TextWrapped("编译时未找到 SQLite3，Memory Core 功能不可用。");
+    ImGui::TextWrapped("请在 CMake 配置时启用 SQLite3 支持。");
+#endif
+}
+
+void InfoPanelView::draw_memory_stats_section() {
+#ifdef SQLITE3_FOUND
+    using namespace MemoryCore::Memory;
+
+    ImGui::Text("总记忆数: %zu", m_memory_debug_data.total_memories);
+
+    if (m_memory_debug_data.total_memories > 0) {
+        ImGui::Text("按类型分布:");
+        for (const auto& type_count : m_memory_debug_data.memory_type_counts) {
+            float percentage = (float)type_count.count / m_memory_debug_data.total_memories;
+
+            ImGui::ProgressBar(percentage, ImVec2(-1, 0),
+                std::format("{}: {} ({:.1f}%)",
+                    type_count.name, type_count.count, percentage * 100).c_str());
+        }
+    } else {
+        ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "暂无记忆数据");
+    }
+#endif
+}
+
+void InfoPanelView::draw_database_status_section() {
+#ifdef SQLITE3_FOUND
+    using namespace MemoryCore::Persistence;
+
+    // 连接状态指示器
+    bool is_open = SQLiteDatabase::instance().is_open();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImU32 color = is_open ? IM_COL32(100, 255, 100, 255) : IM_COL32(255, 100, 100, 255);
+    draw_list->AddCircleFilled(ImVec2(p.x + 6, p.y + 6), 4.0f, color);
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 15);
+    ImGui::Text("%s", is_open ? "已连接" : "未连接");
+
+    // 数据库路径
+    if (is_open) {
+        ImGui::Text("路径: %s", SQLiteDatabase::instance().get_db_path().c_str());
+    }
+#endif
+}
+
+void InfoPanelView::draw_rag_query_section() {
+#ifdef SQLITE3_FOUND
+    // 查询输入框
+    static char query_buffer[512] = "";
+    ImGui::Text("查询文本:");
+    ImGui::InputTextMultiline("##rag_query", query_buffer, sizeof(query_buffer), ImVec2(-1, 60));
+
+    // 查询选项
+    ImGui::SliderInt("最大结果数", &m_memory_debug_data.max_results, 1, 20);
+    float sim_float = static_cast<float>(m_memory_debug_data.min_similarity);
+    if (ImGui::SliderFloat("最小相似度", &sim_float, 0.0f, 1.0f, "%.2f")) {
+        m_memory_debug_data.min_similarity = static_cast<double>(sim_float);
+    }
+
+    // 执行查询按钮
+    if (ImGui::Button("执行查询")) {
+        // 发布 RAG 查询事件
+        MemoryCore::Events::RAGQueryRequestedEvent event;
+        event.query = query_buffer;
+        event.max_results = m_memory_debug_data.max_results;
+        event.min_similarity = m_memory_debug_data.min_similarity;
+        event.init_base("InfoPanelView");
+
+        DearTs::Core::Event::EventBus::instance().publish(event);
+
+        LOG_INFO("Published RAG query request: {}", query_buffer);
+    }
+
+    // 显示查询结果
+    if (!m_memory_debug_data.last_query_results.empty()) {
+        ImGui::Separator();
+        ImGui::Text("查询结果 (%zu 条):", m_memory_debug_data.last_query_results.size());
+
+        for (const auto& result : m_memory_debug_data.last_query_results) {
+            if (ImGui::CollapsingHeader(result.content.c_str())) {
+                ImGui::Text("相似度: %.2f", result.similarity);
+                ImGui::Text("类型: %s", result.memory_type.c_str());
+                if (!result.source_conversation_id.empty()) {
+                    ImGui::Text("来源会话: %s", result.source_conversation_id.c_str());
+                }
+            }
+        }
+    }
+#endif
+}
+
+void InfoPanelView::draw_event_monitor_section() {
+    // 事件统计表格
+    if (ImGui::BeginTable("EventStats", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable)) {
+        ImGui::TableSetupColumn("事件类型");
+        ImGui::TableSetupColumn("触发次数");
+        ImGui::TableSetupColumn("最后触发");
+        ImGui::TableHeadersRow();
+
+        for (const auto& [event_name, stats] : m_memory_debug_data.event_stats) {
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            ImGui::Text("%s", event_name.c_str());
+            ImGui::TableSetColumnIndex(1);
+            ImGui::Text("%zu", stats.count);
+            ImGui::TableSetColumnIndex(2);
+
+            // 格式化时间
+            auto time_t = std::chrono::system_clock::to_time_t(stats.last_triggered);
+            std::tm tm;
+            localtime_s(&tm, &time_t);
+            char buffer[64];
+            std::strftime(buffer, sizeof(buffer), "%H:%M:%S", &tm);
+            ImGui::Text("%s", buffer);
+        }
+        ImGui::EndTable();
+    }
+
+    // 实时事件日志
+    ImGui::Text("实时事件日志:");
+    static bool auto_scroll = true;
+    ImGui::Checkbox("自动滚动", &auto_scroll);
+
+    if (ImGui::BeginChild("EventLog", ImVec2(-1, 200), true)) {
+        for (const auto& event : m_memory_debug_data.event_log) {
+            ImGui::TextColored(event.color, "[%s] %s",
+                event.timestamp.c_str(), event.message.c_str());
+            if (auto_scroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) {
+                ImGui::SetScrollHereY(1.0f);
+            }
+        }
+    }
+    ImGui::EndChild();
+
+    if (ImGui::Button("清除日志")) {
+        m_memory_debug_data.event_log.clear();
+    }
+}
+
+void InfoPanelView::draw_consistency_section() {
+    ImGui::Text("一致性管理功能开发中...");
+
+    // 操作按钮（占位符）
+    if (ImGui::Button("立即同步")) {
+        LOG_INFO("Manual sync requested");
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("处理离线队列")) {
+        LOG_INFO("Process offline queue requested");
+    }
+
+    // 嵌入缓存统计（占位符）
+    ImGui::Separator();
+    ImGui::Text("嵌入缓存:");
+    ImGui::Text("缓存命中: 0");
+    ImGui::Text("缓存未命中: 0");
+    ImGui::Text("命中率: N/A");
+
+    if (ImGui::Button("清除缓存")) {
+        LOG_INFO("Clear cache requested");
+    }
+}
+
+void InfoPanelView::refresh_memory_debug_data() {
+#ifdef SQLITE3_FOUND
+    using namespace MemoryCore::Memory;
+
+    try {
+        // 获取记忆统计
+        auto count_result = MemoryManager::instance().get_memory_count();
+        if (count_result.isOk()) {
+            m_memory_debug_data.total_memories = count_result.unwrap();
+        } else {
+            LOG_ERROR("Failed to get memory count: {}", count_result.error());
+        }
+
+        auto type_counts_result = MemoryManager::instance().get_memory_count_by_type();
+        if (type_counts_result.isOk()) {
+            auto counts = type_counts_result.unwrap();
+            m_memory_debug_data.memory_type_counts.clear();
+            for (const auto& [type, count] : counts) {
+                m_memory_debug_data.memory_type_counts.push_back({
+                    count, Memory::type_to_string(type)
+                });
+            }
+        } else {
+            LOG_ERROR("Failed to get memory count by type: {}", type_counts_result.error());
+        }
+
+        LOG_DEBUG("Refreshed memory debug data: {} total memories", m_memory_debug_data.total_memories);
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to refresh memory debug data: {}", e.what());
+        m_memory_debug_data.event_log.push_back({
+            .timestamp = format_current_time(),
+            .message = std::format("刷新失败: {}", e.what()),
+            .color = ImVec4(1.0f, 0.3f, 0.3f, 1.0f)
+        });
+    }
+#endif
+}
+
+void InfoPanelView::export_memory_debug_stats() {
+    // 导出统计数据到 JSON 文件
+    nlohmann::json export_data;
+    export_data["total_memories"] = m_memory_debug_data.total_memories;
+
+    nlohmann::json type_counts;
+    for (const auto& type_count : m_memory_debug_data.memory_type_counts) {
+        type_counts[type_count.name] = type_count.count;
+    }
+    export_data["memory_type_counts"] = type_counts;
+
+    nlohmann::json event_stats_json;
+    for (const auto& [event_name, stats] : m_memory_debug_data.event_stats) {
+        event_stats_json[event_name] = {
+            {"count", stats.count}
+        };
+    }
+    export_data["event_stats"] = event_stats_json;
+
+    std::string export_path = "memory_debug_stats.json";
+    try {
+        std::ofstream out(export_path);
+        out << export_data.dump(2);
+        out.close();
+
+        LOG_INFO("Exported memory debug stats to {}", export_path);
+        m_memory_debug_data.event_log.push_back({
+            .timestamp = format_current_time(),
+            .message = std::format("统计数据已导出到 {}", export_path),
+            .color = ImVec4(0.3f, 1.0f, 0.3f, 1.0f)
+        });
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to export memory debug stats: {}", e.what());
+        m_memory_debug_data.event_log.push_back({
+            .timestamp = format_current_time(),
+            .message = std::format("导出失败: {}", e.what()),
+            .color = ImVec4(1.0f, 0.3f, 0.3f, 1.0f)
+        });
+    }
+}
+
+std::string InfoPanelView::format_current_time() const {
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm;
+    localtime_s(&tm, &time_t);
+    char buffer[64];
+    std::strftime(buffer, sizeof(buffer), "%H:%M:%S", &tm);
+    return std::string(buffer);
 }
 
 } // namespace DearTs::Plugins::Chat

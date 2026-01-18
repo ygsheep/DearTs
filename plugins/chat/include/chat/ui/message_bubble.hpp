@@ -8,6 +8,15 @@
 #include "chat/models/message.hpp"
 #include <string>
 #include <imgui.h>
+#include <memory>
+#include <unordered_map>
+
+namespace DearTs::Plugins::Chat {
+
+// 前向声明
+class MarkdownView;
+
+} // namespace DearTs::Plugins::Chat
 
 namespace DearTs::Plugins::Chat::UI {
 
@@ -113,10 +122,28 @@ public:
     static ImVec2 calc_size(const std::string& content, float max_width, const MessageBubbleStyle& style);
 
     /**
-     * @brief 渲染独立的 Markdown 查看窗口
-     * @param message 消息对象（需要使用非 const 引用以访问 expanded 状态）
+     * @brief 打开 Markdown 预览视图
+     * @param message_id 消息 ID
+     * @param content Markdown 内容
      */
-    static void render_expanded_markdown_window(Message& message);
+    static void open_markdown_view(const std::string& message_id, const std::string& content);
+
+    /**
+     * @brief 关闭 Markdown 预览视图
+     * @param message_id 消息 ID
+     */
+    static void close_markdown_view(const std::string& message_id);
+
+    /**
+     * @brief 检查 Markdown 视图是否已打开
+     * @param message_id 消息 ID
+     */
+    static bool is_markdown_view_open(const std::string& message_id);
+
+    /**
+     * @brief 清理所有打开的 Markdown 视图
+     */
+    static void cleanup_markdown_views();
 
 private:
     /**

@@ -16,7 +16,7 @@ DearTs 是一个基于 SDL3 + ImGui 的现代 C++20 应用程序框架，参考 
 - Result<T, E> 错误处理
 - Content Registry (ImHex 风格命令/工具/设置系统)
 - 多视图停靠窗口系统
-- 插件架构 (API 版本检查，动态加载)
+- 插件架构 (依赖管理、SemVer 2.0.0 版本控制、动态加载)
 - 异步日志 (liblogger)
 - 任务管理器 (TaskManager)
 - 配置管理 (ConfigManager)
@@ -78,6 +78,14 @@ public:
             .description = "My plugin",
             .version = "1.0.0",
             .api_version = "1.0.0"
+        };
+    }
+
+    // 可选：声明依赖
+    std::vector<PluginDependency> get_dependencies() const override {
+        return {
+            PluginDependency::required("CorePlugin", ">=2.0.0").unwrap(),
+            PluginDependency::optional("UIPlugin", "^1.5.0").unwrap()
         };
     }
 
@@ -333,6 +341,7 @@ cmake --build build --config Release
 
 ---
 
-**技能版本**: 3.0.0
-**最后更新**: 2025-12-30
+**技能版本**: 3.1.0
+**最后更新**: 2026-01-18
 **框架版本**: DearTs Framework 1.0.0
+**更新内容**: 添加插件依赖管理、版本控制、动态加载功能

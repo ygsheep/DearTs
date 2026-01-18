@@ -49,7 +49,9 @@ struct MessageStatusUpdateEvent {
  * @brief 会话创建事件
  */
 struct ConversationCreatedEvent {
-    std::shared_ptr<Conversation> conversation;
+    std::string conversation_id;
+    std::string title;
+    ConversationType type;  ///< 会话类型
 };
 
 /**
@@ -67,10 +69,20 @@ struct ConversationDeletedEvent {
 };
 
 /**
+ * @brief 会话更新类型
+ */
+enum class ConversationUpdateType {
+    TitleChanged,    ///< 标题变更
+    MetadataChanged  ///< 元数据变更
+};
+
+/**
  * @brief 会话更新事件
  */
 struct ConversationUpdatedEvent {
     std::string conversation_id;
+    ConversationUpdateType update_type;  ///< 更新类型
+    std::string new_title;                ///< 新标题（仅当 update_type == TitleChanged 时有效）
 };
 
 // ============================================================================

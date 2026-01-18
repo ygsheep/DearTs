@@ -7,10 +7,36 @@
 #pragma once
 
 #include "chat/llm/llm_interface.hpp"
+#include "core/result.h"
 #include <string>
 #include <functional>
+#include <vector>
 
 namespace DearTs::Plugins::Chat::LLM {
+
+/**
+ * @brief 向量嵌入结果
+ */
+struct EmbeddingResult {
+    std::string model;                           ///< 模型名称
+    std::vector<float> embedding;                ///< 嵌入向量
+    int dimension;                                ///< 向量维度
+    int64_t total_duration_ms;                   ///< 总耗时（毫秒）
+    int64_t load_duration_ms;                    ///< 模型加载耗时（毫秒）
+    int64_t prompt_eval_count;                   ///< 提示词评估计数
+
+    /**
+     * @brief 序列化为 JSON
+     */
+    std::string to_json() const;
+
+    /**
+     * @brief 从 JSON 解析
+     */
+    static DearTs::Core::Result<EmbeddingResult, std::string> from_json(
+        const std::string& json
+    );
+};
 
 /**
  * @brief Ollama LLM 提供商
@@ -48,6 +74,36 @@ public:
 
     [[nodiscard]] std::vector<std::string> get_models() const override;
 
+    // ========== Embed API ==========
+
+    /**
+     * @brief 生成文本嵌入
+     * @param text 输入文本
+     * @param model 嵌入模型名称（默认: nomic-embed-text）
+     * @return 嵌入结果或错误信息
+     */
+    [[nodiscard]] DearTs::Core::Result<EmbeddingResult, std::string> generate_embedding(
+        const std::string& text,
+        const std::string& model = "nomic-embed-text"
+    ) const;
+
+    /**
+     * @brief 批量生成文本嵌入
+     * @param texts 输入文本列表
+     * @param model 嵌入模型名称
+     * @return 嵌入结果列表或错误信息
+     */
+    [[nodiscard]] DearTs::Core::Result<std::vector<EmbeddingResult>, std::string> generate_embeddings_batch(
+        const std::vector<std::string>& texts,
+        const std::string& model = "nomic-embed-text"
+    ) const;
+
+    /**
+     * @brief 获取可用的嵌入模型列表
+     * @return 嵌入模型名称列表
+     */
+    [[nodiscard]] std::vector<std::string> get_embedding_models() const;
+
 private:
     // ========== 请求构建 ==========
 
@@ -55,6 +111,11 @@ private:
      * @brief 构建聊天 API 请求 JSON
      */
     std::string build_chat_request(const LLMRequest& request) const;
+
+    /**
+     * @brief 构建嵌入 API 请求 JSON
+     */
+    std::string build_embedding_request(const std::string& text, const std::string& model) const;
 
     // ========== 响应解析 ==========
 
@@ -70,6 +131,13 @@ private:
      * @return 提取的内容文本，如果解析失败返回空字符串
      */
     std::string parse_ndjson_line(const std::string& line) const;
+
+    /**
+     * @brief 解析嵌入响应
+     */
+    DearTs::Core::Result<EmbeddingResult, std::string> parse_embedding_response(
+        const std::string& json_body
+    ) const;
 
     // ========== 流式处理 ==========
 

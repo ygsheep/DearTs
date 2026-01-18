@@ -65,6 +65,11 @@ private:
     void delete_conversation(const std::string& id);
 
     /**
+     * @brief 重命名会话
+     */
+    void rename_conversation(const std::string& id);
+
+    /**
      * @brief 切换到指定会话
      */
     void select_conversation(const std::shared_ptr<Conversation>& conv);
@@ -84,6 +89,11 @@ private:
     // 状态
     std::shared_ptr<Conversation> m_hovered_conversation;
     bool m_show_context_menu = false;
+
+    // 重命名对话框状态
+    bool m_show_rename_dialog = false;
+    std::string m_rename_conversation_id;
+    char m_rename_buffer[256] = "";
 
     // 事件订阅
     DearTs::Core::Event::EventToken m_conv_created_token;

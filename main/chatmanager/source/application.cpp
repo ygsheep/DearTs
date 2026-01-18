@@ -9,6 +9,8 @@
 #include "core/content/commands.h"
 #include "core/ui/view.h"
 #include "core/ui/theme_manager.h"
+#include "core/config/config_manager.h"
+#include "plugins/memory_core/include/memory_core/memory_core_plugin.hpp"
 #include "chat/chat_plugin.hpp"
 #include "chat/ui/markdown_renderer.hpp"
 #include "plugins/builtin/include/builtin_plugin.hpp"
@@ -19,6 +21,7 @@
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_sdlgpu3.h>
 #include <imgui.h>
+#include <imgui_internal.h>
 
 // 使用 Logger 命名空间，以便 LOG_INFO 宏可以正常工作
 using DearTs::Logger;
@@ -336,19 +339,51 @@ bool Application::initialize() {
     m_imgui_context = ImGui::GetCurrentContext();
     LOG_INFO("ImGui initialized with SDL3 GPU backend");
 
-    // 7. 初始化插件系统
+    // 7. 初始化 ConfigManager
+    LOG_INFO("Initializing ConfigManager...");
+    auto& config_manager = Core::Config::ConfigManager::instance();
+
+    // 配置文件路径（与 exe 同目录）
+    const char* config_file = "chat_config.json";
+
+    // 尝试加载配置文件（如果存在）
+    auto load_result = config_manager.load_from_file(config_file);
+    if (load_result.isOk()) {
+        LOG_INFO("Configuration loaded from: {}", config_file);
+    } else {
+        LOG_INFO("No existing configuration file found, will use defaults: {}", config_file);
+    }
+
+    // 设置全局变更回调（实时保存配置，带防抖）
+    config_manager.add_change_callback([config_file,
+                                        &config_manager](const std::string& key, const Core::Config::ConfigValue& old_val, const Core::Config::ConfigValue& new_val) {
+        static auto last_save = std::chrono::steady_clock::now();
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_save).count();
+
+        // 防抖：500ms 内只保存一次
+        if (elapsed >= 500) {
+            last_save = now;
+            LOG_DEBUG("Configuration changed: {}, saving to {}", key, config_file);
+            config_manager.save_to_file(config_file);
+        }
+    });
+
+    LOG_INFO("ConfigManager initialized successfully");
+
+    // 8. 初始化插件系统
     if (!initialize_plugin_system()) {
         LOG_ERROR("Failed to initialize plugin system");
         cleanup();
         return false;
     }
 
-    // 8. 设置自定义标题栏
+    // 9. 设置自定义标题栏
     m_title_bar.set_borderless(true);
     DearTs::Core::UI::WindowControls::set_current_window(window);
     LOG_INFO("Custom title bar enabled");
 
-    // 9. 显示窗口
+    // 10. 显示窗口
     SDL_ShowWindow(window);
 
     m_is_initialized = true;
@@ -391,10 +426,17 @@ bool Application::initialize_plugin_system() {
         return false;
     }
 
-    // 加载 chat 插件
-    auto result2 = plugin_manager.add_builtin(std::make_unique<DearTs::Plugins::Chat::ChatPlugin>());
+    // 加载 memory_core 插件（持久化和 RAG 服务）
+    auto result2 = plugin_manager.add_builtin(std::make_unique<DearTs::Plugins::MemoryCore::MemoryCorePlugin>());
     if (!result2.isOk()) {
-        LOG_ERROR("Failed to add chat plugin: {}", result2.error());
+        LOG_ERROR("Failed to add memory_core plugin: {}", result2.error());
+        return false;
+    }
+
+    // 加载 chat 插件
+    auto result3 = plugin_manager.add_builtin(std::make_unique<DearTs::Plugins::Chat::ChatPlugin>());
+    if (!result3.isOk()) {
+        LOG_ERROR("Failed to add chat plugin: {}", result3.error());
         return false;
     }
 
@@ -404,9 +446,14 @@ bool Application::initialize_plugin_system() {
         LOG_WARN("Builtin plugin enable: {}", enable_result1.error());
     }
 
-    auto enable_result2 = plugin_manager.enable("Chat");
+    auto enable_result2 = plugin_manager.enable("memory_core");
     if (!enable_result2.isOk()) {
-        LOG_WARN("Chat plugin enable: {}", enable_result2.error());
+        LOG_WARN("memory_core plugin enable: {}", enable_result2.error());
+    }
+
+    auto enable_result3 = plugin_manager.enable("Chat");
+    if (!enable_result3.isOk()) {
+        LOG_WARN("Chat plugin enable: {}", enable_result3.error());
     }
 
     // 获取插件数量
@@ -730,8 +777,56 @@ void Application::render_dock_space(float title_bar_height) {
     ImGui::Begin("DockSpace", nullptr, window_flags);
     ImGui::PopStyleVar(3);
 
+    // 设置默认停靠布局（仅在第一次运行时）
+    setup_default_dock_layout();
+
     ImGui::DockSpace(ImGui::GetID("MainDockSpace"));
     ImGui::End();
+}
+
+void Application::setup_default_dock_layout() {
+    // 检查是否已经设置过停靠布局
+    if (m_dock_layout_initialized) {
+        return;
+    }
+
+    // 获取主 DockSpace ID
+    ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+
+    // 使用 DockBuilder 构建默认停靠布局
+    ImGui::DockBuilderRemoveNode(dockspace_id);  // 清除现有布局
+    ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);  // 根节点
+
+    ImGuiID dock_main_id = dockspace_id;
+    ImGuiID dock_left_id;
+    ImGuiID dock_center_id;
+
+    // 分割左侧（会话列表）和中间区域
+    // 比例：左侧约 19%
+    dock_left_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.19f, nullptr, &dock_center_id);
+
+    // 分割右侧（信息面板）和中间区域
+    // 比例：右侧约 23%
+    ImGuiID dock_right_id;
+    dock_right_id = ImGui::DockBuilderSplitNode(dock_center_id, ImGuiDir_Right, 0.23f, nullptr, &dock_center_id);
+
+    // 分割中间区域：上面是聊天，下面是输入
+    // 比例：聊天约 66%
+    ImGuiID dock_chat_id;
+    ImGuiID dock_input_id;
+    dock_chat_id = ImGui::DockBuilderSplitNode(dock_center_id, ImGuiDir_Down, 0.66f, nullptr, &dock_input_id);
+
+    // 停靠窗口到对应的节点
+    ImGui::DockBuilderDockWindow("会话", dock_left_id);
+    ImGui::DockBuilderDockWindow("聊天", dock_chat_id);
+    ImGui::DockBuilderDockWindow("输入", dock_input_id);
+    ImGui::DockBuilderDockWindow("信息", dock_right_id);
+
+    // 完成构建
+    ImGui::DockBuilderFinish(dockspace_id);
+
+    m_dock_layout_initialized = true;
+    LOG_INFO("Default dock layout configured");
 }
 
 void Application::shutdown() {

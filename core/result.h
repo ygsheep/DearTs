@@ -347,4 +347,27 @@ private:
     } \
     auto var = _result_##var.unwrap()
 
+// ============ 类型特征 ============
+
+/**
+ * @brief is_result 类型特征 - 检测类型是否为 Result<T, E>
+ */
+template<typename T>
+struct is_result : std::false_type {};
+
+template<typename T, typename E>
+struct is_result<Result<T, E>> : std::true_type {};
+
+template<typename T>
+struct is_result<const T> : is_result<T> {};
+
+template<typename T>
+struct is_result<volatile T> : is_result<T> {};
+
+template<typename T>
+struct is_result<const volatile T> : is_result<T> {};
+
+template<typename T>
+inline constexpr bool is_result_v = is_result<T>::value;
+
 } // namespace DearTs::Core

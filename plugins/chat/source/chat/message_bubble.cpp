@@ -7,12 +7,16 @@
 #include "chat/ui/chat_theme.hpp"
 #include "chat/ui/markdown_renderer.hpp"
 #include "chat/ui/measure_context.hpp"
+#include "chat/views/markdown_view.hpp"
+#include "core/ui/view_manager.h"
 #include "core/ui/icon_font.hpp"
-#include "logger.h"
+#include "liblogger/logger.h"
 #include <format>
 #include <ctime>
 #include <iomanip>
 #include <functional>
+#include <unordered_map>
+#include <memory>
 
 namespace DearTs::Plugins::Chat::UI {
 using namespace DearTs::Detail;
@@ -385,20 +389,14 @@ void MessageBubble::draw_ai_message(Message& message, const MessageBubbleStyle& 
         // 绘制引用按钮
         draw_rounded_button("##quote_ai", quote_btn_x, ICON_FORMAT_QUOTE, "引用消息");
 
-        // 绘制 Code 按钮（打开/刷新 Markdown 窗口）
+        // 绘制 Code 按钮（打开 Markdown 视图）
         draw_rounded_button("##code_expanded", code_btn_x, ICON_CODE, "打开完整 Markdown 视图", [&]() {
-            // 设置为展开状态（如果未展开）
-            if (!message.expanded) {
-                const_cast<Message&>(message).expanded = true;
-            }
-            LOG_INFO("Markdown view opened/refreshed");
+            // 打开 Markdown 预览视图（通过视图系统）
+            open_markdown_view(message.id, message.content);
         });
     }
 
-    // 如果消息已展开，渲染独立的 Markdown 窗口
-    if (message.expanded) {
-        render_expanded_markdown_window(const_cast<Message&>(message));
-    }
+    // 移除旧的 render_expanded_markdown_window 调用
 
     // ===== 设置下一个光标位置 =====
     const float next_y = original_cursor.y + child_size.y + style.spacing_y + (style.show_timestamp ? 30.0f : 0.0f);
@@ -522,41 +520,109 @@ float MessageBubble::calc_markdown_height(const std::string& content, float widt
     return MeasureContext::instance().measure_markdown_height(content, width, style);
 }
 
-void MessageBubble::render_expanded_markdown_window(Message& message) {
-    // 为每个消息生成唯一的窗口 ID
-    const std::string window_id = "Expanded Markdown##" + message.id;
+// ============================================================================
+// MarkdownView 管理器
+// ============================================================================
 
-    // 设置窗口大小和位置（屏幕中央）
-    const ImVec2 screen_size = ImGui::GetIO().DisplaySize;
-    const ImVec2 window_size(std::min(800.0f, screen_size.x * 0.8f), std::min(600.0f, screen_size.y * 0.8f));
-    const ImVec2 window_pos((screen_size.x - window_size.x) * 0.5f, (screen_size.y - window_size.y) * 0.5f);
-
-    ImGui::SetNextWindowSize(window_size, ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowPos(window_pos, ImGuiCond_FirstUseEver);
-
-    // 窗口标志
-    ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
-
-    if (ImGui::Begin(window_id.c_str(), &message.expanded, window_flags)) {
-        // 获取可用区域
-        const ImVec2 avail_size = ImGui::GetContentRegionAvail();
-
-        // 创建子窗口用于 Markdown 内容滚动
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16, 16));
-        ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
-        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.08f, 0.08f, 0.1f, 1.0f));
-
-        if (ImGui::BeginChild("##expanded_content", avail_size, false, ImGuiWindowFlags_None)) {
-            // 渲染 Markdown 内容
-            MarkdownRenderer::render(message.content);
+namespace {
+    // MarkdownView 管理器（单例模式）
+    class MarkdownViewManager {
+    public:
+        static MarkdownViewManager& instance() {
+            static MarkdownViewManager inst;
+            return inst;
         }
 
-        ImGui::EndChild();
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar(2);
-    }
+        // 打开 Markdown 视图
+        void open_view(const std::string& message_id, const std::string& content) {
+            // 检查是否已存在
+            if (m_views.find(message_id) != m_views.end()) {
+                // 视图已存在，只需打开它
+                auto* view = m_views[message_id];
+                view->get_window_open_state() = true;
+                LOG_INFO("Markdown view already open for message {}", message_id);
+                return;
+            }
 
-    ImGui::End();
+            // 创建新的 MarkdownView（使用 unique_ptr）
+            auto view = std::make_unique<MarkdownView>(content, message_id);
+            auto* view_ptr = view.get();
+
+            // 注册到 ContentRegistry::Views（使用 impl::add）
+            DearTs::Core::ContentRegistry::Views::impl::add(std::move(view));
+
+            // 打开视图
+            view_ptr->get_window_open_state() = true;
+
+            // 保存原始指针（用于后续操作）
+            m_views[message_id] = view_ptr;
+
+            LOG_INFO("Markdown view opened for message {}", message_id);
+        }
+
+        // 关闭 Markdown 视图
+        void close_view(const std::string& message_id) {
+            auto it = m_views.find(message_id);
+            if (it != m_views.end()) {
+                it->second->get_window_open_state() = false;
+                LOG_INFO("Markdown view closed for message {}", message_id);
+            }
+        }
+
+        // 检查视图是否已打开
+        bool is_open(const std::string& message_id) const {
+            auto it = m_views.find(message_id);
+            if (it != m_views.end()) {
+                return it->second->get_window_open_state();
+            }
+            return false;
+        }
+
+        // 清理所有视图
+        void cleanup() {
+            for (auto& [id, view] : m_views) {
+                view->get_window_open_state() = false;
+            }
+            m_views.clear();
+            LOG_INFO("All Markdown views cleaned up");
+        }
+
+        // 移除已关闭的视图
+        void cleanup_closed() {
+            auto it = m_views.begin();
+            while (it != m_views.end()) {
+                if (!it->second->get_window_open_state()) {
+                    // 视图已关闭，从管理器中移除
+                    // 注意：视图对象由 ContentRegistry 管理，这里只需移除引用
+                    it = m_views.erase(it);
+                } else {
+                    ++it;
+                }
+            }
+        }
+
+    private:
+        MarkdownViewManager() = default;
+        ~MarkdownViewManager() = default;
+
+        std::unordered_map<std::string, MarkdownView*> m_views;
+    };
+}
+
+void MessageBubble::open_markdown_view(const std::string& message_id, const std::string& content) {
+    MarkdownViewManager::instance().open_view(message_id, content);
+}
+
+void MessageBubble::close_markdown_view(const std::string& message_id) {
+    MarkdownViewManager::instance().close_view(message_id);
+}
+
+bool MessageBubble::is_markdown_view_open(const std::string& message_id) {
+    return MarkdownViewManager::instance().is_open(message_id);
+}
+
+void MessageBubble::cleanup_markdown_views() {
+    MarkdownViewManager::instance().cleanup();
 }
 
 } // namespace DearTs::Plugins::Chat::UI

@@ -31,6 +31,41 @@ void ConversationListView::draw_content() {
         }
         ImGui::EndPopup();
     }
+
+    // ✅ 重命名对话框
+    if (m_show_rename_dialog) {
+        ImGui::OpenPopup("重命名会话");
+        m_show_rename_dialog = false;  // 只触发一次
+    }
+
+    if (ImGui::BeginPopupModal("重命名会话", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::Text("新标题:");
+        ImGui::InputText("##new_title", m_rename_buffer, sizeof(m_rename_buffer));
+
+        bool confirm = false;
+        if (ImGui::Button("确定", ImVec2(120, 0))) {
+            confirm = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("取消", ImVec2(120, 0))) {
+            ImGui::CloseCurrentPopup();
+        }
+
+        // 按 Enter 键确认
+        if (ImGui::IsItemFocused() && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))) {
+            confirm = true;
+        }
+
+        if (confirm) {
+            std::string new_title(m_rename_buffer);
+            if (!new_title.empty() && new_title != m_rename_conversation_id) {
+                rename_conversation(m_rename_conversation_id);
+            }
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
+    }
 }
 
 void ConversationListView::draw_search_bar() {
@@ -141,9 +176,18 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
 
     // 右键菜单
     if (ImGui::BeginPopupContextItem(std::format("context_{}", conv->id).c_str())) {
+        if (ImGui::MenuItem("重命名")) {
+            // 打开重命名对话框
+            m_show_rename_dialog = true;
+            m_rename_conversation_id = conv->id;
+            // 初始化重命名缓冲区为当前标题
+            strncpy_s(m_rename_buffer, sizeof(m_rename_buffer), conv->title.c_str(), _TRUNCATE);
+        }
+        ImGui::Separator();
         if (ImGui::MenuItem("删除会话")) {
             delete_conversation(conv->id);
         }
+        ImGui::Separator();
         if (conv->is_pinned) {
             if (ImGui::MenuItem("取消置顶")) {
                 conv->is_pinned = false;
@@ -277,6 +321,14 @@ void ConversationListView::create_new_conversation() {
 void ConversationListView::delete_conversation(const std::string& id) {
     if (m_conversation_manager->delete_conversation(id)) {
         LOG_INFO("Deleted conversation: {}", id);
+    }
+}
+
+void ConversationListView::rename_conversation(const std::string& id) {
+    if (m_conversation_manager->rename_conversation(id, std::string(m_rename_buffer))) {
+        LOG_INFO("Renamed conversation: {}", id);
+    } else {
+        LOG_WARN("Failed to rename conversation: {}", id);
     }
 }
 

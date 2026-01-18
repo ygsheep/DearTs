@@ -8,8 +8,10 @@
 #include "core/ui/view.h"
 #include "core/ui/icon_font.hpp"
 #include "core/event/event_bus.h"
+#include "core/config/config_manager.h"
 #include "chat/models/conversation.hpp"
 #include <memory>
+#include <chrono>
 
 namespace DearTs::Plugins::Chat {
 
@@ -108,8 +110,118 @@ private:
      */
     void export_conversation(const std::string& format);
 
+    /**
+     * @brief 保存配置到 ConfigManager
+     */
+    void save_config();
+
+    /**
+     * @brief 从 ConfigManager 加载配置
+     */
+    void load_config();
+
+    // ========== Memory Debug UI ==========
+
+    /**
+     * @brief Memory Debug 数据结构
+     */
+    struct MemoryDebugData {
+        // 记忆统计
+        size_t total_memories = 0;
+        struct TypeCount {
+            size_t count;
+            std::string name;
+        };
+        std::vector<TypeCount> memory_type_counts;
+
+        // RAG 查询结果
+        struct RAGResultItem {
+            std::string content;
+            std::string source_conversation_id;
+            double similarity;
+            std::string memory_type;
+            int64_t timestamp;
+        };
+        std::vector<RAGResultItem> last_query_results;
+        std::string last_query;
+
+        // 事件日志
+        struct EventLogEntry {
+            std::string timestamp;
+            std::string message;
+            ImVec4 color;
+        };
+        std::vector<EventLogEntry> event_log;
+        static constexpr size_t MAX_LOG_ENTRIES = 100;
+
+        // 事件统计
+        struct EventStats {
+            size_t count = 0;
+            std::chrono::system_clock::time_point last_triggered;
+        };
+        std::unordered_map<std::string, EventStats> event_stats;
+
+        // UI 状态
+        int max_results = 5;
+        double min_similarity = 0.5;
+        bool auto_refresh = true;
+    };
+
+    /**
+     * @brief 绘制 Memory Debug 选项卡
+     */
+    void draw_memory_debug();
+
+    /**
+     * @brief 绘制记忆统计区域
+     */
+    void draw_memory_stats_section();
+
+    /**
+     * @brief 绘制数据库状态区域
+     */
+    void draw_database_status_section();
+
+    /**
+     * @brief 绘制 RAG 查询区域
+     */
+    void draw_rag_query_section();
+
+    /**
+     * @brief 绘制事件监控区域
+     */
+    void draw_event_monitor_section();
+
+    /**
+     * @brief 绘制一致性管理区域
+     */
+    void draw_consistency_section();
+
+    /**
+     * @brief 刷新 Memory Debug 数据
+     */
+    void refresh_memory_debug_data();
+
+    /**
+     * @brief 导出 Memory Debug 统计
+     */
+    void export_memory_debug_stats();
+
+    /**
+     * @brief 格式化当前时间
+     */
+    std::string format_current_time() const;
+
     // 成员变量
     std::shared_ptr<ConversationManager> m_conversation_manager;
+
+    // 配置管理（使用 ConfigScope 自动添加 "chat." 前缀）
+    Core::Config::ConfigScope m_config{"chat"};
+    std::chrono::steady_clock::time_point m_last_config_save = std::chrono::steady_clock::now();
+
+    // Memory Debug 数据
+    MemoryDebugData m_memory_debug_data;
+    std::chrono::steady_clock::time_point m_last_refresh = std::chrono::steady_clock::now();
 
     // LLM 设置
     std::string m_selected_provider = "ollama";

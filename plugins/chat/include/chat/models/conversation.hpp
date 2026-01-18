@@ -6,6 +6,7 @@
 #pragma once
 
 #include "message.hpp"
+#include "core/result.h"
 #include <vector>
 #include <string>
 #include <chrono>
@@ -148,6 +149,35 @@ public:
      * @brief 删除会话
      */
     bool delete_conversation(const std::string& id);
+
+    /**
+     * @brief 重命名会话标题
+     */
+    bool rename_conversation(const std::string& id, const std::string& new_title);
+
+    /**
+     * @brief 从数据库加载现有会话（不发布创建事件）
+     * @param id 会话 ID
+     * @param title 会话标题
+     * @param type 会话类型
+     * @param created_at 创建时间戳
+     * @param updated_at 更新时间戳
+     * @return 加载的会话对象，如果已存在则返回现有会话
+     */
+    [[nodiscard]] std::shared_ptr<Conversation> load_conversation(
+        const std::string& id,
+        const std::string& title,
+        ConversationType type,
+        int64_t created_at,
+        int64_t updated_at
+    );
+
+    /**
+     * @brief 从数据库加载会话的消息（懒加载）
+     * @param conversation_id 会话 ID
+     * @return 成功返回加载的消息数量，失败返回错误信息
+     */
+    DearTs::Core::Result<size_t, std::string> load_messages(const std::string& conversation_id);
 
     /**
      * @brief 获取当前选中的会话

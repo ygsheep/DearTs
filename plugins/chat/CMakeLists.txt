@@ -29,9 +29,10 @@ target_include_directories(chat PUBLIC
     ${CMAKE_SOURCE_DIR}/core
 )
 
-# 链接 DearTs 核心库
+# 链接 DearTs 核心库和 memory_core 插件
 target_link_libraries(chat PUBLIC
     dearts_core
+    memory_core
 )
 
 # 设置输出目录

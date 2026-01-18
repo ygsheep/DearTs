@@ -8,8 +8,28 @@
 #include <gtest/gtest.h>
 #include <string>
 #include <filesystem>
+#include <random>
+#include <sstream>
+#include <iomanip>
+#include <fstream>
 
 namespace DearTs::Tests {
+
+namespace {
+    /**
+     * @brief Generate a unique string for temp directory names
+     */
+    std::string generate_unique_suffix() {
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        static std::uniform_int_distribution<> dis(0, 0xFFFF);
+
+        std::ostringstream oss;
+        oss << std::hex << std::setw(4) << std::setfill('0') << dis(gen);
+        oss << std::hex << std::setw(4) << std::setfill('0') << dis(gen);
+        return oss.str();
+    }
+}
 
 /**
  * @brief Create a temporary directory for testing
@@ -20,9 +40,9 @@ namespace DearTs::Tests {
 class TempDirectory {
 public:
     TempDirectory() {
-        // Create a unique temp directory
-        auto temp_path = std::filesystem::temp_directory_path() / "dearts_test_%%%%%%";
-        m_path = std::filesystem::unique_path(temp_path);
+        // Create a unique temp directory using random hex string
+        auto temp_path = std::filesystem::temp_directory_path() / ("dearts_test_" + generate_unique_suffix());
+        m_path = temp_path;
         std::filesystem::create_directories(m_path);
     }
 

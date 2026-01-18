@@ -23,6 +23,79 @@ namespace DearTs::Plugins::Chat::LLM {
 
 using json = nlohmann::json;
 
+#ifdef _WIN32
+static std::string win32_error_to_string(DWORD error_code) {
+    if (error_code == ERROR_WINHTTP_TIMEOUT) {
+        return "The operation timed out";
+    }
+    if (error_code == ERROR_WINHTTP_CANNOT_CONNECT) {
+        return "Cannot connect";
+    }
+    if (error_code == ERROR_WINHTTP_CONNECTION_ERROR) {
+        return "Connection error";
+    }
+    if (error_code == ERROR_WINHTTP_NAME_NOT_RESOLVED) {
+        return "Name not resolved";
+    }
+    if (error_code == ERROR_WINHTTP_SECURE_FAILURE) {
+        return "Secure failure";
+    }
+
+    LPSTR buffer = nullptr;
+    DWORD len = 0;
+
+    static HMODULE winhttp_module = []() -> HMODULE {
+        HMODULE existing = GetModuleHandleW(L"winhttp.dll");
+        if (existing) {
+            return existing;
+        }
+        return LoadLibraryW(L"winhttp.dll");
+    }();
+
+    if (winhttp_module) {
+        const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS;
+        len = FormatMessageA(
+            flags,
+            winhttp_module,
+            error_code,
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            (LPSTR)&buffer,
+            0,
+            nullptr
+        );
+    }
+
+    if (len == 0) {
+        const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS;
+        len = FormatMessageA(
+            flags,
+            nullptr,
+            error_code,
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            (LPSTR)&buffer,
+            0,
+            nullptr
+        );
+    }
+
+    std::string message;
+    if (len > 0 && buffer) {
+        message.assign(buffer, buffer + len);
+        while (!message.empty() && (message.back() == '\r' || message.back() == '\n' || message.back() == ' ' || message.back() == '\t')) {
+            message.pop_back();
+        }
+    } else {
+        message = "Unknown error";
+    }
+
+    if (buffer) {
+        LocalFree(buffer);
+    }
+
+    return message;
+}
+#endif
+
 OllamaLLMProvider::OllamaLLMProvider(
     const std::string& base_url,
     const std::string& model
@@ -81,7 +154,6 @@ DearTs::Core::Result<LLMResponse, std::string> OllamaLLMProvider::send(
         if (request.stream && request.on_chunk) {
             LOG_INFO("Ollama: Using streaming mode");
             std::string full_content;
-            bool completed = false;
 
             auto stream_result = send_streaming_request(
                 request,
@@ -373,29 +445,35 @@ DearTs::Core::Result<std::string, std::string> OllamaLLMProvider::send_http_requ
     std::wstring endpoint_w(endpoint.begin(), endpoint.end());
 
     // 打开会话
+    const bool is_local_host = (host_name == "localhost" || host_name == "127.0.0.1" || host_name == "::1");
+    const DWORD access_type = is_local_host ? WINHTTP_ACCESS_TYPE_NO_PROXY : WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
     hSession = WinHttpOpen(
         L"ChatManager/1.0",
-        WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+        access_type,
         WINHTTP_NO_PROXY_NAME,
         WINHTTP_NO_PROXY_BYPASS,
         0
     );
 
     if (!hSession) {
-        LOG_ERROR("Ollama: WinHttpOpen failed");
+        const DWORD err = GetLastError();
+        LOG_ERROR("Ollama: WinHttpOpen failed ({}: {})", err, win32_error_to_string(err));
         return DearTs::Core::Result<std::string, std::string>::err("Failed to open WinHTTP session");
     }
+
+    WinHttpSetTimeouts(hSession, 10000, 10000, 30000, 30000);
 
     // 连接服务器
     hConnect = WinHttpConnect(
         hSession,
         host_name_w.c_str(),
-        port,
+        static_cast<INTERNET_PORT>(port),
         0
     );
 
     if (!hConnect) {
-        LOG_ERROR("Ollama: WinHttpConnect failed to {}:{}", host_name, port);
+        const DWORD err = GetLastError();
+        LOG_ERROR("Ollama: WinHttpConnect failed to {}:{} ({}: {})", host_name, port, err, win32_error_to_string(err));
         WinHttpCloseHandle(hSession);
         return DearTs::Core::Result<std::string, std::string>::err("Failed to connect to Ollama server");
     }
@@ -403,9 +481,10 @@ DearTs::Core::Result<std::string, std::string> OllamaLLMProvider::send_http_requ
     LOG_INFO("Ollama: Connected successfully");
 
     // 创建请求
+    const bool use_get = (endpoint == "/api/tags" && json_body.empty() && !on_stream_chunk);
     hRequest = WinHttpOpenRequest(
         hConnect,
-        L"POST",
+        use_get ? L"GET" : L"POST",
         endpoint_w.c_str(),
         nullptr,
         WINHTTP_NO_REFERER,
@@ -414,7 +493,8 @@ DearTs::Core::Result<std::string, std::string> OllamaLLMProvider::send_http_requ
     );
 
     if (!hRequest) {
-        LOG_ERROR("Ollama: WinHttpOpenRequest failed");
+        const DWORD err = GetLastError();
+        LOG_ERROR("Ollama: WinHttpOpenRequest failed ({}: {})", err, win32_error_to_string(err));
         WinHttpCloseHandle(hConnect);
         WinHttpCloseHandle(hSession);
         return DearTs::Core::Result<std::string, std::string>::err("Failed to open request");
@@ -425,38 +505,64 @@ DearTs::Core::Result<std::string, std::string> OllamaLLMProvider::send_http_requ
     WinHttpAddRequestHeaders(
         hRequest,
         headers.c_str(),
-        -1,
+        static_cast<DWORD>(-1),
         WINHTTP_ADDREQ_FLAG_ADD
     );
 
     LOG_DEBUG("Ollama: Sending request body: {}", json_body.substr(0, std::min(size_t(200), json_body.length())));
 
-    // 发送请求
-    if (!WinHttpSendRequest(
-        hRequest,
-        WINHTTP_NO_ADDITIONAL_HEADERS,
-        0,
-        (LPVOID)json_body.data(),
-        json_body.length(),
-        json_body.length(),
-        0
-    )) {
-        LOG_ERROR("Ollama: WinHttpSendRequest failed");
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to send request to Ollama");
+    if (use_get) {
+        if (!WinHttpSendRequest(
+            hRequest,
+            WINHTTP_NO_ADDITIONAL_HEADERS,
+            0,
+            WINHTTP_NO_REQUEST_DATA,
+            0,
+            0,
+            0
+        )) {
+            const DWORD err = GetLastError();
+            LOG_ERROR("Ollama: WinHttpSendRequest failed ({}: {})", err, win32_error_to_string(err));
+            WinHttpCloseHandle(hRequest);
+            WinHttpCloseHandle(hConnect);
+            WinHttpCloseHandle(hSession);
+            return DearTs::Core::Result<std::string, std::string>::err(
+                std::format("Failed to send request to Ollama (WinHTTP {}: {})", err, win32_error_to_string(err))
+            );
+        }
+    } else {
+        if (!WinHttpSendRequest(
+            hRequest,
+            WINHTTP_NO_ADDITIONAL_HEADERS,
+            0,
+            (LPVOID)json_body.data(),
+            static_cast<DWORD>(json_body.length()),
+            static_cast<DWORD>(json_body.length()),
+            0
+        )) {
+            const DWORD err = GetLastError();
+            LOG_ERROR("Ollama: WinHttpSendRequest failed ({}: {})", err, win32_error_to_string(err));
+            WinHttpCloseHandle(hRequest);
+            WinHttpCloseHandle(hConnect);
+            WinHttpCloseHandle(hSession);
+            return DearTs::Core::Result<std::string, std::string>::err(
+                std::format("Failed to send request to Ollama (WinHTTP {}: {})", err, win32_error_to_string(err))
+            );
+        }
     }
 
     LOG_INFO("Ollama: Request sent, waiting for response...");
 
     // 接收响应
     if (!WinHttpReceiveResponse(hRequest, nullptr)) {
-        LOG_ERROR("Ollama: WinHttpReceiveResponse failed");
+        const DWORD err = GetLastError();
+        LOG_ERROR("Ollama: WinHttpReceiveResponse failed ({}: {})", err, win32_error_to_string(err));
         WinHttpCloseHandle(hRequest);
         WinHttpCloseHandle(hConnect);
         WinHttpCloseHandle(hSession);
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to receive response from Ollama");
+        return DearTs::Core::Result<std::string, std::string>::err(
+            std::format("Failed to receive response from Ollama (WinHTTP {}: {})", err, win32_error_to_string(err))
+        );
     }
 
     LOG_INFO("Ollama: Response received, reading data...");
@@ -471,7 +577,7 @@ DearTs::Core::Result<std::string, std::string> OllamaLLMProvider::send_http_requ
         DWORD bytes_read = 0;
         size_t total_read = 0;
 
-        while (WinHttpReadData(hRequest, buffer.data(), buffer.size(), &bytes_read) && bytes_read > 0) {
+        while (WinHttpReadData(hRequest, buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_read) && bytes_read > 0) {
             total_read += bytes_read;
             LOG_DEBUG("Ollama: Read {} bytes (total: {})", bytes_read, total_read);
             std::string chunk(buffer.data(), bytes_read);
@@ -515,8 +621,13 @@ DearTs::Core::Result<std::string, std::string> OllamaLLMProvider::send_http_requ
     const std::string full_url = m_base_url + endpoint;
 
     curl_easy_setopt(curl, CURLOPT_URL, full_url.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
+    const bool use_get = (endpoint == "/api/tags" && json_body.empty() && !on_stream_chunk);
+    if (use_get) {
+        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+    } else {
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
+    }
 
     // 设置请求头
     struct curl_slist* headers = nullptr;
@@ -589,6 +700,189 @@ bool OllamaLLMProvider::test_connection() const {
         return response.isOk();
     } catch (...) {
         return false;
+    }
+}
+
+// ========== Embed API 实现 ==========
+
+DearTs::Core::Result<EmbeddingResult, std::string> OllamaLLMProvider::generate_embedding(
+    const std::string& text,
+    const std::string& model
+) const {
+    LOG_INFO("OllamaLLMProvider::generate_embedding() called, model={}, text_length={}",
+             model, text.length());
+
+    try {
+        const std::string request_body = build_embedding_request(text, model);
+        auto response_body = send_http_request("/api/embed", request_body);
+
+        if (!response_body.isOk()) {
+            return DearTs::Core::Result<EmbeddingResult, std::string>::err(response_body.error());
+        }
+
+        auto result = parse_embedding_response(response_body.unwrap());
+        if (result.isOk()) {
+            auto& embedding = result.unwrap();
+            LOG_INFO("Ollama: Generated embedding: dimension={}, duration={} ms",
+                     embedding.dimension, embedding.total_duration_ms);
+        }
+
+        return result;
+
+    } catch (const std::exception& e) {
+        return DearTs::Core::Result<EmbeddingResult, std::string>::err(
+            std::format("Ollama embed request failed: {}", e.what())
+        );
+    }
+}
+
+DearTs::Core::Result<std::vector<EmbeddingResult>, std::string>
+OllamaLLMProvider::generate_embeddings_batch(
+    const std::vector<std::string>& texts,
+    const std::string& model
+) const {
+    LOG_INFO("OllamaLLMProvider::generate_embeddings_batch() called, count={}, model={}",
+             texts.size(), model);
+
+    std::vector<EmbeddingResult> results;
+    results.reserve(texts.size());
+
+    for (const auto& text : texts) {
+        auto result = generate_embedding(text, model);
+        if (result.isErr()) {
+            return DearTs::Core::Result<std::vector<EmbeddingResult>, std::string>::err(result.error());
+        }
+        results.push_back(result.unwrap());
+    }
+
+    LOG_INFO("Ollama: Generated {} embeddings", results.size());
+    return DearTs::Core::Result<std::vector<EmbeddingResult>, std::string>::ok(results);
+}
+
+std::vector<std::string> OllamaLLMProvider::get_embedding_models() const {
+    // 返回常见的嵌入模型列表
+    return {
+        "nomic-embed-text",
+        "mxbai-embed-large",
+        "all-minilm"
+    };
+}
+
+// ========== Embed 辅助方法 ==========
+
+std::string OllamaLLMProvider::build_embedding_request(
+    const std::string& text,
+    const std::string& model
+) const {
+    json j;
+    j["model"] = model;
+    j["input"] = text;
+
+    return j.dump();
+}
+
+DearTs::Core::Result<EmbeddingResult, std::string> OllamaLLMProvider::parse_embedding_response(
+    const std::string& json_body
+) const {
+    try {
+        json j = json::parse(json_body);
+
+        EmbeddingResult result;
+
+        // 解析模型名称
+        if (j.contains("model")) {
+            result.model = j["model"].get<std::string>();
+        }
+
+        // 解析嵌入向量
+        if (j.contains("embeddings") && j["embeddings"].is_array() && !j["embeddings"].empty()) {
+            auto& embedding_array = j["embeddings"][0];
+            if (embedding_array.is_array()) {
+                for (const auto& val : embedding_array) {
+                    result.embedding.push_back(val.get<float>());
+                }
+            }
+        }
+
+        result.dimension = static_cast<int>(result.embedding.size());
+
+        if (result.dimension == 0) {
+            return DearTs::Core::Result<EmbeddingResult, std::string>::err(
+                "Empty embedding vector in response"
+            );
+        }
+
+        // 解析耗时信息
+        if (j.contains("total_duration")) {
+            // Ollama 返回纳秒，转换为毫秒
+            result.total_duration_ms = j["total_duration"].get<int64_t>() / 1000000;
+        }
+
+        if (j.contains("load_duration")) {
+            result.load_duration_ms = j["load_duration"].get<int64_t>() / 1000000;
+        }
+
+        if (j.contains("prompt_eval_count")) {
+            result.prompt_eval_count = j["prompt_eval_count"].get<int64_t>();
+        }
+
+        return DearTs::Core::Result<EmbeddingResult, std::string>::ok(result);
+
+    } catch (const json::exception& e) {
+        return DearTs::Core::Result<EmbeddingResult, std::string>::err(
+            std::format("JSON parse error: {}", e.what())
+        );
+    } catch (const std::exception& e) {
+        return DearTs::Core::Result<EmbeddingResult, std::string>::err(
+            std::format("Parse error: {}", e.what())
+        );
+    }
+}
+
+// ========== EmbeddingResult 序列化 ==========
+
+std::string EmbeddingResult::to_json() const {
+    json j;
+    j["model"] = model;
+    j["embedding"] = embedding;
+    j["dimension"] = dimension;
+    j["total_duration_ms"] = total_duration_ms;
+    j["load_duration_ms"] = load_duration_ms;
+    j["prompt_eval_count"] = prompt_eval_count;
+    return j.dump();
+}
+
+DearTs::Core::Result<EmbeddingResult, std::string>
+EmbeddingResult::from_json(const std::string& json_str) {
+    try {
+        json j = json::parse(json_str);
+
+        EmbeddingResult result;
+        if (j.contains("model")) {
+            result.model = j["model"].get<std::string>();
+        }
+        if (j.contains("embedding")) {
+            result.embedding = j["embedding"].get<std::vector<float>>();
+        }
+        if (j.contains("dimension")) {
+            result.dimension = j["dimension"].get<int>();
+        }
+        if (j.contains("total_duration_ms")) {
+            result.total_duration_ms = j["total_duration_ms"].get<int64_t>();
+        }
+        if (j.contains("load_duration_ms")) {
+            result.load_duration_ms = j["load_duration_ms"].get<int64_t>();
+        }
+        if (j.contains("prompt_eval_count")) {
+            result.prompt_eval_count = j["prompt_eval_count"].get<int64_t>();
+        }
+
+        return DearTs::Core::Result<EmbeddingResult, std::string>::ok(result);
+
+    } catch (const json::exception& e) {
+        return DearTs::Core::Result<EmbeddingResult, std::string>::err(
+            std::format("JSON parse error: {}", e.what())
+        );
     }
 }
 

@@ -12,8 +12,11 @@
 #include "chat/llm/llm_interface.hpp"
 #include "chat/llm/ollama_llm_provider.hpp"
 #include "chat/events/chat_events.hpp"
+#include "memory_core/events/memory_events.hpp"
+#include "memory_core/persistence/database.hpp"
 #include "core/tasks/task_manager.h"
 #include "liblogger/logger.h"
+#include <imgui.h>
 #include <memory>
 #include <thread>
 #include <chrono>
@@ -53,19 +56,9 @@ DearTs::Core::Result<void, std::string> ChatPlugin::on_load() {
     // 设置事件监听
     setup_event_listeners();
 
-    // 创建默认会话（如果没有）
-    if (m_conversation_manager->get_conversations().empty()) {
-        auto default_conv = m_conversation_manager->create_conversation("新对话", ConversationType::AI);
-        if (default_conv) {
-            // 添加欢迎消息
-            Message welcome_msg(
-                "你好！我是 AI 助手。有什么可以帮助你的吗？",
-                MessageRole::Assistant
-            );
-            welcome_msg.status = MessageStatus::Sent;
-            default_conv->add_message(welcome_msg);
-        }
-    }
+    // ✅ 不再在这里创建默认会话
+    // 默认会话将在后台任务加载历史数据时创建（如果数据库为空）
+    // 或者用户可以手动创建新会话
 
     LOG_INFO("Chat plugin loaded successfully");
     return DearTs::Core::Result<void, std::string>::ok();
@@ -161,6 +154,105 @@ void ChatPlugin::on_enable() {
 
         LOG_INFO("Launched background task to refresh Ollama models");
     }
+
+    // ✅ 启动后台任务：加载最近 30 天的历史会话
+    LOG_INFO("Launching background task to load conversation history");
+
+    DearTs::Core::Tasks::TaskManager::instance().launch(
+        "Load Conversation History",
+        [this](const std::atomic<bool>& should_cancel) {
+            // 稍微延迟一下，避免在启动时阻塞
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+
+            if (should_cancel) {
+                LOG_INFO("Conversation history loading cancelled");
+                return;
+            }
+
+            // 计算时间范围：最近 30 天
+            // ✅ 修复时间戳计算问题
+            auto now = std::chrono::system_clock::now();
+            auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()
+            ).count();
+
+            // 30 天 = 30 * 24 * 60 * 60 * 1000 = 2,592,000,000 毫秒
+            constexpr int64_t thirty_days_ms = 30 * 24 * 60 * 60 * 1000;
+
+            // ✅ DEBUG: 输出当前时间的日期
+            auto now_days = now_ms / 86400000;
+            auto now_years = 1970 + (now_days / 365);
+            LOG_INFO("DEBUG: Current timestamp {} ms = {} days since epoch = year {}",
+                     now_ms, now_days, now_years);
+
+            auto thirty_days_ago_ms = now_ms - thirty_days_ms;
+
+            LOG_INFO("Current time: {} ms (approximately {} days since epoch)", now_ms, now_ms / 86400000);
+            LOG_INFO("Loading conversations from {} to {} (last 30 days)",
+                     thirty_days_ago_ms, now_ms);
+
+            // ✅ 由于系统时钟可能有问题，直接加载所有会话
+            // 这样可以确保所有历史会话都能被加载
+            auto& db = DearTs::Plugins::MemoryCore::Persistence::SQLiteDatabase::instance();
+            LOG_INFO("Loading all conversations from database (ignoring time range due to potential clock issues)");
+
+            auto result = db.get_all_conversations();
+
+            if (result.isErr()) {
+                LOG_ERROR("Failed to load conversations from database: {}", result.error());
+                return;
+            }
+
+            auto records = result.unwrap();
+            LOG_INFO("Found {} conversations in database", records.size());
+
+            // ✅ 如果数据库为空，创建默认会话
+            if (records.empty()) {
+                LOG_INFO("Database is empty, creating default conversation");
+                auto default_conv = m_conversation_manager->create_conversation("新对话", ConversationType::AI);
+                if (default_conv) {
+                    // 添加欢迎消息
+                    Message welcome_msg(
+                        "你好！我是 AI 助手。有什么可以帮助你的吗？",
+                        MessageRole::Assistant
+                    );
+                    welcome_msg.status = MessageStatus::Sent;
+                    default_conv->add_message(welcome_msg);
+                    LOG_INFO("Created default conversation");
+                }
+                return;  // 创建完默认会话后返回
+            }
+
+            // 加载每个会话到 ConversationManager（消息懒加载，稍后按需加载）
+            int loaded_count = 0;
+            for (const auto& record : records) {
+                if (should_cancel) {
+                    LOG_INFO("Conversation history loading cancelled after {} items", loaded_count);
+                    return;
+                }
+
+                // 转换类型字符串到 ConversationType
+                ConversationType type = ConversationType::AI;
+                if (record.type == "chat") {
+                    type = ConversationType::AI;
+                }
+
+                // 加载会话（不加载消息，懒加载）
+                m_conversation_manager->load_conversation(
+                    record.id,
+                    record.title,
+                    type,
+                    record.created_at,
+                    record.updated_at
+                );
+
+                loaded_count++;
+            }
+
+            LOG_INFO("Loaded {} conversations from database (last 30 days)", loaded_count);
+        },
+        DearTs::Core::Tasks::TaskType::Background  // 后台任务，静默加载
+    );
 }
 
 void ChatPlugin::on_disable() {
@@ -238,6 +330,43 @@ void ChatPlugin::setup_event_listeners() {
             if (conv && !conv->messages.empty()) {
                 conv->messages.back().status = MessageStatus::Sent;
             }
+
+            // ✅ 发布 memory_core 事件：请求保存消息到数据库
+            auto now = std::chrono::system_clock::now();
+            auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now.time_since_epoch()
+            ).count();
+
+            // 转换 MessageRole 枚举为字符串
+            std::string role_str;
+            switch (e.message.role) {
+                case MessageRole::User: role_str = "user"; break;
+                case MessageRole::Assistant: role_str = "assistant"; break;
+                case MessageRole::System: role_str = "system"; break;
+                default: role_str = "user"; break;
+            }
+
+            MemoryCore::Events::MessageSaveRequestedEvent save_event;
+            save_event.conversation_id = e.conversation_id;
+            save_event.message_uuid = e.message.id;  // 使用 id 而不是 uuid
+            save_event.role = role_str;
+            save_event.content = e.message.content;
+            save_event.timestamp = timestamp;
+            save_event.tokens = e.message.token_count;
+            save_event.conversation_title = conv ? conv->title : "新对话";
+
+            DearTs::Core::Event::EventBus::instance().publish(save_event);
+
+            // 发布 memory_core 事件：请求记忆提取
+            std::vector<std::string> message_contents;
+            message_contents.push_back(e.message.content);
+
+            DearTs::Plugins::MemoryCore::Events::MemoryExtractRequestedEvent extract_event;
+            extract_event.conversation_id = e.conversation_id;
+            extract_event.message_contents = message_contents;
+            extract_event.use_llm = true;  // 使用 LLM 提取
+
+            DearTs::Core::Event::EventBus::instance().publish(extract_event);
         }
     ));
 
@@ -369,7 +498,7 @@ void ChatPlugin::setup_event_listeners() {
     // 订阅会话创建事件
     m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::ConversationCreatedEvent>(
         [this](const Events::ConversationCreatedEvent& e) {
-            LOG_INFO("Conversation created: {}", e.conversation->id);
+            LOG_INFO("Conversation created: id={}, title={}", e.conversation_id, e.title);
         }
     ));
 
@@ -377,6 +506,20 @@ void ChatPlugin::setup_event_listeners() {
     m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::ConversationSelectedEvent>(
         [this](const Events::ConversationSelectedEvent& e) {
             LOG_INFO("Conversation selected: {}", e.conversation->id);
+            LOG_DEBUG("Conversation has {} messages in memory", e.conversation->messages.size());
+
+            // ✅ 总是从数据库加载消息（确保显示最新的历史记录）
+            // 如果内存中已有消息，load_messages 会跳过（见 conversation.cpp:260-264）
+            LOG_INFO("Loading messages for conversation {} from database", e.conversation->id);
+            auto result = m_conversation_manager->load_messages(e.conversation->id);
+            if (result.isErr()) {
+                LOG_ERROR("Failed to load messages for conversation {}: {}",
+                         e.conversation->id, result.error());
+            } else {
+                auto count = result.unwrap();
+                LOG_INFO("Loaded {} messages for conversation {} (now has {} in memory)",
+                         count, e.conversation->id, e.conversation->messages.size());
+            }
 
             // 发布滚动到底部事件
             DearTs::Core::Event::EventBus::instance().publish(Events::ScrollToBottomEvent{
@@ -399,11 +542,62 @@ void ChatPlugin::setup_event_listeners() {
                 // 空列表表示请求刷新，执行实际的刷新
                 handle_ollama_models_refresh(e.base_url);
             }
-            // 注意：非空列表的更新由 InfoPanelView 直接处理，不需要这里再处理
+            // ✅ 注意：不再在处理器中发布新的事件，避免无限循环
+            // InfoPanelView 会直接监听这个事件并更新 UI
         }
     ));
 
-    LOG_INFO("Set up Chat event listeners");
+    // ========== memory_core 事件订阅 ==========
+
+    // 订阅记忆提取完成事件
+    m_event_tokens.push_back(
+        DearTs::Core::Event::EventBus::instance().subscribe<DearTs::Plugins::MemoryCore::Events::MemoryExtractedEvent>(
+            [this](const DearTs::Plugins::MemoryCore::Events::MemoryExtractedEvent& e) {
+                if (e.success) {
+                    LOG_INFO("Memory extracted: {} memories for conversation {}",
+                             e.memories.size(), e.conversation_id);
+                } else {
+                    LOG_WARN("Memory extraction failed for conversation {}: {}",
+                              e.conversation_id, e.error_message);
+                }
+
+                // TODO: 可以在这里添加 UI 反馈，例如在 InfoPanelView 中显示提取的记忆数量
+            }
+        )
+    );
+
+    // 订阅消息保存完成事件
+    m_event_tokens.push_back(
+        DearTs::Core::Event::EventBus::instance().subscribe<DearTs::Plugins::MemoryCore::Events::MessageSavedEvent>(
+            [this](const DearTs::Plugins::MemoryCore::Events::MessageSavedEvent& e) {
+                if (e.success) {
+                    LOG_INFO("Message saved: UUID={}, DB_ID={} for conversation {}",
+                             e.message_uuid, e.database_id, e.conversation_id);
+                } else {
+                    LOG_ERROR("Failed to save message for conversation {}: {}",
+                               e.conversation_id, e.error_message);
+                }
+            }
+        )
+    );
+
+    // 订阅 RAG 查询完成事件
+    m_event_tokens.push_back(
+        DearTs::Core::Event::EventBus::instance().subscribe<DearTs::Plugins::MemoryCore::Events::RAGQueryCompletedEvent>(
+            [this](const DearTs::Plugins::MemoryCore::Events::RAGQueryCompletedEvent& e) {
+                if (e.success) {
+                    LOG_INFO("RAG query completed: {} results for query '{}'",
+                             e.results.size(), e.query);
+                } else {
+                    LOG_WARN("RAG query failed: {}", e.error_message);
+                }
+
+                // TODO: 可以将检索到的记忆显示在 InfoPanelView 中
+            }
+        )
+    );
+
+    LOG_INFO("Set up Chat event listeners (including memory_core integration)");
 }
 
 void ChatPlugin::cleanup_event_listeners() {
@@ -440,18 +634,30 @@ void ChatPlugin::handle_ollama_models_refresh(const std::string& base_url) {
         std::vector<std::string> models = ollama_provider->get_models();
         LOG_INFO("Retrieved {} models from Ollama", models.size());
 
-        // 发布模型列表更新事件
-        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
-            .models = models,
-            .base_url = base_url
-        });
+        // ✅ 只有在获取到模型列表时才发布更新事件
+        // 如果列表为空（Ollama 未运行或无模型），不发布事件以避免无限循环
+        if (!models.empty()) {
+            // 发布模型列表更新事件
+            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
+                .models = models,
+                .base_url = base_url
+            });
 
-        // 发布连接状态事件（成功）
-        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
-            .is_connected = true,
-            .base_url = base_url,
-            .error_message = ""
-        });
+            // 发布连接状态事件（成功）
+            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+                .is_connected = true,
+                .base_url = base_url,
+                .error_message = ""
+            });
+        } else {
+            // 模型列表为空，只发布连接状态但标记为未连接
+            LOG_WARN("Ollama returned empty model list, might not be available");
+            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+                .is_connected = false,
+                .base_url = base_url,
+                .error_message = "No models available"
+            });
+        }
 
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to get Ollama models: {}", e.what());

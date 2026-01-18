@@ -90,6 +90,11 @@ private:
     void render_dock_space(float title_bar_height);
 
     /**
+     * @brief 设置默认停靠布局
+     */
+    void setup_default_dock_layout();
+
+    /**
      * @brief 清理资源
      */
     void cleanup();
@@ -115,6 +120,9 @@ private:
     bool m_is_dragging = false;
     ImVec2 m_drag_start_pos;
     ImVec2 m_window_start_pos;
+
+    // 停靠布局状态
+    bool m_dock_layout_initialized = false;
 };
 
 } // namespace ChatManager

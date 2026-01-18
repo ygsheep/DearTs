@@ -38,6 +38,7 @@ target_include_directories(ChatManager PRIVATE
     ${CMAKE_SOURCE_DIR}/main/chatmanager/include
     ${CMAKE_SOURCE_DIR}/plugins/chat/include
     ${CMAKE_SOURCE_DIR}/plugins/builtin/include
+    ${CMAKE_SOURCE_DIR}/plugins/memory_core/include
     ${CMAKE_SOURCE_DIR}/core
     ${CMAKE_SOURCE_DIR}/core/event
     ${CMAKE_SOURCE_DIR}/core/content
@@ -101,12 +102,23 @@ file(GLOB_RECURSE CHAT_PLUGIN_HEADERS
     ${CMAKE_SOURCE_DIR}/plugins/chat/include/*.h
 )
 
+# 收集 MemoryCore Plugin 源文件
+file(GLOB_RECURSE MEMORY_CORE_SOURCES
+    ${CMAKE_SOURCE_DIR}/plugins/memory_core/source/*.cpp
+)
+file(GLOB_RECURSE MEMORY_CORE_HEADERS
+    ${CMAKE_SOURCE_DIR}/plugins/memory_core/include/*.hpp
+    ${CMAKE_SOURCE_DIR}/plugins/memory_core/include/**/*.hpp
+)
+
 # 添加插件源文件
 target_sources(ChatManager PRIVATE
     ${BUILTIN_PLUGIN_SOURCES}
     ${BUILTIN_PLUGIN_HEADERS}
     ${CHAT_PLUGIN_SOURCES}
     ${CHAT_PLUGIN_HEADERS}
+    ${MEMORY_CORE_SOURCES}
+    ${MEMORY_CORE_HEADERS}
 )
 
 # ImGui SDL3 GPU Backend
@@ -134,6 +146,17 @@ target_link_libraries(ChatManager PRIVATE
 target_link_libraries(ChatManager PRIVATE
     nlohmann_json::nlohmann_json
 )
+
+# 查找 SQLite3 (可选)
+find_package(unofficial-sqlite3 CONFIG QUIET)
+if(unofficial-sqlite3_FOUND)
+    message(STATUS "SQLite3 found via vcpkg: unofficial-sqlite3")
+    target_link_libraries(ChatManager PRIVATE unofficial::sqlite3::sqlite3)
+    target_compile_definitions(ChatManager PRIVATE SQLITE3_FOUND)
+else()
+    message(WARNING "SQLite3 not found for ChatManager. MemoryCore persistence will be disabled.")
+    target_compile_definitions(ChatManager PRIVATE SQLITE3_NOT_FOUND)
+endif()
 
 # 链接系统库
 if(UNIX AND NOT APPLE)
