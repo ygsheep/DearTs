@@ -16,6 +16,12 @@
 #include <vector>
 #include <optional>
 #include <functional>
+#include <memory>
+
+// 前向声明
+namespace DearTs::Plugins::MemoryCore::RAG {
+    class IEmbeddingProvider;
+}
 
 namespace DearTs::Plugins::MemoryCore {
 
@@ -217,6 +223,21 @@ public:
      */
     DearTs::Core::Result<std::vector<std::pair<MemoryType, size_t>>, std::string> get_memory_count_by_type();
 
+    // ============ 嵌入向量操作 ============
+
+    /**
+     * @brief 设置嵌入向量提供者
+     * @param provider 嵌入向量提供者
+     */
+    void set_embedding_provider(std::unique_ptr<RAG::IEmbeddingProvider> provider);
+
+    /**
+     * @brief 为记忆生成并存储嵌入向量
+     * @param memory_id 记忆 ID
+     * @return 成功返回嵌入 ID，失败返回错误信息
+     */
+    DearTs::Core::Result<int64_t, std::string> generate_and_store_embedding(int64_t memory_id);
+
 private:
     /**
      * @brief 私有构造函数（单例模式）
@@ -237,6 +258,10 @@ private:
      * @brief 从数据库行构建 Memory 对象
      */
     DearTs::Core::Result<Memory, std::string> memory_from_db_row(void* stmt);
+
+    // ============ 成员变量 ============
+
+    std::unique_ptr<RAG::IEmbeddingProvider> m_embedding_provider;  ///< 嵌入向量提供者
 };
 
 } // namespace Memory

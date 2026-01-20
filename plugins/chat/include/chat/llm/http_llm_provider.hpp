@@ -69,7 +69,7 @@ public:
 
 private:
     /**
-     * @brief 发送 HTTP POST 请求
+     * @brief 发送 HTTP POST 请求（非流式）
      */
     [[nodiscard]] DearTs::Core::Result<std::string, std::string> send_http_request(
         const std::string& endpoint,
@@ -77,16 +77,29 @@ private:
     ) const;
 
     /**
-     * @brief 构建聊天完成请求的 JSON
+     * @brief 发送 SSE 流式请求
+     */
+    [[nodiscard]] DearTs::Core::Result<void, std::string> send_streaming_request(
+        const LLMRequest& request,
+        const std::function<void(const std::string&)>& on_chunk
+    ) const;
+
+    /**
+     * @brief 构建 chat completion 请求 JSON
      */
     [[nodiscard]] std::string build_chat_completion_request(const LLMRequest& request) const;
 
     /**
-     * @brief 解析聊天完成响应
+     * @brief 解析 chat completion 响应
      */
     [[nodiscard]] DearTs::Core::Result<LLMResponse, std::string> parse_chat_completion_response(
         const std::string& json_body
     ) const;
+
+    /**
+     * @brief 解析 SSE 事件数据
+     */
+    [[nodiscard]] static std::string parse_sse_data(const std::string& data);
 
     /**
      * @brief 测试连接

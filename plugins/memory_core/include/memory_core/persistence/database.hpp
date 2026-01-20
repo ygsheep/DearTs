@@ -287,6 +287,48 @@ public:
         const std::string& conversation_id
     );
 
+    // ============ 嵌入向量操作 ============
+
+    /**
+     * @brief 嵌入向量记录结构
+     */
+    struct EmbeddingRecord {
+        int64_t id;
+        std::string model;
+        int dimension;
+        std::string vector_data;      ///< JSON 序列化的向量数据
+        int64_t created_at;
+    };
+
+    /**
+     * @brief 存储嵌入向量到数据库
+     * @param model 模型名称
+     * @param vector_data 向量数据（JSON 格式）
+     * @param dimension 向量维度
+     * @param created_at 创建时间戳
+     * @return 成功返回嵌入 ID，失败返回错误信息
+     */
+    DearTs::Core::Result<int64_t, std::string> insert_embedding(
+        const std::string& model,
+        const std::string& vector_data,
+        int dimension,
+        int64_t created_at
+    );
+
+    /**
+     * @brief 获取嵌入向量
+     * @param embedding_id 嵌入 ID
+     * @return 嵌入记录或错误信息
+     */
+    DearTs::Core::Result<EmbeddingRecord, std::string> get_embedding(int64_t embedding_id);
+
+    /**
+     * @brief 删除嵌入向量
+     * @param embedding_id 嵌入 ID
+     * @return 成功或错误信息
+     */
+    DearTs::Core::Result<void, std::string> delete_embedding(int64_t embedding_id);
+
     // ============ 会话操作（TODO: 阶段 1 实现） ============
 
     // ============ 记忆操作（TODO: 阶段 3 实现） ============

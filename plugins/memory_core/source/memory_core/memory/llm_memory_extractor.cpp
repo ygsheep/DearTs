@@ -49,30 +49,48 @@ public:
         int max_tokens = 500
     ) {
         try {
+            // 使用 /api/chat 端点（与主聊天一致）
             json j;
             j["model"] = model;
-            j["prompt"] = prompt;
             j["stream"] = false;
+            j["messages"] = {
+                {
+                    {"role", "user"},
+                    {"content", prompt}
+                }
+            };
             j["options"] = {
                 {"temperature", temperature},
                 {"num_predict", max_tokens}
             };
 
             std::string request_body = j.dump();
-            auto response = send_http_request("/api/generate", request_body);
+
+            LOG_DEBUG("OllamaLLMClient: Sending request to /api/chat, model={}, prompt_len={}",
+                     model, prompt.length());
+
+            auto response = send_http_request("/api/chat", request_body);
 
             if (!response.isOk()) {
+                LOG_ERROR("OllamaLLMClient: Request failed: {}", response.error());
                 return response;
             }
 
-            // 解析响应
-            json resp = json::parse(response.unwrap());
-            if (resp.contains("response")) {
+            std::string response_body = response.unwrap();
+
+            LOG_DEBUG("OllamaLLMClient: Received response, body_len={}", response_body.length());
+
+            // 解析响应（/api/chat 格式）
+            json resp = json::parse(response_body);
+            if (resp.contains("message") && resp["message"].contains("content")) {
                 return DearTs::Core::Result<std::string, std::string>::ok(
-                    resp["response"].get<std::string>()
+                    resp["message"]["content"].get<std::string>()
                 );
             }
 
+            // 响应格式不对，记录完整响应用于调试
+            LOG_ERROR("OllamaLLMClient: Response missing 'message.content' field. Full response: {}",
+                     response_body);
             return DearTs::Core::Result<std::string, std::string>::err("No response in output");
 
         } catch (const std::exception& e) {
@@ -202,6 +220,18 @@ private:
             return DearTs::Core::Result<std::string, std::string>::err("Failed to receive response");
         }
 
+        // 检查 HTTP 状态码
+        DWORD status_code = 0;
+        DWORD status_size = sizeof(status_code);
+        WinHttpQueryHeaders(
+            hRequest,
+            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            WINHTTP_HEADER_NAME_BY_INDEX,
+            &status_code,
+            &status_size,
+            WINHTTP_NO_HEADER_INDEX
+        );
+
         std::string response_data;
         DWORD bytes_available = 0;
 
@@ -218,6 +248,18 @@ private:
         WinHttpCloseHandle(hRequest);
         WinHttpCloseHandle(hConnect);
         WinHttpCloseHandle(hSession);
+
+        // 检查 HTTP 状态码
+        if (status_code != 200) {
+            LOG_ERROR("OllamaLLMClient: HTTP {} error for endpoint '{}', response: {}",
+                     status_code, endpoint, response_data.empty() ? "(empty)" : response_data);
+            return DearTs::Core::Result<std::string, std::string>::err(
+                std::format("HTTP {}", status_code)
+            );
+        }
+
+        LOG_DEBUG("OllamaLLMClient: Received {} bytes from endpoint '{}'",
+                  response_data.length(), endpoint);
 
         return DearTs::Core::Result<std::string, std::string>::ok(response_data);
 #else

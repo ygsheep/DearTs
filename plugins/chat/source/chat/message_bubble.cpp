@@ -203,10 +203,9 @@ void MessageBubble::draw_ai_message(Message& message, const MessageBubbleStyle& 
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0);
     ImGui::PushStyleColor(ImGuiCol_ChildBg, style.ai_bg_color);
 
-    // 子窗口 ID（使用消息内容的哈希值来确保唯一性）
-    const size_t content_hash = std::hash<std::string>{}(message.content);
-    const auto time_hash = std::hash<decltype(message.timestamp.time_since_epoch().count())>{}(message.timestamp.time_since_epoch().count());
-    const std::string render_name = "##ai_msg_render_" + std::to_string(content_hash) + "_" + std::to_string(time_hash);
+    // 子窗口 ID（使用消息 ID 来确保唯一性和稳定性）
+    // 注意：不能使用 content 的哈希，因为流式输出时 content 会不断变化，导致创建多个窗口
+    const std::string render_name = "##ai_msg_" + message.id;
 
     // 使用测量到的高度和自适应宽度
     ImGui::BeginChild(render_name.c_str(), ImVec2(actual_width, measured_content_height), false,

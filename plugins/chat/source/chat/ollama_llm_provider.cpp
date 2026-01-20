@@ -4,6 +4,8 @@
  */
 
 #include "chat/llm/ollama_llm_provider.hpp"
+#include "core/network/http_client.hpp"
+#include "core/network/http_types.hpp"
 #include "liblogger/logger.h"
 #include <nlohmann/json.hpp>
 #include <format>
@@ -11,90 +13,60 @@
 #include <future>
 #include <thread>
 
-#ifdef _WIN32
-    #include <windows.h>
-    #include <winhttp.h>
-    #pragma comment(lib, "winhttp.lib")
-#else
-    #include <curl/curl.h>
-#endif
-
 namespace DearTs::Plugins::Chat::LLM {
 
 using json = nlohmann::json;
 
-#ifdef _WIN32
-static std::string win32_error_to_string(DWORD error_code) {
-    if (error_code == ERROR_WINHTTP_TIMEOUT) {
-        return "The operation timed out";
-    }
-    if (error_code == ERROR_WINHTTP_CANNOT_CONNECT) {
-        return "Cannot connect";
-    }
-    if (error_code == ERROR_WINHTTP_CONNECTION_ERROR) {
-        return "Connection error";
-    }
-    if (error_code == ERROR_WINHTTP_NAME_NOT_RESOLVED) {
-        return "Name not resolved";
-    }
-    if (error_code == ERROR_WINHTTP_SECURE_FAILURE) {
-        return "Secure failure";
-    }
+// ========== 辅助函数 ==========
 
-    LPSTR buffer = nullptr;
-    DWORD len = 0;
+/**
+ * @brief 检测模型是否支持聊天格式
+ * @return 如果模型名称包含 "chat"、"llama"、"qwen"、"mistral" 等关键词，返回 true
+ */
+static bool model_supports_chat(const std::string& model) {
+    std::string lower_model = model;
+    std::transform(lower_model.begin(), lower_model.end(), lower_model.begin(), ::tolower);
 
-    static HMODULE winhttp_module = []() -> HMODULE {
-        HMODULE existing = GetModuleHandleW(L"winhttp.dll");
-        if (existing) {
-            return existing;
+    // 这些关键词通常表示支持聊天格式的模型
+    std::vector<std::string> chat_keywords = {
+        "chat", "llama", "qwen", "mistral", "gemma", "phi",
+        "instruct", "turbo", "gpt"
+    };
+
+    for (const auto& keyword : chat_keywords) {
+        if (lower_model.find(keyword) != std::string::npos) {
+            return true;
         }
-        return LoadLibraryW(L"winhttp.dll");
-    }();
-
-    if (winhttp_module) {
-        const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_HMODULE | FORMAT_MESSAGE_IGNORE_INSERTS;
-        len = FormatMessageA(
-            flags,
-            winhttp_module,
-            error_code,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPSTR)&buffer,
-            0,
-            nullptr
-        );
     }
 
-    if (len == 0) {
-        const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS;
-        len = FormatMessageA(
-            flags,
-            nullptr,
-            error_code,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPSTR)&buffer,
-            0,
-            nullptr
-        );
-    }
+    // 代码专用模型通常不支持聊天格式
+    std::vector<std::string> code_keywords = {
+        "coder", "code"
+    };
 
-    std::string message;
-    if (len > 0 && buffer) {
-        message.assign(buffer, buffer + len);
-        while (!message.empty() && (message.back() == '\r' || message.back() == '\n' || message.back() == ' ' || message.back() == '\t')) {
-            message.pop_back();
+    for (const auto& keyword : code_keywords) {
+        if (lower_model.find(keyword) != std::string::npos) {
+            return false;
         }
-    } else {
-        message = "Unknown error";
     }
 
-    if (buffer) {
-        LocalFree(buffer);
-    }
-
-    return message;
+    // 默认支持聊天格式
+    return true;
 }
-#endif
+
+/**
+ * @brief 判断应该使用哪个 API 端点
+ * @return "/api/chat" 或 "/api/generate"
+ */
+static std::string get_api_endpoint(const std::string& model) {
+    if (model_supports_chat(model)) {
+        return "/api/chat";
+    } else {
+        return "/api/generate";
+    }
+}
+
+// ========== OllamaLLMProvider 实现 ==========
 
 OllamaLLMProvider::OllamaLLMProvider(
     const std::string& base_url,
@@ -187,9 +159,14 @@ DearTs::Core::Result<LLMResponse, std::string> OllamaLLMProvider::send(
             return DearTs::Core::Result<LLMResponse, std::string>::ok(response);
         }
 
-        // 非流式请求
-        const std::string request_body = build_chat_request(request);
-        auto response_body = send_http_request("/api/chat", request_body);
+        // 非流式请求 - 根据模型类型选择端点
+        const std::string endpoint = get_api_endpoint(m_current_model);
+        const std::string request_body = (endpoint == "/api/chat")
+            ? build_chat_request(request)
+            : build_generate_request(request);
+
+        LOG_INFO("Ollama: Using {} endpoint for model: {}", endpoint, m_current_model);
+        auto response_body = send_http_request(endpoint, request_body);
 
         if (!response_body.isOk()) {
             return DearTs::Core::Result<LLMResponse, std::string>::err(response_body.error());
@@ -287,6 +264,42 @@ std::string OllamaLLMProvider::build_chat_request(const LLMRequest& request) con
     return j.dump();
 }
 
+/**
+ * @brief 构建用于 /api/generate 端点的请求（用于代码模型）
+ * @note /api/generate 使用 "prompt" 字段而不是 "messages" 数组
+ */
+std::string OllamaLLMProvider::build_generate_request(const LLMRequest& request) const {
+    json j;
+    j["model"] = m_current_model;
+    j["stream"] = request.stream;
+
+    // 构建提示词（合并系统提示和上下文）
+    std::string full_prompt;
+
+    if (!request.system_prompt.empty()) {
+        full_prompt += "System: " + request.system_prompt + "\n\n";
+    }
+
+    // 添加上下文消息
+    for (const auto& msg : request.context) {
+        full_prompt += msg + "\n";
+    }
+
+    // 添加当前提示
+    full_prompt += request.prompt;
+
+    j["prompt"] = full_prompt;
+
+    // Ollama options
+    j["options"] = {
+        {"temperature", request.temperature},
+        {"num_predict", request.max_tokens},
+        {"top_p", request.top_p}
+    };
+
+    return j.dump();
+}
+
 DearTs::Core::Result<LLMResponse, std::string> OllamaLLMProvider::parse_response(
     const std::string& ndjson_body
 ) const {
@@ -351,25 +364,58 @@ DearTs::Core::Result<void, std::string> OllamaLLMProvider::send_streaming_reques
     const std::function<void(const std::string&)>& on_chunk
 ) const {
     try {
-        LOG_INFO("Ollama: Starting streaming request to {}", m_base_url);
-        const std::string request_body = build_chat_request(request);
+        LOG_INFO("Ollama: Starting streaming request to {}, model={}", m_base_url, m_current_model);
+
+        // 根据模型类型选择端点和请求格式
+        const std::string endpoint = get_api_endpoint(m_current_model);
+        const std::string request_body = (endpoint == "/api/chat")
+            ? build_chat_request(request)
+            : build_generate_request(request);
+
+        LOG_INFO("Ollama: Using {} endpoint for streaming", endpoint);
         LOG_DEBUG("Ollama: Request body: {}", request_body);
+
+        // 跟踪之前发送的内容，用于计算增量
+        std::string previous_sent_content;
 
         // 使用流式回调发送 HTTP 请求
         auto result = send_http_request(
-            "/api/chat",
+            endpoint,
             request_body,
             [&](const std::string& chunk) {
                 // 按行分割 NDJSON
                 std::istringstream stream(chunk);
                 std::string line;
+                std::string last_content;  // 只保留最后一条（累积内容）
 
                 while (std::getline(stream, line)) {
                     if (!line.empty()) {
                         std::string content = parse_ndjson_line(line);
-                        if (!content.empty() && on_chunk) {
-                            on_chunk(content);
+                        if (!content.empty()) {
+                            // 只保留最后一条（同一 chunk 中的多条是累积关系）
+                            last_content = content;
                         }
+                    }
+                }
+
+                // 只使用最后一条 NDJSON 的内容，并发送增量部分
+                if (!last_content.empty() && on_chunk) {
+                    if (last_content.length() > previous_sent_content.length() &&
+                        last_content.substr(0, previous_sent_content.length()) == previous_sent_content) {
+                        // 内容是累积的，只发送新增部分
+                        std::string delta = last_content.substr(previous_sent_content.length());
+                        if (!delta.empty()) {
+                            on_chunk(delta);
+                            previous_sent_content = last_content;
+                        }
+                    } else if (previous_sent_content.empty()) {
+                        // 第一次发送，发送完整内容
+                        on_chunk(last_content);
+                        previous_sent_content = last_content;
+                    } else {
+                        // 内容不是累积的（可能是重新生成），发送完整内容
+                        on_chunk(last_content);
+                        previous_sent_content = last_content;
                     }
                 }
             }
@@ -396,301 +442,75 @@ DearTs::Core::Result<std::string, std::string> OllamaLLMProvider::send_http_requ
     const std::string& json_body,
     const std::function<void(const std::string&)>& on_stream_chunk
 ) const {
-#ifdef _WIN32
-    // Windows 使用 WinHTTP
-    HINTERNET hSession = nullptr;
-    HINTERNET hConnect = nullptr;
-    HINTERNET hRequest = nullptr;
+    using namespace DearTs::Core::Network;
 
-    // 手动解析 URL (简化版)
-    std::string host_name = "localhost";
-    int port = 11434;
-    bool use_https = false;
+    // 配置 HTTP 客户端
+    HttpClientConfig config;
+    config.connect_timeout = std::chrono::seconds(10);
+    config.request_timeout = std::chrono::seconds(30);
 
-    // 解析 base_url
-    if (m_base_url.find("https://") == 0) {
-        use_https = true;
-        size_t host_start = 8;  // 跳过 "https://"
-        size_t colon_pos = m_base_url.find(':', host_start);
-        if (colon_pos != std::string::npos) {
-            host_name = m_base_url.substr(host_start, colon_pos - host_start);
-            size_t port_end = m_base_url.find('/', colon_pos);
-            if (port_end == std::string::npos) port_end = m_base_url.length();
-            port = std::stoi(m_base_url.substr(colon_pos + 1, port_end - colon_pos - 1));
-        } else {
-            size_t slash_pos = m_base_url.find('/', host_start);
-            if (slash_pos == std::string::npos) slash_pos = m_base_url.length();
-            host_name = m_base_url.substr(host_start, slash_pos - host_start);
-        }
-    } else if (m_base_url.find("http://") == 0) {
-        use_https = false;
-        size_t host_start = 7;  // 跳过 "http://"
-        size_t colon_pos = m_base_url.find(':', host_start);
-        if (colon_pos != std::string::npos) {
-            host_name = m_base_url.substr(host_start, colon_pos - host_start);
-            size_t port_end = m_base_url.find('/', colon_pos);
-            if (port_end == std::string::npos) port_end = m_base_url.length();
-            port = std::stoi(m_base_url.substr(colon_pos + 1, port_end - colon_pos - 1));
-        } else {
-            size_t slash_pos = m_base_url.find('/', host_start);
-            if (slash_pos == std::string::npos) slash_pos = m_base_url.length();
-            host_name = m_base_url.substr(host_start, slash_pos - host_start);
-        }
+    // 创建 HTTP 客户端
+    BoostAsioHttpClient client(m_base_url, config);
+
+    // 构建请求
+    HttpRequest request;
+    request.method = json_body.empty() ? "GET" : "POST";
+    request.endpoint = endpoint;
+    request.headers["Content-Type"] = "application/json";
+    request.body = json_body;
+    request.on_chunk = on_stream_chunk;
+
+    // 详细调试日志：显示完整请求
+    LOG_DEBUG("Ollama: Sending HTTP {} request to {}{}",
+              request.method, m_base_url, endpoint);
+    LOG_DEBUG("Ollama: Request body: {}", json_body);
+
+    // 发送请求
+    auto response_result = client.request(request);
+
+    if (response_result.isErr()) {
+        return DearTs::Core::Result<std::string, std::string>::err(response_result.error());
     }
 
-    LOG_INFO("Ollama: Connecting to {}:{} (use_https={})", host_name, port, use_https);
+    auto response = response_result.unwrap();
 
-    // 转换为宽字符串
-    std::wstring host_name_w(host_name.begin(), host_name.end());
-    std::wstring endpoint_w(endpoint.begin(), endpoint.end());
+    // 检查 HTTP 状态码
+    if (response.status_code != 200) {
+        std::string error_detail;
 
-    // 打开会话
-    const bool is_local_host = (host_name == "localhost" || host_name == "127.0.0.1" || host_name == "::1");
-    const DWORD access_type = is_local_host ? WINHTTP_ACCESS_TYPE_NO_PROXY : WINHTTP_ACCESS_TYPE_DEFAULT_PROXY;
-    hSession = WinHttpOpen(
-        L"ChatManager/1.0",
-        access_type,
-        WINHTTP_NO_PROXY_NAME,
-        WINHTTP_NO_PROXY_BYPASS,
-        0
-    );
-
-    if (!hSession) {
-        const DWORD err = GetLastError();
-        LOG_ERROR("Ollama: WinHttpOpen failed ({}: {})", err, win32_error_to_string(err));
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to open WinHTTP session");
-    }
-
-    WinHttpSetTimeouts(hSession, 10000, 10000, 30000, 30000);
-
-    // 连接服务器
-    hConnect = WinHttpConnect(
-        hSession,
-        host_name_w.c_str(),
-        static_cast<INTERNET_PORT>(port),
-        0
-    );
-
-    if (!hConnect) {
-        const DWORD err = GetLastError();
-        LOG_ERROR("Ollama: WinHttpConnect failed to {}:{} ({}: {})", host_name, port, err, win32_error_to_string(err));
-        WinHttpCloseHandle(hSession);
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to connect to Ollama server");
-    }
-
-    LOG_INFO("Ollama: Connected successfully");
-
-    // 创建请求
-    const bool use_get = (endpoint == "/api/tags" && json_body.empty() && !on_stream_chunk);
-    hRequest = WinHttpOpenRequest(
-        hConnect,
-        use_get ? L"GET" : L"POST",
-        endpoint_w.c_str(),
-        nullptr,
-        WINHTTP_NO_REFERER,
-        WINHTTP_DEFAULT_ACCEPT_TYPES,
-        use_https ? WINHTTP_FLAG_SECURE : 0
-    );
-
-    if (!hRequest) {
-        const DWORD err = GetLastError();
-        LOG_ERROR("Ollama: WinHttpOpenRequest failed ({}: {})", err, win32_error_to_string(err));
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to open request");
-    }
-
-    // 添加请求头
-    std::wstring headers = L"Content-Type: application/json\r\n";
-    WinHttpAddRequestHeaders(
-        hRequest,
-        headers.c_str(),
-        static_cast<DWORD>(-1),
-        WINHTTP_ADDREQ_FLAG_ADD
-    );
-
-    LOG_DEBUG("Ollama: Sending request body: {}", json_body.substr(0, std::min(size_t(200), json_body.length())));
-
-    if (use_get) {
-        if (!WinHttpSendRequest(
-            hRequest,
-            WINHTTP_NO_ADDITIONAL_HEADERS,
-            0,
-            WINHTTP_NO_REQUEST_DATA,
-            0,
-            0,
-            0
-        )) {
-            const DWORD err = GetLastError();
-            LOG_ERROR("Ollama: WinHttpSendRequest failed ({}: {})", err, win32_error_to_string(err));
-            WinHttpCloseHandle(hRequest);
-            WinHttpCloseHandle(hConnect);
-            WinHttpCloseHandle(hSession);
-            return DearTs::Core::Result<std::string, std::string>::err(
-                std::format("Failed to send request to Ollama (WinHTTP {}: {})", err, win32_error_to_string(err))
-            );
-        }
-    } else {
-        if (!WinHttpSendRequest(
-            hRequest,
-            WINHTTP_NO_ADDITIONAL_HEADERS,
-            0,
-            (LPVOID)json_body.data(),
-            static_cast<DWORD>(json_body.length()),
-            static_cast<DWORD>(json_body.length()),
-            0
-        )) {
-            const DWORD err = GetLastError();
-            LOG_ERROR("Ollama: WinHttpSendRequest failed ({}: {})", err, win32_error_to_string(err));
-            WinHttpCloseHandle(hRequest);
-            WinHttpCloseHandle(hConnect);
-            WinHttpCloseHandle(hSession);
-            return DearTs::Core::Result<std::string, std::string>::err(
-                std::format("Failed to send request to Ollama (WinHTTP {}: {})", err, win32_error_to_string(err))
-            );
-        }
-    }
-
-    LOG_INFO("Ollama: Request sent, waiting for response...");
-
-    // 接收响应
-    if (!WinHttpReceiveResponse(hRequest, nullptr)) {
-        const DWORD err = GetLastError();
-        LOG_ERROR("Ollama: WinHttpReceiveResponse failed ({}: {})", err, win32_error_to_string(err));
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        return DearTs::Core::Result<std::string, std::string>::err(
-            std::format("Failed to receive response from Ollama (WinHTTP {}: {})", err, win32_error_to_string(err))
-        );
-    }
-
-    LOG_INFO("Ollama: Response received, reading data...");
-
-    // 读取响应数据
-    std::string response_data;
-    DWORD bytes_available = 0;
-
-    if (on_stream_chunk) {
-        // 流式读取
-        std::vector<char> buffer(4096);
-        DWORD bytes_read = 0;
-        size_t total_read = 0;
-
-        while (WinHttpReadData(hRequest, buffer.data(), static_cast<DWORD>(buffer.size()), &bytes_read) && bytes_read > 0) {
-            total_read += bytes_read;
-            LOG_DEBUG("Ollama: Read {} bytes (total: {})", bytes_read, total_read);
-            std::string chunk(buffer.data(), bytes_read);
-            on_stream_chunk(chunk);
-        }
-
-        LOG_INFO("Ollama: Streaming complete, total bytes read: {}", total_read);
-
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-
-        return DearTs::Core::Result<std::string, std::string>::ok("");  // 流式模式不需要返回完整响应
-
-    } else {
-        // 非流式：读取全部响应
-        while (WinHttpQueryDataAvailable(hRequest, &bytes_available) && bytes_available > 0) {
-            std::vector<char> buffer(bytes_available + 1);
-            DWORD bytes_read = 0;
-
-            if (WinHttpReadData(hRequest, buffer.data(), bytes_available, &bytes_read)) {
-                buffer[bytes_read] = '\0';
-                response_data += buffer.data();
+        // 尝试从响应体中提取错误信息
+        if (!response.body.empty()) {
+            try {
+                json j = json::parse(response.body);
+                if (j.contains("error")) {
+                    error_detail = j["error"].get<std::string>();
+                } else {
+                    error_detail = response.body;
+                }
+            } catch (...) {
+                error_detail = response.body;
             }
         }
 
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
+        std::string error_msg = response.error_message.empty()
+            ? std::format("HTTP {}", response.status_code)
+            : std::format("HTTP {}: {}", response.status_code, response.error_message);
 
-        return DearTs::Core::Result<std::string, std::string>::ok(response_data);
-    }
-
-#else
-    // Linux/macOS 使用 libcurl
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to initialize curl");
-    }
-
-    const std::string full_url = m_base_url + endpoint;
-
-    curl_easy_setopt(curl, CURLOPT_URL, full_url.c_str());
-    const bool use_get = (endpoint == "/api/tags" && json_body.empty() && !on_stream_chunk);
-    if (use_get) {
-        curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
-    } else {
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
-    }
-
-    // 设置请求头
-    struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-    // 设置响应回调
-    std::string response_data;
-
-    if (on_stream_chunk) {
-        // 流式模式
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +[](void* contents, size_t size, size_t nmemb, void* userp) {
-            size_t total = size * nmemb;
-            std::string chunk((char*)contents, total);
-
-            if (auto* callback = (std::function<void(const std::string&)>*)userp) {
-                (*callback)(chunk);
-            }
-
-            return total;
-        });
-
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &on_stream_chunk);
-
-        // 执行请求
-        const CURLcode res = curl_easy_perform(curl);
-
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-
-        if (res != CURLE_OK) {
-            return DearTs::Core::Result<std::string, std::string>::err(
-                std::format("Curl request failed: {}", curl_easy_strerror(res))
-            );
+        if (!error_detail.empty()) {
+            error_msg += std::format(" - {}", error_detail);
         }
 
-        return DearTs::Core::Result<std::string, std::string>::ok("");
-
-    } else {
-        // 非流式模式
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +[](void* contents, size_t size, size_t nmemb, std::string* s) {
-            const size_t new_length = size * nmemb;
-            s->append((char*)contents, new_length);
-            return new_length;
-        });
-
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
-
-        // 执行请求
-        const CURLcode res = curl_easy_perform(curl);
-
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-
-        if (res != CURLE_OK) {
-            return DearTs::Core::Result<std::string, std::string>::err(
-                std::format("Curl request failed: {}", curl_easy_strerror(res))
-            );
+        // 对于 404 错误，始终记录完整响应体以帮助调试
+        if (response.status_code == 404) {
+            LOG_ERROR("Ollama: HTTP 404 Not Found");
+            LOG_ERROR("Ollama: Full response body: {}", response.body.empty() ? "(empty)" : response.body);
+        } else {
+            LOG_ERROR("Ollama: HTTP request failed: {}", error_msg);
         }
-
-        return DearTs::Core::Result<std::string, std::string>::ok(response_data);
+        return DearTs::Core::Result<std::string, std::string>::err(error_msg);
     }
-#endif
+
+    return DearTs::Core::Result<std::string, std::string>::ok(response.body);
 }
 
 bool OllamaLLMProvider::test_connection() const {

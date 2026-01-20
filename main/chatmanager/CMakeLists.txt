@@ -48,6 +48,7 @@ target_include_directories(ChatManager PRIVATE
     ${CMAKE_SOURCE_DIR}/core/tasks
     ${CMAKE_SOURCE_DIR}/core/utils
     ${CMAKE_SOURCE_DIR}/core/app
+    ${CMAKE_SOURCE_DIR}/core/network
     ${CMAKE_SOURCE_DIR}/lib/liblogger
     ${CMAKE_SOURCE_DIR}/third_party/SDL/include
     ${CMAKE_SOURCE_DIR}/third_party/imgui
@@ -82,6 +83,9 @@ target_sources(ChatManager PRIVATE
     ${CMAKE_SOURCE_DIR}/core/ui/title_bar.cpp
     # Task Manager
     ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
+    # Network (HTTP Client)
+    ${CMAKE_SOURCE_DIR}/core/network/http_client.cpp
+    ${CMAKE_SOURCE_DIR}/core/network/sse_parser.cpp
 )
 
 # 收集 Builtin Plugin 源文件
@@ -168,9 +172,9 @@ endif()
 
 # Windows 特定设置
 if(WIN32)
-    # 链接 Windows 库
+    # 链接 Windows 库和 Boost.Asio
     target_link_libraries(ChatManager PRIVATE
-        winhttp
+        boost_asio      # 使用 Boost.Asio 替代 WinHTTP
         setupapi
     )
     target_compile_definitions(ChatManager PRIVATE

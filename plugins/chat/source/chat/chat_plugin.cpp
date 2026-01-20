@@ -41,9 +41,25 @@ DearTs::Core::Result<void, std::string> ChatPlugin::on_load() {
     m_conversation_manager = std::make_shared<ConversationManager>();
 
     // 设置默认 LLM 提供商（Ollama）
+    // 从配置读取模型名称，而不是硬编码
+    auto& config_manager = DearTs::Core::Config::ConfigManager::instance();
+    DearTs::Core::Config::ConfigScope config("chat");
+
+    // 读取模型配置，如果不存在则使用默认值
+    std::string model = config.get_or<std::string>("llm.model", "llama3.2");
+    std::string base_url = config.get_or<std::string>("llm.custom_base_url", "");
+    std::string ollama_base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+
+    // 如果 custom_base_url 为空，使用向后兼容的 ollama_base_url
+    if (base_url.empty()) {
+        base_url = ollama_base_url;
+    }
+
+    LOG_INFO("Creating Ollama provider with model: {} (from config)", model);
+
     auto ollama_provider = LLM::LLMProviderFactory::create_ollama_provider(
-        "http://localhost:11434",  // Ollama 默认地址
-        "llama3.2"                  // 默认模型
+        base_url,
+        model
     );
     LLM::LLMManager::instance().set_provider(std::move(ollama_provider));
 
@@ -425,17 +441,18 @@ void ChatPlugin::setup_event_listeners() {
             }
 
             // 流式输出回调
+            // Ollama 在单个 HTTP chunk 内的多个 NDJSON 行是累积的，
+            // 但跨 chunk 时内容是增量的，需要追加
             request.on_chunk = [this, conversation_id = e.conversation_id](const std::string& chunk) {
                 auto conv_ptr = m_conversation_manager->find_by_id(conversation_id);
                 if (conv_ptr && !conv_ptr->messages.empty()) {
                     // 获取最后一条消息（AI 消息）
                     auto& msg = conv_ptr->messages.back();
                     if (msg.is_assistant()) {
-                        // 追加内容
+                        // 追加新内容（ollama_llm_provider 已处理 chunk 内的累积问题）
                         msg.content += chunk;
                         msg.displayed_chars = msg.content.length();
                         msg.is_streaming = true;
-                        // 不需要发布事件，UI 会自动检测 is_streaming 状态
                     }
                 }
             };
@@ -593,6 +610,38 @@ void ChatPlugin::setup_event_listeners() {
                 }
 
                 // TODO: 可以将检索到的记忆显示在 InfoPanelView 中
+            }
+        )
+    );
+
+    // 订阅 LLM 模型切换事件
+    m_event_tokens.push_back(
+        DearTs::Core::Event::EventBus::instance().subscribe<Events::LLMModelChangedEvent>(
+            [this](const Events::LLMModelChangedEvent& e) {
+                LOG_INFO("LLM model changed from {} to {}", e.old_model, e.new_model);
+
+                // 从 ConfigManager 读取当前供应商配置
+                auto& config_manager = DearTs::Core::Config::ConfigManager::instance();
+                DearTs::Core::Config::ConfigScope config("chat");
+
+                std::string provider_id = config.get_or<std::string>("llm.provider", "ollama");
+                std::string base_url = config.get_or<std::string>("llm.custom_base_url", "");
+                std::string ollama_base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+
+                // 如果 custom_base_url 为空，使用向后兼容的 ollama_base_url
+                if (base_url.empty() && provider_id == "ollama") {
+                    base_url = ollama_base_url;
+                }
+
+                // 如果是 Ollama 提供商，重新创建 Provider 以更新模型
+                if (provider_id == "ollama") {
+                    auto new_provider = LLM::LLMProviderFactory::create_ollama_provider(
+                        base_url,
+                        e.new_model  // 使用新模型
+                    );
+                    LLM::LLMManager::instance().set_provider(std::move(new_provider));
+                    LOG_INFO("Ollama provider updated with model: {}", e.new_model);
+                }
             }
         )
     );

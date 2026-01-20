@@ -5,14 +5,16 @@
 
 #include "memory_core/memory/memory_manager.hpp"
 #include "memory_core/persistence/database.hpp"
+#include "memory_core/rag/embedding_provider.hpp"
 #include "liblogger/logger.h"
 #include <sstream>
 #include <algorithm>
+#include <format>
 
-// SQLite3 前向声明（避免硬依赖）
-struct sqlite3;
-struct sqlite3_stmt;
-struct sqlite3_value;
+// SQLite3 头文件 - 条件编译
+#ifdef SQLITE3_FOUND
+    #include <sqlite3.h>
+#endif
 
 namespace DearTs::Plugins::MemoryCore::Memory {
 
@@ -33,23 +35,72 @@ DearTs::Core::Result<int64_t, std::string> MemoryManager::add_memory(const Memor
         return DearTs::Core::Result<int64_t, std::string>::err("Database not initialized");
     }
 
-    // 构建 SQL
-    std::string sql = build_insert_sql(memory);
-
-    // 使用事务包装器执行（transaction 现在直接返回 Result<int64_t, std::string>）
-    auto result = db.transaction([&](Persistence::SQLiteDatabase&) -> DearTs::Core::Result<int64_t, std::string> {
-        // TODO: 实现 SQL 执行并返回新 ID
-        // 当前占位符实现
-        return DearTs::Core::Result<int64_t, std::string>::ok(1);
-    });
-
-    if (result.isErr()) {
-        LOG_ERROR("Failed to add memory: {}", result.error());
-        return result;
+    // 获取原始数据库指针
+    sqlite3* sqlite_db = db.get_db();
+    if (!sqlite_db) {
+        return DearTs::Core::Result<int64_t, std::string>::err("Invalid database handle");
     }
 
-    int64_t memory_id = result.unwrap();
+    // 构建 INSERT SQL
+    const char* sql = R"(
+        INSERT INTO memories (type, content, source_conversation_id, source_message_id,
+                           importance, created_at, accessed_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(sqlite_db, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        return DearTs::Core::Result<int64_t, std::string>::err(
+            std::format("Failed to prepare statement: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    // 绑定参数
+    std::string type_str = Memory::type_to_string(memory.type);
+    sqlite3_bind_text(stmt, 1, type_str.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, memory.content.c_str(), -1, SQLITE_TRANSIENT);
+
+    // 可选参数：source_conversation_id
+    if (memory.source_conversation_id.has_value()) {
+        sqlite3_bind_text(stmt, 3, memory.source_conversation_id.value().c_str(), -1, SQLITE_TRANSIENT);
+    } else {
+        sqlite3_bind_null(stmt, 3);
+    }
+
+    // 可选参数：source_message_id
+    if (memory.source_message_id.has_value()) {
+        sqlite3_bind_int64(stmt, 4, memory.source_message_id.value());
+    } else {
+        sqlite3_bind_null(stmt, 4);
+    }
+
+    sqlite3_bind_double(stmt, 5, memory.importance);
+    sqlite3_bind_int64(stmt, 6, memory.created_at);
+    sqlite3_bind_int(stmt, 7, memory.accessed_count);
+
+    // 执行插入
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        return DearTs::Core::Result<int64_t, std::string>::err(
+            std::format("Failed to execute statement: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    int64_t memory_id = sqlite3_last_insert_rowid(sqlite_db);
     LOG_INFO("Memory added with ID: {}", memory_id);
+
+    // 异步生成嵌入向量（如果有提供者）
+    if (m_embedding_provider) {
+        // 在后台任务中生成嵌入
+        auto embed_result = generate_and_store_embedding(memory_id);
+        if (embed_result.isErr()) {
+            LOG_WARN("Failed to generate embedding for memory {}: {}", memory_id, embed_result.error());
+        }
+    }
+
     return DearTs::Core::Result<int64_t, std::string>::ok(memory_id);
 
 #else
@@ -102,22 +153,96 @@ DearTs::Core::Result<Memory, std::string> MemoryManager::get_memory(int64_t id) 
         return DearTs::Core::Result<Memory, std::string>::err("Database not initialized");
     }
 
-    // TODO: 实现数据库查询
-    // 占位符：返回一个空记忆
-    Memory memory;
-    memory.id = id;
-    memory.type = MemoryType::Fact;
-    memory.content = "Placeholder memory";
-    memory.importance = 0.5;
-    memory.created_at = 0;
-    memory.accessed_count = 0;
+    // 获取原始数据库指针
+    sqlite3* sqlite_db = db.get_db();
+    if (!sqlite_db) {
+        return DearTs::Core::Result<Memory, std::string>::err("Invalid database handle");
+    }
 
-    LOG_INFO("Retrieved memory ID: {}", id);
+    const char* sql = R"(
+        SELECT id, type, content, source_conversation_id, source_message_id,
+               importance, created_at, accessed_count, last_accessed_at, embedding_id
+        FROM memories
+        WHERE id = ?
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(sqlite_db, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        return DearTs::Core::Result<Memory, std::string>::err(
+            std::format("Failed to prepare statement: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    // 绑定参数
+    sqlite3_bind_int64(stmt, 1, id);
+
+    // 执行查询
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        if (rc == SQLITE_DONE) {
+            return DearTs::Core::Result<Memory, std::string>::err(
+                std::format("Memory not found: {}", id)
+            );
+        }
+        return DearTs::Core::Result<Memory, std::string>::err(
+            std::format("Failed to execute statement: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    // 提取数据
+    Memory memory;
+    memory.id = sqlite3_column_int64(stmt, 0);
+
+    const char* type_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+    memory.type = Memory::string_to_type(type_str ? type_str : "fact");
+
+    const char* content = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+    memory.content = content ? content : "";
+
+    // source_conversation_id (可选)
+    if (sqlite3_column_type(stmt, 3) != SQLITE_NULL) {
+        const char* conv_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        memory.source_conversation_id = std::string(conv_id ? conv_id : "");
+    }
+
+    // source_message_id (可选)
+    if (sqlite3_column_type(stmt, 4) != SQLITE_NULL) {
+        memory.source_message_id = sqlite3_column_int64(stmt, 4);
+    }
+
+    memory.importance = sqlite3_column_double(stmt, 5);
+    memory.created_at = sqlite3_column_int64(stmt, 6);
+    memory.accessed_count = sqlite3_column_int(stmt, 7);
+
+    // last_accessed_at (可选)
+    if (sqlite3_column_type(stmt, 8) != SQLITE_NULL) {
+        memory.last_accessed_at = sqlite3_column_int64(stmt, 8);
+    }
+
+    // embedding_id (可选)
+    if (sqlite3_column_type(stmt, 9) != SQLITE_NULL) {
+        memory.embedding_id = sqlite3_column_int64(stmt, 9);
+    }
+
+    sqlite3_finalize(stmt);
+
+    // 更新访问计数（异步）
+    increment_access_count(id);
+
+    LOG_INFO("Retrieved memory ID: {}, type: {}", id, Memory::type_to_string(memory.type));
     return DearTs::Core::Result<Memory, std::string>::ok(memory);
 
 #else
     LOG_WARN("get_memory called but SQLite3 not available");
     Memory placeholder;
+    placeholder.id = id;
+    placeholder.type = MemoryType::Fact;
+    placeholder.content = "SQLite3 not available";
+    placeholder.importance = 0.0;
+    placeholder.created_at = 0;
+    placeholder.accessed_count = 0;
     return DearTs::Core::Result<Memory, std::string>::ok(placeholder);
 #endif
 }
@@ -266,8 +391,48 @@ DearTs::Core::Result<void, std::string> MemoryManager::increment_access_count(in
         return DearTs::Core::Result<void, std::string>::err("Database not initialized");
     }
 
-    // TODO: 实现访问计数增加
-    LOG_INFO("Incremented access count for memory ID: {}", id);
+    // 获取原始数据库指针
+    sqlite3* sqlite_db = db.get_db();
+    if (!sqlite_db) {
+        return DearTs::Core::Result<void, std::string>::err("Invalid database handle");
+    }
+
+    // 获取当前时间戳（毫秒）
+    auto now = std::chrono::system_clock::now();
+    auto timestamp_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()
+    ).count();
+
+    const char* sql = R"(
+        UPDATE memories
+        SET accessed_count = accessed_count + 1,
+            last_accessed_at = ?
+        WHERE id = ?
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(sqlite_db, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        return DearTs::Core::Result<void, std::string>::err(
+            std::format("Failed to prepare statement: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    // 绑定参数
+    sqlite3_bind_int64(stmt, 1, timestamp_ms);
+    sqlite3_bind_int64(stmt, 2, id);
+
+    // 执行更新
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        return DearTs::Core::Result<void, std::string>::err(
+            std::format("Failed to execute statement: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    LOG_DEBUG("Incremented access count for memory ID: {}", id);
     return DearTs::Core::Result<void, std::string>::ok();
 
 #else
@@ -309,8 +474,36 @@ DearTs::Core::Result<size_t, std::string> MemoryManager::get_memory_count() {
         return DearTs::Core::Result<size_t, std::string>::err("Database not initialized");
     }
 
-    // TODO: 实现计数查询
-    return DearTs::Core::Result<size_t, std::string>::ok(0);
+    // 获取原始数据库指针
+    sqlite3* sqlite_db = db.get_db();
+    if (!sqlite_db) {
+        return DearTs::Core::Result<size_t, std::string>::err("Invalid database handle");
+    }
+
+    const char* sql = "SELECT COUNT(*) FROM memories";
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(sqlite_db, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        return DearTs::Core::Result<size_t, std::string>::err(
+            std::format("Failed to prepare statement: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    // 执行查询
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        return DearTs::Core::Result<size_t, std::string>::err(
+            std::format("Failed to execute statement: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    size_t count = static_cast<size_t>(sqlite3_column_int64(stmt, 0));
+    sqlite3_finalize(stmt);
+
+    LOG_INFO("Memory count: {}", count);
+    return DearTs::Core::Result<size_t, std::string>::ok(count);
 
 #else
     LOG_WARN("get_memory_count called but SQLite3 not available");
@@ -392,6 +585,104 @@ DearTs::Core::Result<Memory, std::string> MemoryManager::memory_from_db_row(void
     // TODO: 从 sqlite3_stmt 读取数据并构建 Memory 对象
     Memory memory;
     return DearTs::Core::Result<Memory, std::string>::ok(memory);
+}
+
+// ============ 嵌入向量操作实现 ============
+
+void MemoryManager::set_embedding_provider(std::unique_ptr<RAG::IEmbeddingProvider> provider) {
+    m_embedding_provider = std::move(provider);
+    LOG_INFO("MemoryManager: Embedding provider set");
+}
+
+DearTs::Core::Result<int64_t, std::string> MemoryManager::generate_and_store_embedding(int64_t memory_id) {
+#ifdef SQLITE3_FOUND
+    // 检查提供者
+    if (!m_embedding_provider) {
+        return DearTs::Core::Result<int64_t, std::string>::err("No embedding provider available");
+    }
+
+    auto& db = Persistence::SQLiteDatabase::instance();
+    if (!db.is_open()) {
+        return DearTs::Core::Result<int64_t, std::string>::err("Database not initialized");
+    }
+
+    // 获取记忆内容
+    auto memory_result = get_memory(memory_id);
+    if (memory_result.isErr()) {
+        return DearTs::Core::Result<int64_t, std::string>::err(memory_result.error());
+    }
+
+    auto& memory = memory_result.unwrap();
+
+    // 生成嵌入向量
+    auto embedding_result = m_embedding_provider->generate_embedding(memory.content);
+    if (embedding_result.isErr()) {
+        return DearTs::Core::Result<int64_t, std::string>::err(
+            "Failed to generate embedding: " + embedding_result.error()
+        );
+    }
+
+    auto& embedding_vector = embedding_result.unwrap();
+
+    // 存储嵌入向量到数据库
+    auto now = std::chrono::system_clock::now();
+    auto timestamp_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()
+    ).count();
+
+    auto json_data = embedding_vector.to_json();
+
+    auto embed_id_result = db.insert_embedding(
+        embedding_vector.model,
+        json_data,
+        embedding_vector.dimension,
+        timestamp_ms
+    );
+
+    if (embed_id_result.isErr()) {
+        return DearTs::Core::Result<int64_t, std::string>::err(
+            "Failed to store embedding: " + embed_id_result.error()
+        );
+    }
+
+    int64_t embedding_id = embed_id_result.unwrap();
+
+    // 更新记忆的 embedding_id
+    sqlite3* sqlite_db = db.get_db();
+    if (!sqlite_db) {
+        return DearTs::Core::Result<int64_t, std::string>::err("Invalid database handle");
+    }
+
+    const char* update_sql = R"(
+        UPDATE memories SET embedding_id = ? WHERE id = ?
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(sqlite_db, update_sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        return DearTs::Core::Result<int64_t, std::string>::err(
+            std::format("Failed to prepare statement: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    sqlite3_bind_int64(stmt, 1, embedding_id);
+    sqlite3_bind_int64(stmt, 2, memory_id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        return DearTs::Core::Result<int64_t, std::string>::err(
+            std::format("Failed to update memory: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    LOG_INFO("Generated and stored embedding for memory {}: embedding_id={}", memory_id, embedding_id);
+    return DearTs::Core::Result<int64_t, std::string>::ok(embedding_id);
+
+#else
+    return DearTs::Core::Result<int64_t, std::string>::err("SQLite3 not available");
+#endif
 }
 
 } // namespace DearTs::Plugins::MemoryCore::Memory

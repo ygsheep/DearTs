@@ -7,6 +7,7 @@
 
 #include "core/ui/title_bar.h"
 #include "core/ui/icon_font.hpp"
+#include <chrono>
 
 namespace ChatManager {
 
@@ -123,6 +124,10 @@ private:
 
     // 停靠布局状态
     bool m_dock_layout_initialized = false;
+
+    // 配置保存状态
+    bool m_config_save_pending = false;
+    std::chrono::steady_clock::time_point m_last_config_change;
 };
 
 } // namespace ChatManager

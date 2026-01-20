@@ -19,6 +19,72 @@ using Core::ContentRegistry::UnlocalizedString;
 using Core::UI::ViewWindow;
 
 /**
+ * @brief LLM 供应商预设配置
+ */
+struct LLMProviderConfig {
+    std::string id;              // "openai", "deepseek", "qwen", "zhipu", "zai", "ollama"
+    std::string display_name;    // "OpenAI", "DeepSeek (深度求索)", "通义千问 (阿里云)", etc.
+    std::string default_base_url; // 默认 API 地址
+    bool requires_api_key;       // 是否需要 API 密钥
+    std::string default_model;   // 默认模型
+    bool is_chinese_provider;    // 中国供应商标识
+};
+
+/**
+ * @brief 所有预设 LLM 供应商配置
+ */
+inline const std::vector<LLMProviderConfig> PRESET_LLM_PROVIDERS = {
+    {
+        .id = "openai",
+        .display_name = "OpenAI",
+        .default_base_url = "https://api.openai.com/v1",
+        .requires_api_key = true,
+        .default_model = "gpt-4o",
+        .is_chinese_provider = false
+    },
+    {
+        .id = "deepseek",
+        .display_name = "DeepSeek (深度求索)",
+        .default_base_url = "https://api.deepseek.com/v1",
+        .requires_api_key = true,
+        .default_model = "deepseek-chat",
+        .is_chinese_provider = true
+    },
+    {
+        .id = "qwen",
+        .display_name = "通义千问 (阿里云)",
+        .default_base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        .requires_api_key = true,
+        .default_model = "qwen-turbo",
+        .is_chinese_provider = true
+    },
+    {
+        .id = "zhipu",
+        .display_name = "智谱 AI (GLM)",
+        .default_base_url = "https://open.bigmodel.cn/api/paas/v4",
+        .requires_api_key = true,
+        .default_model = "glm-4",
+        .is_chinese_provider = true
+    },
+    {
+        .id = "zai",
+        .display_name = "Z.AI",
+        .default_base_url = "https://api.z.ai/v1",
+        .requires_api_key = true,
+        .default_model = "zai-gpt",
+        .is_chinese_provider = true
+    },
+    {
+        .id = "ollama",
+        .display_name = "Ollama (本地)",
+        .default_base_url = "http://localhost:11434",
+        .requires_api_key = false,
+        .default_model = "llama3.2",
+        .is_chinese_provider = false
+    }
+};
+
+/**
  * @brief 信息面板视图
  * @details 显示 AI 设置、会话信息、导出选项等
  */
@@ -119,6 +185,11 @@ private:
      * @brief 从 ConfigManager 加载配置
      */
     void load_config();
+
+    /**
+     * @brief 获取当前供应商配置
+     */
+    [[nodiscard]] const LLMProviderConfig* get_current_provider_config() const;
 
     // ========== Memory Debug UI ==========
 
@@ -224,12 +295,15 @@ private:
     std::chrono::steady_clock::time_point m_last_refresh = std::chrono::steady_clock::now();
 
     // LLM 设置
-    std::string m_selected_provider = "ollama";
+    std::string m_selected_provider_id = "ollama";  // 当前选中的供应商 ID
     std::string m_selected_model = "llama3.2";
-    std::vector<std::string> m_available_providers = {"ollama", "http", "python", "cli"};
     std::vector<std::string> m_available_models = {"llama3.2"};
 
-    // Ollama 设置
+    // LLM 连接配置
+    std::string m_custom_base_url = "";  // 用户自定义的 base URL（空则使用默认值）
+    std::string m_api_key = "";          // API 密钥
+
+    // Ollama 设置（保留用于向后兼容）
     std::string m_ollama_base_url = "http://localhost:11434";
     bool m_ollama_connected = false;
     std::string m_ollama_connection_error;

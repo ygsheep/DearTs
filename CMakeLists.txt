@@ -165,6 +165,83 @@ endif()
 # FFmpeg 配置结束
 # ==============================================================
 
+# ==================== Boost.Asio 配置 ====================
+# Boost.Asio 是一个跨平台的 C++ 网络库
+#
+# 安装方法：
+#   Windows:
+#     1. 安装 vcpkg: https://github.com/Microsoft/vcpkg
+#     2. 运行: vcpkg install boost-asio:x64-windows
+#     3. 运行: vcpkg install boost-beast:x64-windows
+#     4. 设置环境变量: VCPKG_ROOT=<vcpkg 路径>
+#   Linux:
+#     1. 安装 vcpkg
+#     2. 运行: vcpkg install boost-asio:x64-linux
+#     3. 运行: vcpkg install boost-beast:x64-linux
+#
+# CMake 集成：
+#   - vcpkg 会自动提供 Boost CMake 目标
+#   - 使用: target_link_libraries(${TARGET} PRIVATE Boost::asio)
+#   - 定义: DEARTS_BOOST_ASIO_SUPPORT 宏用于条件编译
+#
+# 依赖库：
+#   - Boost::asio       - 核心 I/O 库（header-only）
+#   - Boost::beast      - HTTP/HTTPS 库（header-only）
+#   - Boost::system     - 系统库（如果需要）
+#
+# 禁用方法：
+#   - 不适用，Boost.Asio 是必需依赖
+# ==============================================================
+
+option(ENABLE_BOOST_ASIO "Enable Boost.Asio support for HTTP requests" ON)
+
+if(ENABLE_BOOST_ASIO)
+    message(STATUS "Looking for Boost...")
+
+    # 查找 Boost（vcpkg 或系统安装）
+    # 需要同时找到 asio 和 beast 组件
+    find_package(Boost REQUIRED COMPONENTS asio beast)
+
+    if(Boost_FOUND)
+        message(STATUS "Boost: Found (version ${Boost_VERSION})")
+        message(STATUS "  Include dirs: ${Boost_INCLUDE_DIRS}")
+        message(STATUS "  Libraries: ${Boost_LIBRARIES}")
+
+        # 创建 Boost.Asio + Boost.Beast 接口库（header-only）
+        add_library(boost_asio INTERFACE)
+
+        # 添加头文件目录
+        target_include_directories(boost_asio INTERFACE ${Boost_INCLUDE_DIRS})
+
+        # 链接 Boost 库
+        target_link_libraries(boost_asio INTERFACE Boost::asio Boost::beast)
+
+        # 添加编译定义
+        target_compile_definitions(boost_asio INTERFACE
+            DEARTS_BOOST_ASIO_SUPPORT=1
+        )
+
+        # Windows: 定义 _WIN32_WINNT (Boost.Asio 需要)
+        if(WIN32)
+            target_compile_definitions(boost_asio INTERFACE
+                _WIN32_WINNT=0x0601  # Windows 7 或更高
+            )
+        endif()
+
+        message(STATUS "Boost.Asio + Boost.Beast: Enabled")
+    else()
+        message(FATAL_ERROR "Boost.Asio not found. Please install:")
+        message(STATUS "  Windows: vcpkg install boost-asio:x64-windows boost-beast:x64-windows")
+        message(STATUS "  Linux: vcpkg install boost-asio:x64-linux boost-beast:x64-linux")
+        message(STATUS "  Then set VCPKG_ROOT environment variable")
+    endif()
+else()
+    message(FATAL_ERROR "Boost.Asio is required. Cannot continue without ENABLE_BOOST_ASIO=ON")
+endif()
+
+# Boost.Asio 配置结束
+# ==============================================================
+
 # MSVC: Enable /Zc:preprocessor for __VA_OPT__ support (C++20)
 if(MSVC)
     add_compile_options(/Zc:preprocessor)

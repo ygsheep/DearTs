@@ -13,6 +13,7 @@
 
 #include "core/result.h"
 #include "memory_core/rag/embedding_cache.hpp"
+#include "memory_core/rag/embedding_provider.hpp"
 #include "memory_core/memory/memory_manager.hpp"
 #include <string>
 #include <vector>
@@ -91,8 +92,18 @@ public:
     /**
      * @brief 初始化 RAG 服务
      * @param embedding_cache_config 嵌入缓存配置
+     * @param embedding_provider 嵌入向量提供者（可选）
      */
-    void initialize(const CacheConfig& embedding_cache_config = CacheConfig::default_config());
+    void initialize(
+        const CacheConfig& embedding_cache_config = CacheConfig::default_config(),
+        std::unique_ptr<IEmbeddingProvider> embedding_provider = nullptr
+    );
+
+    /**
+     * @brief 设置嵌入向量提供者
+     * @param provider 嵌入向量提供者
+     */
+    void set_embedding_provider(std::unique_ptr<IEmbeddingProvider> provider);
 
     /**
      * @brief 关闭 RAG 服务
@@ -266,6 +277,7 @@ private:
 
     bool m_initialized = false;          ///< 是否已初始化
     std::string m_default_model;         ///< 默认嵌入模型
+    std::unique_ptr<IEmbeddingProvider> m_embedding_provider;  ///< 嵌入向量提供者
 };
 
 } // namespace DearTs::Plugins::MemoryCore::RAG

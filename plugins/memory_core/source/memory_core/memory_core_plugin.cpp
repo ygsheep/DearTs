@@ -10,6 +10,7 @@
 #include "memory_core/memory/llm_memory_extractor.hpp"
 #include "memory_core/rag/rag_service.hpp"
 #include "memory_core/rag/embedding_cache.hpp"
+#include "memory_core/rag/embedding_provider.hpp"
 #include "memory_core/rag/context_builder.hpp"
 #include "memory_core/events/memory_events.hpp"
 #include "chat/events/chat_events.hpp"
@@ -51,8 +52,42 @@ DearTs::Core::Result<void, std::string> MemoryCorePlugin::on_load() {
     }
     LOG_INFO("Commands registered");
 
+    // 4. 初始化嵌入提供者和 RAG 服务
+    // 从配置读取嵌入模型
+    auto& config_manager = DearTs::Core::Config::ConfigManager::instance();
+    DearTs::Core::Config::ConfigScope config("chat");
+
+    std::string base_url = config.get_or<std::string>("llm.custom_base_url", "");
+    std::string ollama_base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+    if (base_url.empty()) {
+        base_url = ollama_base_url;
+    }
+
+    // 嵌入模型配置（与聊天模型分开）
+    std::string embed_model = config.get_or<std::string>("llm.embed_model", "nomic-embed-text");
+
+    LOG_INFO("Initializing RAG service with embedding model: {}", embed_model);
+
+    // 创建 Ollama 嵌入提供者
+    auto embedding_provider = RAG::EmbeddingProviderFactory::create_ollama_provider(
+        base_url,
+        embed_model
+    );
+
+    // 初始化 RAG 服务
+    auto& rag_service = RAG::RAGService::instance();
+    rag_service.initialize(RAG::CacheConfig::default_config(), std::move(embedding_provider));
+
+    // 设置 MemoryManager 的嵌入提供者（创建一个新的）
+    auto memory_embedding_provider = RAG::EmbeddingProviderFactory::create_ollama_provider(
+        base_url,
+        embed_model
+    );
+    Memory::MemoryManager::instance().set_embedding_provider(std::move(memory_embedding_provider));
+
+    LOG_INFO("RAG service and embedding provider initialized");
+
     // TODO: 后续阶段将实现
-    // 4. 初始化核心组件
     // m_database = std::make_unique<Persistence::SQLiteDatabase>();
     // m_memoryManager = std::make_unique<Memory::MemoryManager>();
     // m_ragService = std::make_unique<RAG::RAGService>();
@@ -299,10 +334,14 @@ void MemoryCorePlugin::handle_rag_query_requested(const Events::RAGQueryRequeste
     }
 
     // 构建查询选项
+    // 从配置读取嵌入模型
+    DearTs::Core::Config::ConfigScope config("chat");
+    std::string embed_model = config.get_or<std::string>("llm.embed_model", "nomic-embed-text");
+
     RAG::RAGQueryOptions options;
     options.max_results = event.max_results;
     options.min_similarity = event.min_similarity;
-    options.embedding_model = "nomic-embed-text";
+    options.embedding_model = embed_model;
 
     // 执行查询
     auto query_result = rag_service.query(event.query, options);
@@ -350,7 +389,31 @@ void MemoryCorePlugin::handle_memory_extract_requested(const Events::MemoryExtra
         // 确保 LLM 提取器已初始化
         static bool llm_initialized = false;
         if (!llm_initialized) {
-            auto init_result = llm_extractor.initialize();
+            // 从配置读取模型，而不是使用硬编码的默认值
+            auto& config_manager = DearTs::Core::Config::ConfigManager::instance();
+            DearTs::Core::Config::ConfigScope config("chat");
+
+            std::string model = config.get_or<std::string>("llm.model", "qwen2.5-coder:1.5b");
+            std::string base_url = config.get_or<std::string>("llm.custom_base_url", "");
+            std::string ollama_base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+
+            // 如果 custom_base_url 为空，使用向后兼容的 ollama_base_url
+            if (base_url.empty()) {
+                base_url = ollama_base_url;
+            }
+
+            // 创建配置
+            LLMExtractorConfig extractor_config;
+            extractor_config.ollama_url = base_url;
+            extractor_config.chat_model = model;
+            extractor_config.embed_model = "nomic-embed-text";
+            extractor_config.temperature = 0.3;
+            extractor_config.max_tokens = 500;
+            extractor_config.enable_verification = true;
+
+            LOG_INFO("Initializing LLM extractor with model: {} (from config)", model);
+
+            auto init_result = llm_extractor.initialize(extractor_config);
             if (init_result.isOk()) {
                 llm_initialized = true;
             } else {

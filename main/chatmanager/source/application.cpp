@@ -354,19 +354,11 @@ bool Application::initialize() {
         LOG_INFO("No existing configuration file found, will use defaults: {}", config_file);
     }
 
-    // 设置全局变更回调（实时保存配置，带防抖）
-    config_manager.add_change_callback([config_file,
-                                        &config_manager](const std::string& key, const Core::Config::ConfigValue& old_val, const Core::Config::ConfigValue& new_val) {
-        static auto last_save = std::chrono::steady_clock::now();
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_save).count();
-
-        // 防抖：500ms 内只保存一次
-        if (elapsed >= 500) {
-            last_save = now;
-            LOG_DEBUG("Configuration changed: {}, saving to {}", key, config_file);
-            config_manager.save_to_file(config_file);
-        }
+    // 设置全局变更回调（标记配置需要保存，实际保存在主循环中进行）
+    config_manager.add_change_callback([this](const std::string& key, const Core::Config::ConfigValue& old_val, const Core::Config::ConfigValue& new_val) {
+        // 只标记配置需要保存，不直接保存（避免在回调中进行文件 I/O）
+        m_config_save_pending = true;
+        m_last_config_change = std::chrono::steady_clock::now();
     });
 
     LOG_INFO("ConfigManager initialized successfully");
@@ -534,6 +526,28 @@ void Application::main_loop() {
         }
 
         SDL_SubmitGPUCommandBuffer(cmd);
+    }
+
+    // 延迟保存配置（在帧渲染完成后，避免在回调中进行文件 I/O）
+    if (m_config_save_pending) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_config_change).count();
+
+        // 防抖：配置变更后 500ms 才保存，避免频繁写入
+        if (elapsed >= 500) {
+            m_config_save_pending = false;
+            try {
+                auto& config_manager = DearTs::Core::Config::ConfigManager::instance();
+                auto result = config_manager.save_to_file("chat_config.json");
+                if (result.isOk()) {
+                    LOG_DEBUG("Configuration saved (deferred)");
+                } else {
+                    LOG_WARN("Failed to save configuration: {}", result.error());
+                }
+            } catch (const std::exception& e) {
+                LOG_ERROR("Exception while saving configuration: {}", e.what());
+            }
+        }
     }
 
     // 限制帧率（VSYNC 由交换链参数控制）

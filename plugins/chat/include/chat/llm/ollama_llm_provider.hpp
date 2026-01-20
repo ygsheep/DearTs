@@ -113,6 +113,11 @@ private:
     std::string build_chat_request(const LLMRequest& request) const;
 
     /**
+     * @brief 构建生成 API 请求 JSON（用于代码模型）
+     */
+    std::string build_generate_request(const LLMRequest& request) const;
+
+    /**
      * @brief 构建嵌入 API 请求 JSON
      */
     std::string build_embedding_request(const std::string& text, const std::string& model) const;

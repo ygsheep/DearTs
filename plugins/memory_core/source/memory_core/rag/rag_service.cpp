@@ -12,6 +12,12 @@
 #include <sstream>
 #include <cmath>
 #include <set>
+#include <format>
+
+// SQLite3 头文件 - 条件编译
+#ifdef SQLITE3_FOUND
+    #include <sqlite3.h>
+#endif
 
 namespace DearTs::Plugins::MemoryCore::RAG {
 
@@ -24,7 +30,10 @@ RAGService& RAGService::instance() {
 
 // ============ 初始化 ============
 
-void RAGService::initialize(const CacheConfig& embedding_cache_config) {
+void RAGService::initialize(
+    const CacheConfig& embedding_cache_config,
+    std::unique_ptr<IEmbeddingProvider> embedding_provider
+) {
     if (m_initialized) {
         LOG_WARN("RAGService already initialized");
         return;
@@ -33,10 +42,27 @@ void RAGService::initialize(const CacheConfig& embedding_cache_config) {
     // 初始化嵌入缓存
     EmbeddingCache::instance().initialize(embedding_cache_config);
 
+    // 设置嵌入提供者
+    if (embedding_provider) {
+        m_embedding_provider = std::move(embedding_provider);
+        m_default_model = m_embedding_provider->get_model_name();
+        LOG_INFO("RAGService: Using embedding provider: {}", m_default_model);
+    } else {
+        m_default_model = "nomic-embed-text";
+        LOG_WARN("RAGService: No embedding provider provided, semantic search disabled");
+    }
+
     m_initialized = true;
-    m_default_model = "nomic-embed-text";
 
     LOG_INFO("RAGService initialized");
+}
+
+void RAGService::set_embedding_provider(std::unique_ptr<IEmbeddingProvider> provider) {
+    m_embedding_provider = std::move(provider);
+    if (m_embedding_provider) {
+        m_default_model = m_embedding_provider->get_model_name();
+        LOG_INFO("RAGService: Embedding provider set to: {}", m_default_model);
+    }
 }
 
 void RAGService::shutdown() {
@@ -64,40 +90,39 @@ RAGService::query(const std::string& query, const RAGQueryOptions& options) {
     LOG_INFO("RAG query: '{}', max_results={}, enable_hybrid={}",
              query, options.max_results, options.enable_hybrid_search);
 
-    // TODO: 阶段 4.2 实现完整的 RAG 查询
-    // 当前占位符实现
-
     std::vector<RAGResult> results;
 
     // 1. 生成查询嵌入
-    // auto embedding_result = generate_embedding(query, options.embedding_model);
-    // if (embedding_result.isErr()) {
-    //     return DearTs::Core::Result<std::vector<RAGResult>, std::string>::err(
-    //         "Failed to generate query embedding: " + embedding_result.error()
-    //     );
-    // }
-    // auto& query_embedding = embedding_result.unwrap().vector;
+    auto embedding_result = generate_embedding(query, options.embedding_model);
+    if (embedding_result.isErr()) {
+        // 如果嵌入生成失败，回退到关键词搜索
+        LOG_WARN("Failed to generate query embedding: {}, falling back to keyword search",
+                 embedding_result.error());
+        results = keyword_search(query, options);
+    } else {
+        auto& query_embedding = embedding_result.unwrap().vector;
 
-    // 2. 执行搜索
-    // if (options.enable_hybrid_search) {
-    //     results = hybrid_search(query, query_embedding, options);
-    // } else {
-    //     results = semantic_search(query_embedding, options);
-    // }
+        // 2. 执行搜索
+        if (options.enable_hybrid_search && m_embedding_provider) {
+            results = hybrid_search(query, query_embedding, options);
+        } else {
+            results = semantic_search(query_embedding, options);
+        }
+    }
 
     // 3. 过滤和排序
-    // results.erase(
-    //     std::remove_if(results.begin(), results.end(),
-    //         [&](const RAGResult& r) {
-    //             return r.combined_score < options.min_similarity;
-    //         }),
-    //     results.end()
-    // );
+    results.erase(
+        std::remove_if(results.begin(), results.end(),
+            [&](const RAGResult& r) {
+                return r.combined_score < options.min_similarity;
+            }),
+        results.end()
+    );
 
-    // // 限制结果数量
-    // if (results.size() > static_cast<size_t>(options.max_results)) {
-    //     results.resize(options.max_results);
-    // }
+    // 限制结果数量
+    if (results.size() > static_cast<size_t>(options.max_results)) {
+        results.resize(options.max_results);
+    }
 
     LOG_INFO("RAG query completed: {} results", results.size());
     return DearTs::Core::Result<std::vector<RAGResult>, std::string>::ok(results);
@@ -186,9 +211,6 @@ RAGService::build_prompt(
 
 DearTs::Core::Result<Embedding, std::string>
 RAGService::generate_embedding(const std::string& text, const std::string& model) {
-    // TODO: 阶段 4.3 集成 Ollama embed API
-    // 当前占位符实现
-
     // 检查缓存
     auto& cache = EmbeddingCache::instance();
     if (cache.contains(text)) {
@@ -199,11 +221,26 @@ RAGService::generate_embedding(const std::string& text, const std::string& model
         }
     }
 
-    // 占位符：返回零向量
+    // 检查嵌入提供者
+    if (!m_embedding_provider) {
+        return DearTs::Core::Result<Embedding, std::string>::err(
+            "No embedding provider available"
+        );
+    }
+
+    // 使用嵌入提供者生成向量
+    auto result = m_embedding_provider->generate_embedding(text);
+    if (result.isErr()) {
+        return DearTs::Core::Result<Embedding, std::string>::err(result.error());
+    }
+
+    auto& embedding_vector = result.unwrap();
+
+    // 转换为 Embedding 结构
     Embedding embedding;
-    embedding.model = model;
-    embedding.dimension = 768;  // 常见维度
-    embedding.vector = std::vector<float>(embedding.dimension, 0.0f);
+    embedding.model = embedding_vector.model;
+    embedding.dimension = embedding_vector.dimension;
+    embedding.vector = embedding_vector.data;
     embedding.created_at = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::system_clock::now().time_since_epoch()
     ).count();
@@ -212,7 +249,9 @@ RAGService::generate_embedding(const std::string& text, const std::string& model
     // 保存到缓存
     cache.put(text, embedding);
 
-    LOG_DEBUG("Generated placeholder embedding for: {}", text.substr(0, 50));
+    LOG_DEBUG("Generated embedding for: {}, dimension={}, duration={} ms",
+              text.substr(0, 50), embedding.dimension, embedding_vector.duration_ms);
+
     return DearTs::Core::Result<Embedding, std::string>::ok(embedding);
 }
 
@@ -311,17 +350,183 @@ void RAGService::log_stats() const {
 
 DearTs::Core::Result<Embedding, std::string>
 RAGService::get_memory_embedding(int64_t memory_id) {
-    // TODO: 从数据库获取记忆的嵌入
+#ifdef SQLITE3_FOUND
+    auto& db = Persistence::SQLiteDatabase::instance();
+
+    if (!db.is_open()) {
+        return DearTs::Core::Result<Embedding, std::string>::err("Database not initialized");
+    }
+
+    // 获取原始数据库指针
+    sqlite3* sqlite_db = db.get_db();
+    if (!sqlite_db) {
+        return DearTs::Core::Result<Embedding, std::string>::err("Invalid database handle");
+    }
+
+    // 查询记忆的 embedding_id
+    const char* sql = R"(
+        SELECT embedding_id FROM memories WHERE id = ?
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(sqlite_db, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        return DearTs::Core::Result<Embedding, std::string>::err(
+            std::format("Failed to prepare statement: {}", sqlite3_errmsg(sqlite_db))
+        );
+    }
+
+    sqlite3_bind_int64(stmt, 1, memory_id);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        return DearTs::Core::Result<Embedding, std::string>::err(
+            std::format("Memory not found: {}", memory_id)
+        );
+    }
+
+    // 获取 embedding_id（可能为 NULL）
+    int64_t embedding_id = sqlite3_column_type(stmt, 0) != SQLITE_NULL ?
+        sqlite3_column_int64(stmt, 0) : 0;
+
+    sqlite3_finalize(stmt);
+
+    if (!embedding_id) {
+        return DearTs::Core::Result<Embedding, std::string>::err(
+            std::format("Memory {} has no embedding", memory_id)
+        );
+    }
+
+    // 从数据库获取嵌入向量
+    auto embedding_record = db.get_embedding(embedding_id);
+    if (embedding_record.isErr()) {
+        return DearTs::Core::Result<Embedding, std::string>::err(embedding_record.error());
+    }
+
+    auto& record = embedding_record.unwrap();
+
+    // 解析 JSON 格式的向量数据
+    auto parse_result = EmbeddingVector::from_json(record.vector_data);
+    if (parse_result.isErr()) {
+        return DearTs::Core::Result<Embedding, std::string>::err(parse_result.error());
+    }
+
+    auto& vector = parse_result.unwrap();
+
+    // 转换为 Embedding 结构
     Embedding embedding;
+    embedding.model = record.model;
+    embedding.dimension = record.dimension;
+    embedding.vector = vector.data;
+    embedding.created_at = record.created_at;
+    embedding.accessed_at = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+    ).count();
+
     return DearTs::Core::Result<Embedding, std::string>::ok(embedding);
+#else
+    return DearTs::Core::Result<Embedding, std::string>::err("SQLite3 not available");
+#endif
 }
 
 std::vector<RAGResult> RAGService::semantic_search(
     const std::vector<float>& query_embedding,
     const RAGQueryOptions& options
 ) {
-    // TODO: 实现语义搜索
     std::vector<RAGResult> results;
+
+#ifdef SQLITE3_FOUND
+    auto& db = Persistence::SQLiteDatabase::instance();
+
+    if (!db.is_open()) {
+        LOG_ERROR("RAG semantic search: Database not initialized");
+        return results;
+    }
+
+    // 获取原始数据库指针
+    sqlite3* sqlite_db = db.get_db();
+    if (!sqlite_db) {
+        LOG_ERROR("RAG semantic search: Invalid database handle");
+        return results;
+    }
+
+    // 查询所有有嵌入向量的记忆
+    const char* sql = R"(
+        SELECT id, type, content, source_conversation_id,
+               importance, created_at, accessed_count, embedding_id
+        FROM memories
+        WHERE embedding_id IS NOT NULL
+        ORDER BY importance DESC, accessed_count DESC
+        LIMIT ?
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(sqlite_db, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        LOG_ERROR("RAG semantic search: Failed to prepare statement: {}", sqlite3_errmsg(sqlite_db));
+        return results;
+    }
+
+    // 绑定参数（获取更多结果用于相似度计算和过滤）
+    sqlite3_bind_int(stmt, 1, options.max_results * 3);
+
+    // 执行查询并收集结果
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        RAGResult result;
+        result.memory.id = sqlite3_column_int64(stmt, 0);
+
+        const char* type_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        result.memory.type = Memory::Memory::string_to_type(type_str ? type_str : "fact");
+
+        const char* content = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        result.memory.content = content ? content : "";
+
+        if (sqlite3_column_type(stmt, 3) != SQLITE_NULL) {
+            const char* conv_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+            result.memory.source_conversation_id = std::string(conv_id ? conv_id : "");
+        }
+
+        result.memory.importance = sqlite3_column_double(stmt, 4);
+        result.memory.created_at = sqlite3_column_int64(stmt, 5);
+        result.memory.accessed_count = sqlite3_column_int(stmt, 6);
+
+        // 获取嵌入向量并计算余弦相似度
+        int64_t embedding_id = sqlite3_column_int64(stmt, 7);
+        if (embedding_id > 0) {
+            // 尝试从数据库获取嵌入
+            auto embedding_result = db.get_embedding(embedding_id);
+            if (embedding_result.isOk()) {
+                auto& record = embedding_result.unwrap();
+                auto parse_result = EmbeddingVector::from_json(record.vector_data);
+
+                if (parse_result.isOk()) {
+                    auto& memory_embedding = parse_result.unwrap();
+                    result.similarity = cosine_similarity(query_embedding, memory_embedding.data);
+                }
+            }
+        }
+
+        // 设置关键词分数为 0（纯语义搜索）
+        result.keyword_score = 0.0;
+        result.combined_score = result.similarity;
+
+        results.push_back(result);
+    }
+
+    sqlite3_finalize(stmt);
+
+    // 按相似度排序
+    std::sort(results.begin(), results.end(),
+        [](const RAGResult& a, const RAGResult& b) {
+            return a.similarity > b.similarity;
+        });
+
+    LOG_INFO("RAG semantic search: {} candidates found", results.size());
+#else
+    LOG_WARN("RAG semantic search called but SQLite3 not available");
+#endif
+
     return results;
 }
 
@@ -329,8 +534,101 @@ std::vector<RAGResult> RAGService::keyword_search(
     const std::string& query,
     const RAGQueryOptions& options
 ) {
-    // TODO: 实现关键词搜索
     std::vector<RAGResult> results;
+
+#ifdef SQLITE3_FOUND
+    auto& db = Persistence::SQLiteDatabase::instance();
+
+    if (!db.is_open()) {
+        LOG_ERROR("RAG keyword search: Database not initialized");
+        return results;
+    }
+
+    // 获取原始数据库指针
+    sqlite3* sqlite_db = db.get_db();
+    if (!sqlite_db) {
+        LOG_ERROR("RAG keyword search: Invalid database handle");
+        return results;
+    }
+
+    // 构建查询 SQL
+    const char* sql = R"(
+        SELECT id, type, content, source_conversation_id, importance, created_at, accessed_count
+        FROM memories
+        WHERE content LIKE ? OR source_conversation_id LIKE ?
+        ORDER BY importance DESC, accessed_count DESC
+        LIMIT ?
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(sqlite_db, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        LOG_ERROR("RAG keyword search: Failed to prepare statement: {}", sqlite3_errmsg(sqlite_db));
+        return results;
+    }
+
+    // 绑定参数（使用 %query% 进行模糊匹配）
+    std::string pattern = "%" + query + "%";
+    sqlite3_bind_text(stmt, 1, pattern.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, pattern.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 3, options.max_results * 2);  // 获取更多结果用于过滤
+
+    // 执行查询并收集结果
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        RAGResult result;
+        result.memory.id = sqlite3_column_int64(stmt, 0);
+
+        const char* type_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        result.memory.type = Memory::Memory::string_to_type(type_str ? type_str : "fact");
+
+        const char* content = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        result.memory.content = content ? content : "";
+
+        if (sqlite3_column_type(stmt, 3) != SQLITE_NULL) {
+            const char* conv_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+            result.memory.source_conversation_id = std::string(conv_id ? conv_id : "");
+        }
+
+        result.memory.importance = sqlite3_column_double(stmt, 4);
+        result.memory.created_at = sqlite3_column_int64(stmt, 5);
+        result.memory.accessed_count = sqlite3_column_int(stmt, 6);
+
+        // 计算关键词匹配分数
+        result.keyword_score = keyword_match_score(query, result.memory.content);
+
+        // 组合分数（简化版本：70% 关键词 + 30% 重要性）
+        result.combined_score = result.keyword_score * 0.7 + result.memory.importance * 0.3;
+
+        results.push_back(result);
+    }
+
+    sqlite3_finalize(stmt);
+
+    // 过滤低分结果
+    results.erase(
+        std::remove_if(results.begin(), results.end(),
+            [&](const RAGResult& r) {
+                return r.combined_score < options.min_similarity;
+            }),
+        results.end()
+    );
+
+    // 按组合分数排序
+    std::sort(results.begin(), results.end(),
+        [](const RAGResult& a, const RAGResult& b) {
+            return a.combined_score > b.combined_score;
+        });
+
+    // 限制结果数量
+    if (results.size() > static_cast<size_t>(options.max_results)) {
+        results.resize(options.max_results);
+    }
+
+    LOG_INFO("RAG keyword search: {} results for query '{}'", results.size(), query);
+#else
+    LOG_WARN("RAG keyword search called but SQLite3 not available");
+#endif
+
     return results;
 }
 
@@ -352,9 +650,47 @@ std::vector<RAGResult> RAGService::merge_and_rank_results(
     std::vector<RAGResult> keyword_results,
     const RAGQueryOptions& options
 ) {
-    // TODO: 实现结果合并和排序
-    // 当前简单返回语义搜索结果
-    return semantic_results;
+    // 使用 std::unordered_map 合并结果（按记忆 ID 去重）
+    std::unordered_map<int64_t, RAGResult> merged_map;
+
+    // 添加语义搜索结果
+    for (auto& result : semantic_results) {
+        result.calculate_combined_score(0.7, 0.3);  // 70% 语义 + 30% 关键词
+        merged_map[result.memory.id] = std::move(result);
+    }
+
+    // 合并关键词搜索结果
+    for (auto& result : keyword_results) {
+        auto it = merged_map.find(result.memory.id);
+        if (it != merged_map.end()) {
+            // 已存在，更新分数（取平均值）
+            RAGResult& existing = it->second;
+            existing.keyword_score = result.keyword_score;
+            existing.calculate_combined_score(0.7, 0.3);
+        } else {
+            // 不存在，添加新结果
+            result.similarity = 0.0;  // 关键词搜索没有语义分数
+            result.calculate_combined_score(0.7, 0.3);
+            merged_map[result.memory.id] = std::move(result);
+        }
+    }
+
+    // 转换为 vector 并按组合分数排序
+    std::vector<RAGResult> results;
+    results.reserve(merged_map.size());
+    for (auto& [id, result] : merged_map) {
+        results.push_back(std::move(result));
+    }
+
+    std::sort(results.begin(), results.end(),
+        [](const RAGResult& a, const RAGResult& b) {
+            return a.combined_score > b.combined_score;
+        });
+
+    LOG_DEBUG("RAG merged results: {} total ({} semantic, {} keyword)",
+              results.size(), semantic_results.size(), keyword_results.size());
+
+    return results;
 }
 
 std::string RAGService::format_memory_as_context(const Memory::Memory& memory) {

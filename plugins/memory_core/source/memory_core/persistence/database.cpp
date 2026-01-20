@@ -961,6 +961,160 @@ std::string SQLiteDatabase::highlight_fts_result(
     return result;
 }
 
+// ============ 嵌入向量操作实现 ============
+
+DearTs::Core::Result<int64_t, std::string> SQLiteDatabase::insert_embedding(
+    const std::string& model,
+    const std::string& vector_data,
+    int dimension,
+    int64_t created_at
+) {
+#ifdef SQLITE3_FOUND
+    std::lock_guard lock(m_mutex);
+
+    if (!m_db) {
+        return DearTs::Core::Result<int64_t, std::string>::err("Database not initialized");
+    }
+
+    const char* sql = R"(
+        INSERT INTO embeddings (model, vector, dimension, created_at)
+        VALUES (?, ?, ?, ?)
+    )";
+
+    sqlite3_stmt* stmt;
+    int rc = sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        return DearTs::Core::Result<int64_t, std::string>::err(
+            std::format("Failed to prepare statement: {}", sqlite3_errmsg(m_db))
+        );
+    }
+
+    sqlite3_bind_text(stmt, 1, model.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, vector_data.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 3, dimension);
+    sqlite3_bind_int64(stmt, 4, created_at);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        std::string error = sqlite3_errmsg(m_db);
+        sqlite3_finalize(stmt);
+        return DearTs::Core::Result<int64_t, std::string>::err(
+            std::format("Failed to execute statement: {}", error)
+        );
+    }
+
+    int64_t new_id = sqlite3_last_insert_rowid(m_db);
+    sqlite3_finalize(stmt);
+
+    LOG_INFO("Embedding inserted: id={}, model={}, dimension={}", new_id, model, dimension);
+    return DearTs::Core::Result<int64_t, std::string>::ok(new_id);
+#else
+    return DearTs::Core::Result<int64_t, std::string>::err("SQLite3 not available");
+#endif
+}
+
+DearTs::Core::Result<SQLiteDatabase::EmbeddingRecord, std::string>
+SQLiteDatabase::get_embedding(int64_t embedding_id) {
+#ifdef SQLITE3_FOUND
+    std::lock_guard lock(m_mutex);
+
+    if (!m_db) {
+        return DearTs::Core::Result<EmbeddingRecord, std::string>::err("Database not initialized");
+    }
+
+    const char* sql = R"(
+        SELECT id, model, dimension, vector, created_at
+        FROM embeddings
+        WHERE id = ?
+    )";
+
+    sqlite3_stmt* stmt;
+    int rc = sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        return DearTs::Core::Result<EmbeddingRecord, std::string>::err(
+            std::format("Failed to prepare statement: {}", sqlite3_errmsg(m_db))
+        );
+    }
+
+    sqlite3_bind_int64(stmt, 1, embedding_id);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        if (rc == SQLITE_DONE) {
+            return DearTs::Core::Result<EmbeddingRecord, std::string>::err(
+                std::format("Embedding not found: {}", embedding_id)
+            );
+        }
+        return DearTs::Core::Result<EmbeddingRecord, std::string>::err(
+            std::format("Failed to execute statement: {}", sqlite3_errmsg(m_db))
+        );
+    }
+
+    EmbeddingRecord record;
+    record.id = sqlite3_column_int64(stmt, 0);
+
+    const char* model = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+    record.model = model ? model : "";
+
+    record.dimension = sqlite3_column_int(stmt, 2);
+
+    const char* vector_data = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+    record.vector_data = vector_data ? vector_data : "";
+
+    record.created_at = sqlite3_column_int64(stmt, 4);
+
+    sqlite3_finalize(stmt);
+
+    LOG_DEBUG("Retrieved embedding: id={}, model={}, dimension={}",
+              record.id, record.model, record.dimension);
+
+    return DearTs::Core::Result<EmbeddingRecord, std::string>::ok(record);
+#else
+    return DearTs::Core::Result<EmbeddingRecord, std::string>::err("SQLite3 not available");
+#endif
+}
+
+DearTs::Core::Result<void, std::string> SQLiteDatabase::delete_embedding(int64_t embedding_id) {
+#ifdef SQLITE3_FOUND
+    std::lock_guard lock(m_mutex);
+
+    if (!m_db) {
+        return DearTs::Core::Result<void, std::string>::err("Database not initialized");
+    }
+
+    const char* sql = R"(
+        DELETE FROM embeddings WHERE id = ?
+    )";
+
+    sqlite3_stmt* stmt;
+    int rc = sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        return DearTs::Core::Result<void, std::string>::err(
+            std::format("Failed to prepare statement: {}", sqlite3_errmsg(m_db))
+        );
+    }
+
+    sqlite3_bind_int64(stmt, 1, embedding_id);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        std::string error = sqlite3_errmsg(m_db);
+        sqlite3_finalize(stmt);
+        return DearTs::Core::Result<void, std::string>::err(
+            std::format("Failed to execute statement: {}", error)
+        );
+    }
+
+    sqlite3_finalize(stmt);
+
+    LOG_INFO("Embedding deleted: id={}", embedding_id);
+    return DearTs::Core::Result<void, std::string>::ok();
+#else
+    return DearTs::Core::Result<void, std::string>::err("SQLite3 not available");
+#endif
+}
+
             } // namespace Persistence
         } // namespace MemoryCore
     } // namespace Plugins

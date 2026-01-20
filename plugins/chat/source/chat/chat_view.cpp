@@ -71,32 +71,15 @@ void ChatView::draw_message_area() {
                         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5);
                     }
 
-                    // 流式输出消息的打字机效果
+                    // 流式输出消息
                     if (message.is_streaming) {
-                        // 逐步增加显示字符（打字机效果）
-                        if (message.displayed_chars < message.content.length()) {
-                            // 每帧增加 2-3 个字符（可配置速度）
-                            const size_t chars_per_frame = 3;
-                            message.displayed_chars = std::min(
-                                message.displayed_chars + chars_per_frame,
-                                message.content.length()
-                            );
-
-                            // 流式完成检查
-                            if (message.displayed_chars >= message.content.length()) {
-                                message.is_streaming = false;
-                            }
-
-                            // 自动滚动到底部
-                            ImGui::SetScrollHereY(1.0f);
-                        }
-
-                        // 创建临时消息对象，仅显示已渲染的部分
-                        Message display_message = message;
-                        display_message.content = message.content.substr(0, message.displayed_chars);
+                        // 流式输出时直接显示完整内容（不需要打字机效果）
+                        // 打字机效果已由流式输出本身提供
+                        // 自动滚动到底部
+                        ImGui::SetScrollHereY(1.0f);
 
                         // 绘制消息气泡
-                        UI::MessageBubble::draw(display_message, &m_bubble_style);
+                        UI::MessageBubble::draw(message, &m_bubble_style);
                     } else {
                         // 绘制完整的消息气泡
                         UI::MessageBubble::draw(message, &m_bubble_style);

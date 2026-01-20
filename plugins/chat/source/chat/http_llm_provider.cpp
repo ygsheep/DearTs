@@ -4,6 +4,9 @@
  */
 
 #include "chat/llm/http_llm_provider.hpp"
+#include "core/network/http_client.hpp"
+#include "core/network/http_types.hpp"
+#include "core/network/sse_parser.hpp"
 #include "liblogger/logger.h"
 #include <nlohmann/json.hpp>
 #include <format>
@@ -11,14 +14,6 @@
 #include <sstream>
 #include <future>
 #include <thread>
-
-#ifdef _WIN32
-    #include <windows.h>
-    #include <winhttp.h>
-    #pragma comment(lib, "winhttp.lib")
-#else
-    #include <curl/curl.h>
-#endif
 
 namespace DearTs::Plugins::Chat::LLM {
 
@@ -72,16 +67,40 @@ DearTs::Core::Result<LLMResponse, std::string> HTTPLLMProvider::send(const LLMRe
     const auto start_time = std::chrono::steady_clock::now();
 
     try {
-        // 构建请求 JSON
+        // 如果启用流式输出，使用流式处理
+        if (request.stream && request.on_chunk) {
+            LOG_INFO("HTTPLLM: Using streaming mode");
+            std::string full_content;
+
+            auto result = send_streaming_request(request, [&](const std::string& content) {
+                full_content += content;
+                request.on_chunk(content);
+            });
+
+            if (!result.isOk()) {
+                return DearTs::Core::Result<LLMResponse, std::string>::err(result.error());
+            }
+
+            LLMResponse response;
+            response.content = full_content;
+            response.is_complete = true;
+
+            const auto end_time = std::chrono::steady_clock::now();
+            response.duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                end_time - start_time
+            );
+
+            return DearTs::Core::Result<LLMResponse, std::string>::ok(response);
+        }
+
+        // 非流式：发送常规 HTTP 请求
         const std::string request_body = build_chat_completion_request(request);
 
-        // 发送 HTTP 请求
         auto response_body = send_http_request("/chat/completions", request_body);
         if (!response_body.isOk()) {
             return DearTs::Core::Result<LLMResponse, std::string>::err(response_body.error());
         }
 
-        // 解析响应
         auto response = parse_chat_completion_response(response_body.unwrap());
         if (!response.isOk()) {
             return DearTs::Core::Result<LLMResponse, std::string>::err(response.error());
@@ -89,7 +108,6 @@ DearTs::Core::Result<LLMResponse, std::string> HTTPLLMProvider::send(const LLMRe
 
         auto llm_response = response.unwrap();
 
-        // 计算耗时
         const auto end_time = std::chrono::steady_clock::now();
         llm_response.duration = std::chrono::duration_cast<std::chrono::milliseconds>(
             end_time - start_time
@@ -130,169 +148,77 @@ DearTs::Core::Result<std::string, std::string> HTTPLLMProvider::send_http_reques
     const std::string& endpoint,
     const std::string& json_body
 ) const {
-#ifdef _WIN32
-    // Windows 使用 WinHTTP
-    HINTERNET hSession = nullptr;
-    HINTERNET hConnect = nullptr;
-    HINTERNET hRequest = nullptr;
+    using namespace DearTs::Core::Network;
 
-    // 解析 URL
-    std::wstring url_base = std::wstring(m_base_url.begin(), m_base_url.end());
-    std::wstring url_endpoint = std::wstring(endpoint.begin(), endpoint.end());
+    // 配置 HTTP 客户端
+    HttpClientConfig config;
+    config.connect_timeout = std::chrono::seconds(10);
+    config.request_timeout = std::chrono::seconds(60);  // OpenAI API 可能较慢
 
-    URL_COMPONENTS urlComp = {0};
-    urlComp.dwStructSize = sizeof(urlComp);
-    urlComp.dwSchemeLength = 256;
-    urlComp.dwHostNameLength = 256;
-    urlComp.dwUrlPathLength = 256;
+    // 创建 HTTP 客户端
+    BoostAsioHttpClient client(m_base_url, config);
 
-    if (!WinHttpCrackUrl(url_base.c_str(), url_base.length(), 0, &urlComp)) {
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to parse URL");
-    }
+    // 构建请求
+    HttpRequest request;
+    request.method = "POST";
+    request.endpoint = endpoint;
+    request.headers["Content-Type"] = "application/json";
 
-    // 打开会话
-    hSession = WinHttpOpen(
-        L"ChatManager/1.0",
-        WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-        WINHTTP_NO_PROXY_NAME,
-        WINHTTP_NO_PROXY_BYPASS,
-        0
-    );
-
-    if (!hSession) {
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to open WinHTTP session");
-    }
-
-    // 连接服务器
-    std::wstring host_name(urlComp.lpszHostName, urlComp.dwHostNameLength);
-    hConnect = WinHttpConnect(
-        hSession,
-        host_name.c_str(),
-        urlComp.nPort,
-        0
-    );
-
-    if (!hConnect) {
-        WinHttpCloseHandle(hSession);
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to connect to server");
-    }
-
-    // 创建请求
-    std::wstring full_path = std::wstring(urlComp.lpszUrlPath, urlComp.dwUrlPathLength) + url_endpoint;
-    hRequest = WinHttpOpenRequest(
-        hConnect,
-        L"POST",
-        full_path.c_str(),
-        nullptr,
-        WINHTTP_NO_REFERER,
-        WINHTTP_DEFAULT_ACCEPT_TYPES,
-        (urlComp.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0
-    );
-
-    if (!hRequest) {
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to open request");
-    }
-
-    // 添加请求头
-    std::wstring headers = L"Content-Type: application/json\r\n";
+    // Bearer Token 认证（用于 OpenAI 兼容 API）
     if (!m_api_key.empty()) {
-        headers += std::format(L"Authorization: Bearer {}\r\n", std::wstring(m_api_key.begin(), m_api_key.end()));
+        request.headers["Authorization"] = "Bearer " + m_api_key;
     }
 
-    WinHttpAddRequestHeaders(
-        hRequest,
-        headers.c_str(),
-        -1,
-        WINHTTP_ADDREQ_FLAG_ADD
-    );
+    request.body = json_body;
 
     // 发送请求
-    if (!WinHttpSendRequest(
-        hRequest,
-        WINHTTP_NO_ADDITIONAL_HEADERS,
-        0,
-        (LPVOID)json_body.data(),
-        json_body.length(),
-        json_body.length(),
-        0
-    )) {
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to send request");
+    auto response_result = client.request(request);
+
+    if (response_result.isErr()) {
+        return DearTs::Core::Result<std::string, std::string>::err(response_result.error());
     }
 
-    // 接收响应
-    if (!WinHttpReceiveResponse(hRequest, nullptr)) {
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to receive response");
-    }
+    auto response = response_result.unwrap();
 
-    // 读取响应数据
-    std::string response_data;
-    DWORD bytes_available = 0;
-    while (WinHttpQueryDataAvailable(hRequest, &bytes_available) && bytes_available > 0) {
-        std::vector<char> buffer(bytes_available + 1);
-        DWORD bytes_read = 0;
+    // 检查 HTTP 状态码
+    if (response.status_code != 200) {
+        std::string error_detail;
 
-        if (WinHttpReadData(hRequest, buffer.data(), bytes_available, &bytes_read)) {
-            buffer[bytes_read] = '\0';
-            response_data += buffer.data();
+        // 尝试从响应体中提取错误信息
+        if (!response.body.empty()) {
+            try {
+                json j = json::parse(response.body);
+                // OpenAI 格式错误: {"error": {"message": "...", "type": "...", "code": "..."}}
+                if (j.contains("error")) {
+                    auto& err = j["error"];
+                    if (err.contains("message")) {
+                        error_detail = err["message"].get<std::string>();
+                    } else if (err.is_string()) {
+                        error_detail = err.get<std::string>();
+                    } else {
+                        error_detail = err.dump();
+                    }
+                } else {
+                    error_detail = response.body;
+                }
+            } catch (...) {
+                error_detail = response.body;
+            }
         }
+
+        std::string error_msg = response.error_message.empty()
+            ? std::format("HTTP {}", response.status_code)
+            : std::format("HTTP {}: {}", response.status_code, response.error_message);
+
+        if (!error_detail.empty()) {
+            error_msg += std::format(" - {}", error_detail);
+        }
+
+        LOG_ERROR("HTTP LLM: request failed: {}", error_msg);
+        return DearTs::Core::Result<std::string, std::string>::err(error_msg);
     }
 
-    WinHttpCloseHandle(hRequest);
-    WinHttpCloseHandle(hConnect);
-    WinHttpCloseHandle(hSession);
-
-    return DearTs::Core::Result<std::string, std::string>::ok(response_data);
-
-#else
-    // 非 Windows 使用 libcurl
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        return DearTs::Core::Result<std::string, std::string>::err("Failed to initialize curl");
-    }
-
-    const std::string full_url = m_base_url + endpoint;
-
-    curl_easy_setopt(curl, CURLOPT_URL, full_url.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
-
-    // 设置请求头
-    struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    if (!m_api_key.empty()) {
-        headers = curl_slist_append(headers, std::format("Authorization: Bearer {}", m_api_key).c_str());
-    }
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-    // 设置响应回调
-    std::string response_data;
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, +[](void* contents, size_t size, size_t nmemb, std::string* s) {
-        const size_t new_length = size * nmemb;
-        s->append((char*)contents, new_length);
-        return new_length;
-    });
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
-
-    // 执行请求
-    const CURLcode res = curl_easy_perform(curl);
-
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
-
-    if (res != CURLE_OK) {
-        return DearTs::Core::Result<std::string, std::string>::err(std::format("Curl request failed: {}", curl_easy_strerror(res)));
-    }
-
-    return DearTs::Core::Result<std::string, std::string>::ok(response_data);
-#endif
+    return DearTs::Core::Result<std::string, std::string>::ok(response.body);
 }
 
 std::string HTTPLLMProvider::build_chat_completion_request(const LLMRequest& request) const {
@@ -379,6 +305,110 @@ bool HTTPLLMProvider::test_connection() const {
         return response.isOk();
     } catch (...) {
         return false;
+    }
+}
+
+DearTs::Core::Result<void, std::string> HTTPLLMProvider::send_streaming_request(
+    const LLMRequest& request,
+    const std::function<void(const std::string&)>& on_chunk
+) const {
+    using namespace DearTs::Core::Network;
+
+    try {
+        LOG_INFO("HTTPLLM: Starting SSE streaming request to {}", m_base_url);
+        const std::string request_body = build_chat_completion_request(request);
+
+        // 创建 SSE 解析器
+        SSEParser sse_parser([&](const SSEEvent& event) {
+            std::string content = parse_sse_data(event.data);
+            if (!content.empty() && on_chunk) {
+                on_chunk(content);
+            }
+        });
+
+        // 配置 HTTP 客户端
+        HttpClientConfig config;
+        config.connect_timeout = std::chrono::seconds(10);
+        config.request_timeout = std::chrono::seconds(60);
+
+        // 创建 HTTP 客户端
+        BoostAsioHttpClient client(m_base_url, config);
+
+        // 构建请求
+        HttpRequest http_req;
+        http_req.method = "POST";
+        http_req.endpoint = "/chat/completions";
+        http_req.headers["Content-Type"] = "application/json";
+
+        if (!m_api_key.empty()) {
+            http_req.headers["Authorization"] = "Bearer " + m_api_key;
+        }
+
+        http_req.body = request_body;
+
+        // 设置流式回调
+        http_req.on_chunk = [&](const std::string& chunk) {
+            sse_parser.parse(chunk);
+        };
+
+        // 发送请求
+        auto response_result = client.request(http_req);
+
+        if (response_result.isErr()) {
+            return DearTs::Core::Result<void, std::string>::err(response_result.error());
+        }
+
+        auto response = response_result.unwrap();
+
+        if (response.status_code != 200) {
+            std::string error_msg = response.error_message.empty()
+                ? std::format("HTTP {}", response.status_code)
+                : std::format("HTTP {}: {}", response.status_code, response.error_message);
+            LOG_ERROR("HTTPLLM: Streaming request failed: {}", error_msg);
+            return DearTs::Core::Result<void, std::string>::err(error_msg);
+        }
+
+        LOG_INFO("HTTPLLM: SSE streaming completed, {} events processed", sse_parser.get_event_count());
+        return DearTs::Core::Result<void, std::string>::ok();
+
+    } catch (const std::exception& e) {
+        return DearTs::Core::Result<void, std::string>::err(
+            std::format("SSE streaming request failed: {}", e.what())
+        );
+    }
+}
+
+std::string HTTPLLMProvider::parse_sse_data(const std::string& data) {
+    try {
+        // SSE 的 data 字段可能包含多行 JSON
+        // OpenAI 格式: data: {"choices": [...]}
+        // 需要提取 content 字段
+
+        json j = json::parse(data);
+
+        // 检查 choices 数组
+        if (j.contains("choices") && j["choices"].is_array() && !j["choices"].empty()) {
+            const auto& choice = j["choices"][0];
+
+            // 检查 delta (增量内容)
+            if (choice.contains("delta")) {
+                const auto& delta = choice["delta"];
+                if (delta.contains("content")) {
+                    return delta["content"].get<std::string>();
+                }
+            }
+
+            // 检查完整的 message
+            if (choice.contains("message") && choice["message"].contains("content")) {
+                return choice["message"]["content"].get<std::string>();
+            }
+        }
+
+        return "";
+
+    } catch (const json::exception&) {
+        // 忽略解析错误的数据
+        return "";
     }
 }
 

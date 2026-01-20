@@ -24,9 +24,16 @@ namespace DearTs::Plugins::Chat {
 
 void InfoPanelView::load_config() {
     // 加载 LLM 配置
-    m_selected_provider = m_config.get_or<std::string>("llm.provider", "ollama");
+    m_selected_provider_id = m_config.get_or<std::string>("llm.provider", "ollama");
     m_selected_model = m_config.get_or<std::string>("llm.model", "llama3.2");
-    m_ollama_base_url = m_config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+    m_custom_base_url = m_config.get_or<std::string>("llm.custom_base_url", "");
+    m_api_key = m_config.get_or<std::string>("llm.api_key", "");
+
+    // 向后兼容：如果存在旧的 ollama_base_url，使用它
+    if (m_custom_base_url.empty() && m_selected_provider_id == "ollama") {
+        m_ollama_base_url = m_config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+    }
+
     m_temperature = m_config.get_or<double>("llm.temperature", 0.7);
     m_max_tokens = m_config.get_or<int>("llm.max_tokens", 2048);
 
@@ -55,9 +62,11 @@ void InfoPanelView::save_config() {
     m_last_config_save = now;
 
     // 保存 LLM 配置
-    m_config.set("llm.provider", m_selected_provider);
+    m_config.set("llm.provider", m_selected_provider_id);
     m_config.set("llm.model", m_selected_model);
-    m_config.set("llm.ollama_base_url", m_ollama_base_url);
+    m_config.set("llm.custom_base_url", m_custom_base_url);
+    m_config.set("llm.api_key", m_api_key);
+    m_config.set("llm.ollama_base_url", m_ollama_base_url);  // 向后兼容
     m_config.set("llm.temperature", m_temperature);
     m_config.set("llm.max_tokens", m_max_tokens);
 
@@ -234,7 +243,7 @@ void InfoPanelView::draw_ai_settings() {
     ImGui::Separator();
 
     // Ollama 专用设置
-    if (m_selected_provider == "ollama") {
+    if (m_selected_provider_id == "ollama") {
         draw_ollama_settings();
         ImGui::Separator();
     }
@@ -246,6 +255,15 @@ void InfoPanelView::draw_ai_settings() {
 
     // 高级设置
     if (ImGui::CollapsingHeader("高级设置")) {
+        // 显示当前供应商配置
+        const LLMProviderConfig* config = get_current_provider_config();
+        if (config) {
+            ImGui::Text("供应商: %s", config->display_name.c_str());
+            ImGui::Text("API 地址: %s",
+                m_custom_base_url.empty() ? config->default_base_url.c_str() : m_custom_base_url.c_str());
+            ImGui::Separator();
+        }
+
         // Top-p
         ImGui::Text("Top-p 采样:");
         float temp_float = static_cast<float>(m_temperature);
@@ -278,13 +296,16 @@ void InfoPanelView::draw_ai_settings() {
 void InfoPanelView::draw_llm_provider_selector() {
     ImGui::Text("%s LLM 提供商", ICON_SETTINGS);
 
-    // 提供商下拉选择
-    const char* current_provider = m_selected_provider.c_str();
-    if (ImGui::BeginCombo("##provider", current_provider)) {
-        for (const auto& provider : m_available_providers) {
-            const bool is_selected = (m_selected_provider == provider);
-            if (ImGui::Selectable(provider.c_str(), is_selected)) {
-                change_llm_provider(provider);
+    // 获取当前供应商配置
+    const LLMProviderConfig* current_config = get_current_provider_config();
+    const char* current_display = current_config ? current_config->display_name.c_str() : "未知";
+
+    // 供应商下拉选择（使用显示名称）
+    if (ImGui::BeginCombo("##provider", current_display)) {
+        for (const auto& provider : PRESET_LLM_PROVIDERS) {
+            const bool is_selected = (m_selected_provider_id == provider.id);
+            if (ImGui::Selectable(provider.display_name.c_str(), is_selected)) {
+                change_llm_provider(provider.id);
             }
             if (is_selected) {
                 ImGui::SetItemDefaultFocus();
@@ -293,26 +314,61 @@ void InfoPanelView::draw_llm_provider_selector() {
         ImGui::EndCombo();
     }
 
-    // 提供商说明
+    // 供应商说明
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
-    if (m_selected_provider == "ollama") {
-        ImGui::TextWrapped("本地 Ollama 服务，支持多种开源模型");
-    } else if (m_selected_provider == "http") {
-        ImGui::TextWrapped("通过 HTTP API 连接到 LLM 服务（如 OpenAI）");
-    } else if (m_selected_provider == "python") {
-        ImGui::TextWrapped("使用 Python 脚本调用本地 LLM");
-    } else if (m_selected_provider == "cli") {
-        ImGui::TextWrapped("通过命令行工具调用 LLM");
+    if (current_config) {
+        ImGui::TextWrapped("%s", current_config->is_chinese_provider ?
+            "中国供应商" : "国际供应商");
     }
     ImGui::PopStyleColor();
 
-    // API 密钥（仅 HTTP）
-    if (m_selected_provider == "http") {
+    // API 密钥（如果需要）
+    if (current_config && current_config->requires_api_key) {
         ImGui::Text("API 密钥:");
-        static char api_key[256] = "";
-        if (ImGui::InputText("##api_key", api_key, sizeof(api_key), ImGuiInputTextFlags_Password)) {
-            // 更新 API 密钥
+        char api_key_buffer[256];
+        strncpy(api_key_buffer, m_api_key.c_str(), sizeof(api_key_buffer) - 1);
+        api_key_buffer[sizeof(api_key_buffer) - 1] = '\0';
+
+        if (ImGui::InputText("##api_key", api_key_buffer, sizeof(api_key_buffer),
+                             ImGuiInputTextFlags_Password)) {
+            m_api_key = api_key_buffer;
+            // 保存到配置
+            m_config.set("llm.api_key", m_api_key);
+            save_config();
         }
+    }
+
+    // 自定义 Base URL（可选）
+    ImGui::Text("API 地址:");
+    char url_buffer[256];
+    const std::string& url_to_show = m_custom_base_url.empty() ?
+        (current_config ? current_config->default_base_url : "") : m_custom_base_url;
+    strncpy(url_buffer, url_to_show.c_str(), sizeof(url_buffer) - 1);
+    url_buffer[sizeof(url_buffer) - 1] = '\0';
+
+    if (ImGui::InputText("##base_url", url_buffer, sizeof(url_buffer))) {
+        m_custom_base_url = url_buffer;
+        // 同步到 ollama_base_url（向后兼容）
+        if (m_selected_provider_id == "ollama") {
+            m_ollama_base_url = m_custom_base_url.empty() ?
+                (current_config ? current_config->default_base_url : "") : m_custom_base_url;
+        }
+        // 保存到配置
+        m_config.set("llm.custom_base_url", m_custom_base_url);
+        save_config();
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("重置##reset_url")) {
+        m_custom_base_url = "";
+        m_config.set("llm.custom_base_url", "");
+        save_config();
+    }
+
+    // 提示：默认值
+    if (m_custom_base_url.empty() && current_config) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("(默认: %s)", current_config->default_base_url.c_str());
     }
 }
 
@@ -555,20 +611,37 @@ void InfoPanelView::draw_export_section() {
     }
 }
 
-void InfoPanelView::change_llm_provider(const std::string& provider) {
-    const std::string old_provider = m_selected_provider;
-    m_selected_provider = provider;
+void InfoPanelView::change_llm_provider(const std::string& provider_id) {
+    const std::string old_provider = m_selected_provider_id;
+    m_selected_provider_id = provider_id;
+
+    // 获取供应商配置并设置默认模型
+    const LLMProviderConfig* config = get_current_provider_config();
+    if (config) {
+        m_selected_model = config->default_model;
+        // 同步更新 m_ollama_base_url（向后兼容）
+        if (provider_id == "ollama") {
+            m_ollama_base_url = config->default_base_url;
+        }
+    }
 
     // 发布 LLM 提供商切换事件
     DearTs::Core::Event::EventBus::instance().publish(Events::LLMProviderChangedEvent{
         .old_provider = old_provider,
-        .new_provider = provider
+        .new_provider = provider_id
+    });
+
+    // 发布配置更新事件
+    DearTs::Core::Event::EventBus::instance().publish(Events::ConfigUpdatedEvent{
+        .config_key = "llm.provider",
+        .old_value = old_provider,
+        .new_value = provider_id
     });
 
     // 保存配置
     save_config();
 
-    LOG_INFO("Changed LLM provider from {} to {}", old_provider, provider);
+    LOG_INFO("Changed LLM provider from {} to {}", old_provider, provider_id);
 }
 
 void InfoPanelView::change_model(const std::string& model) {
@@ -1145,6 +1218,16 @@ std::string InfoPanelView::format_current_time() const {
     char buffer[64];
     std::strftime(buffer, sizeof(buffer), "%H:%M:%S", &tm);
     return std::string(buffer);
+}
+
+// ========== LLM 供应商配置辅助方法 ==========
+
+const LLMProviderConfig* InfoPanelView::get_current_provider_config() const {
+    auto it = std::find_if(PRESET_LLM_PROVIDERS.begin(), PRESET_LLM_PROVIDERS.end(),
+        [&](const LLMProviderConfig& config) {
+            return config.id == m_selected_provider_id;
+        });
+    return it != PRESET_LLM_PROVIDERS.end() ? &(*it) : nullptr;
 }
 
 } // namespace DearTs::Plugins::Chat
