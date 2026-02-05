@@ -554,6 +554,17 @@ DearTs::Core::Result<int64_t, std::string> SQLiteDatabase::insert_message(
         return DearTs::Core::Result<int64_t, std::string>::err("Database not initialized");
     }
 
+    // ✅ 显式开启事务，确保数据一致性
+    char* begin_error = nullptr;
+    int begin_rc = sqlite3_exec(m_db, "BEGIN IMMEDIATE TRANSACTION;", nullptr, nullptr, &begin_error);
+    if (begin_rc != SQLITE_OK) {
+        std::string error(begin_error ? begin_error : "Unknown error");
+        if (begin_error) sqlite3_free(begin_error);
+        return DearTs::Core::Result<int64_t, std::string>::err(
+            "Failed to begin transaction: " + error
+        );
+    }
+
     const char* sql = R"(
         INSERT INTO messages (message_uuid, conversation_id, role, content, timestamp, tokens)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -579,6 +590,8 @@ DearTs::Core::Result<int64_t, std::string> SQLiteDatabase::insert_message(
     if (rc != SQLITE_DONE) {
         std::string error = sqlite3_errmsg(m_db);
         sqlite3_finalize(stmt);
+        // 回滚事务
+        sqlite3_exec(m_db, "ROLLBACK;", nullptr, nullptr, nullptr);
         return DearTs::Core::Result<int64_t, std::string>::err(
             std::format("Failed to execute statement: {}", error)
         );
@@ -586,6 +599,58 @@ DearTs::Core::Result<int64_t, std::string> SQLiteDatabase::insert_message(
 
     int64_t row_id = sqlite3_last_insert_rowid(m_db);
     sqlite3_finalize(stmt);
+
+    // ✅ 提交事务，确保数据持久化
+    char* commit_error = nullptr;
+    int commit_rc = sqlite3_exec(m_db, "COMMIT;", nullptr, nullptr, &commit_error);
+    if (commit_rc != SQLITE_OK) {
+        LOG_ERROR("Failed to commit transaction: {}", commit_error ? commit_error : "Unknown error");
+        if (commit_error) sqlite3_free(commit_error);
+        return DearTs::Core::Result<int64_t, std::string>::err(
+            "Failed to commit transaction"
+        );
+    }
+
+    // ✅ WAL checkpoint 必须在事务外部执行（否则会锁死）
+    // 移到 COMMIT 之后，避免 "database table is locked" 错误
+    char* wal_error = nullptr;
+    int wal_rc = sqlite3_exec(m_db, "PRAGMA wal_checkpoint(TRUNCATE);", nullptr, nullptr, &wal_error);
+    if (wal_rc != SQLITE_OK) {
+        LOG_WARN("[WAL] Checkpoint failed: {}", wal_error ? wal_error : "unknown error");
+        if (wal_error) sqlite3_free(wal_error);
+    } else {
+        LOG_INFO("[WAL] Checkpoint completed after insert id={}", row_id);
+    }
+
+    // ✅ WAL checkpoint 后再次验证（确保数据已持久化到主数据库）
+    const char* verify_after_wal_sql = "SELECT id FROM messages WHERE id = ?";
+    sqlite3_stmt* verify_wal_stmt = nullptr;
+    int verify_wal_rc = sqlite3_prepare_v2(m_db, verify_after_wal_sql, -1, &verify_wal_stmt, nullptr);
+    if (verify_wal_rc == SQLITE_OK) {
+        sqlite3_bind_int64(verify_wal_stmt, 1, row_id);
+        if (sqlite3_step(verify_wal_stmt) == SQLITE_ROW) {
+            LOG_INFO("[VERIFY] Message id={} found in database AFTER WAL checkpoint", row_id);
+        } else {
+            LOG_ERROR("[VERIFY] Message id={} NOT FOUND in database AFTER WAL checkpoint! DATA LOST!", row_id);
+        }
+        sqlite3_finalize(verify_wal_stmt);
+    }
+
+    // 验证插入是否成功
+    const char* verify_sql = "SELECT id, conversation_id FROM messages WHERE id = ?";
+    sqlite3_stmt* verify_stmt = nullptr;
+    int verify_rc = sqlite3_prepare_v2(m_db, verify_sql, -1, &verify_stmt, nullptr);
+    if (verify_rc == SQLITE_OK) {
+        sqlite3_bind_int64(verify_stmt, 1, row_id);
+        if (sqlite3_step(verify_stmt) == SQLITE_ROW) {
+            auto verify_id = sqlite3_column_int64(verify_stmt, 0);
+            const char* verify_conv_id = reinterpret_cast<const char*>(sqlite3_column_text(verify_stmt, 1));
+            LOG_DEBUG("Verified insert: id={}, conv_id={}", verify_id, verify_conv_id ? verify_conv_id : "NULL");
+        } else {
+            LOG_ERROR("Insert verification failed: id={} not found after insert!", row_id);
+        }
+        sqlite3_finalize(verify_stmt);
+    }
 
     LOG_INFO("Message inserted: id={}, uuid={}", row_id, message_uuid);
     return DearTs::Core::Result<int64_t, std::string>::ok(row_id);
@@ -607,13 +672,16 @@ DearTs::Core::Result<void, std::string> SQLiteDatabase::insert_conversation(
         return DearTs::Core::Result<void, std::string>::err("Database not initialized");
     }
 
-    const char* sql = R"(
-        INSERT OR REPLACE INTO conversations (id, title, type, created_at, updated_at)
+    // ✅ 使用 INSERT OR IGNORE 避免 ON DELETE CASCADE 级联删除消息
+    // INSERT OR REPLACE 会先 DELETE 再 INSERT，触发 CASCADE 删除所有相关消息！
+    // INSERT OR IGNORE 只是忽略重复，不会触发 DELETE
+    const char* insert_sql = R"(
+        INSERT OR IGNORE INTO conversations (id, title, type, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?)
     )";
 
     sqlite3_stmt* stmt;
-    int rc = sqlite3_prepare_v2(m_db, sql, -1, &stmt, nullptr);
+    int rc = sqlite3_prepare_v2(m_db, insert_sql, -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
         return DearTs::Core::Result<void, std::string>::err(
             std::format("Failed to prepare statement: {}", sqlite3_errmsg(m_db))
@@ -627,11 +695,34 @@ DearTs::Core::Result<void, std::string> SQLiteDatabase::insert_conversation(
     sqlite3_bind_int64(stmt, 5, timestamp);
 
     rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    // ✅ 如果需要更新（已存在），使用 UPDATE 而不是 REPLACE
+    // 检查是否需要更新（INSERT OR IGNORE 会返回 SQLITE_DONE，无论是否插入）
+    const char* update_sql = R"(
+        UPDATE conversations
+        SET title = ?, type = ?, updated_at = ?
+        WHERE id = ?
+    )";
+
+    rc = sqlite3_prepare_v2(m_db, update_sql, -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        return DearTs::Core::Result<void, std::string>::err(
+            std::format("Failed to prepare update statement: {}", sqlite3_errmsg(m_db))
+        );
+    }
+
+    sqlite3_bind_text(stmt, 1, title.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, type.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 3, timestamp);
+    sqlite3_bind_text(stmt, 4, conversation_id.c_str(), -1, SQLITE_TRANSIENT);
+
+    rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
         std::string error = sqlite3_errmsg(m_db);
         sqlite3_finalize(stmt);
         return DearTs::Core::Result<void, std::string>::err(
-            std::format("Failed to execute statement: {}", error)
+            std::format("Failed to execute update statement: {}", error)
         );
     }
 
@@ -871,6 +962,22 @@ SQLiteDatabase::get_messages_by_conversation(const std::string& conversation_id)
         );
     }
 
+    LOG_DEBUG("[QUERY] Querying messages for conversation_id='{}' (length={})",
+              conversation_id, conversation_id.length());
+
+    // ✅ 先统计数据库中该会话的消息数量
+    const char* count_sql = "SELECT COUNT(*) FROM messages WHERE conversation_id = ?";
+    sqlite3_stmt* count_stmt = nullptr;
+    int count_rc = sqlite3_prepare_v2(m_db, count_sql, -1, &count_stmt, nullptr);
+    if (count_rc == SQLITE_OK) {
+        sqlite3_bind_text(count_stmt, 1, conversation_id.c_str(), -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(count_stmt) == SQLITE_ROW) {
+            int count = sqlite3_column_int(count_stmt, 0);
+            LOG_DEBUG("[QUERY] Database COUNT for conversation_id='{}': {}", conversation_id, count);
+        }
+        sqlite3_finalize(count_stmt);
+    }
+
     const char* sql = R"(
         SELECT id, conversation_id, message_uuid, role, content, timestamp, tokens
         FROM messages
@@ -889,7 +996,9 @@ SQLiteDatabase::get_messages_by_conversation(const std::string& conversation_id)
     sqlite3_bind_text(stmt, 1, conversation_id.c_str(), -1, SQLITE_TRANSIENT);
 
     std::vector<MessageRecord> messages;
+    int row_count = 0;
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        row_count++;
         MessageRecord record;
         record.id = sqlite3_column_int64(stmt, 0);
         record.conversation_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
@@ -902,6 +1011,12 @@ SQLiteDatabase::get_messages_by_conversation(const std::string& conversation_id)
         if (sqlite3_column_type(stmt, 6) != SQLITE_NULL) {
             record.tokens = sqlite3_column_int(stmt, 6);
         }
+
+        // 详细日志：每检索到一条消息就记录
+        LOG_DEBUG("Retrieved row {}: DB_id={}, uuid={}, role='{}', content='{}...' (len={})",
+                 row_count, record.id, record.message_uuid, record.role,
+                 record.content.substr(0, std::min(size_t(20), record.content.length())),
+                 record.content.length());
 
         messages.push_back(std::move(record));
     }

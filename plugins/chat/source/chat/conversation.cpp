@@ -156,26 +156,45 @@ std::shared_ptr<Conversation> ConversationManager::get_conversation(const std::s
 }
 
 bool ConversationManager::delete_conversation(const std::string& id) {
+    LOG_INFO("Attempting to delete conversation: {}", id);
+
+    // 先复制 id，避免引用问题
+    std::string id_copy = id;
+
     auto it = std::remove_if(m_conversations.begin(), m_conversations.end(),
-        [&id](const std::shared_ptr<Conversation>& conv) {
-            return conv->id == id;
+        [&id_copy](const std::shared_ptr<Conversation>& conv) {
+            return conv->id == id_copy;
         });
 
     if (it != m_conversations.end()) {
-        m_conversations.erase(it, m_conversations.end());
+        m_conversations.erase(it);
 
         // 如果删除的是当前会话，清空当前会话
-        if (m_current_conversation && m_current_conversation->id == id) {
+        bool was_current = (m_current_conversation && m_current_conversation->id == id_copy);
+        if (was_current) {
             m_current_conversation.reset();
+            LOG_INFO("Cleared current conversation (was deleted)");
         }
 
         // ✅ 发布删除事件，通知其他插件（如 Memory Core）
-        DearTs::Core::Event::EventBus::instance().publish(Events::ConversationDeletedEvent{ id });
+        try {
+            Events::ConversationDeletedEvent deleted_event;
+            deleted_event.conversation_id = id_copy;
+            DearTs::Core::Event::EventBus::instance().publish(deleted_event);
+            LOG_INFO("Published ConversationDeletedEvent");
+        } catch (...) {
+            // 捕获所有异常，确保程序继续运行
+            LOG_ERROR("Exception while publishing ConversationDeletedEvent");
+        }
 
-        LOG_INFO("Deleted conversation {}", id);
+        LOG_INFO("Deleted conversation {}", id_copy);
+
+        // TODO: 自动选择另一个会话的功能暂时移除，等删除功能稳定后再添加
+
         return true;
     }
 
+    LOG_WARN("Conversation {} not found for deletion", id_copy);
     return false;
 }
 
@@ -276,6 +295,15 @@ DearTs::Core::Result<size_t, std::string> ConversationManager::load_messages(con
     auto& message_records = result.unwrap();
     LOG_INFO("Retrieved {} message records from database for conversation {}",
              message_records.size(), conversation_id);
+
+    // ✅ 详细日志：列出每条消息的ID、角色和时间戳
+    for (size_t i = 0; i < message_records.size(); ++i) {
+        const auto& record = message_records[i];
+        LOG_INFO("  [{}] DB_id={}, uuid={}, role='{}', content='{}...', timestamp={}",
+                 i, record.id, record.message_uuid, record.role,
+                 record.content.substr(0, std::min(size_t(30), record.content.length())),
+                 record.timestamp);
+    }
 
     // ✅ 如果数据库返回的消息数量和内存中的一样，说明已经加载过了，跳过
     if (message_records.size() == conv->messages.size() && !conv->messages.empty()) {
