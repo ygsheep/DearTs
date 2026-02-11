@@ -162,6 +162,21 @@ else()
     target_compile_definitions(ChatManager PRIVATE SQLITE3_NOT_FOUND)
 endif()
 
+# 查找 OpenSSL (用于 HTTPS 支持，如果 vcpkg 安装了 OpenSSL)
+if(WIN32)
+    # Windows: 使用 vcpkg 安装的 OpenSSL
+    find_package(OpenSSL CONFIG QUIET)
+    if(OpenSSL_FOUND)
+        message(STATUS "OpenSSL found via vcpkg, HTTPS support enabled")
+        target_link_libraries(ChatManager PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+        target_compile_definitions(ChatManager PRIVATE HAVE_OPENSSL)
+        # OpenSSL 库路径
+        target_link_directories(ChatManager PRIVATE "D:/Programs/vcpkg/installed/x64-windows/lib")
+    else()
+        message(WARNING "OpenSSL not found. HTTPS support will be disabled.")
+    endif()
+endif()
+
 # 链接系统库
 if(UNIX AND NOT APPLE)
     target_link_libraries(ChatManager PRIVATE
