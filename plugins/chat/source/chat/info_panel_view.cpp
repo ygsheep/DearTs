@@ -34,6 +34,9 @@ void InfoPanelView::load_config() {
         m_ollama_base_url = m_config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
     }
 
+    // LLM Studio 配置
+    m_llm_studio_base_url = m_config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234/v1");
+
     m_temperature = m_config.get_or<double>("llm.temperature", 0.7);
     m_max_tokens = m_config.get_or<int>("llm.max_tokens", 2048);
 
@@ -67,6 +70,7 @@ void InfoPanelView::save_config() {
     m_config.set("llm.custom_base_url", m_custom_base_url);
     m_config.set("llm.api_key", m_api_key);
     m_config.set("llm.ollama_base_url", m_ollama_base_url);  // 向后兼容
+    m_config.set("llm.llm_studio_base_url", m_llm_studio_base_url);  // LLM Studio
     m_config.set("llm.temperature", m_temperature);
     m_config.set("llm.max_tokens", m_max_tokens);
 
@@ -112,11 +116,21 @@ void InfoPanelView::setup_event_listeners() {
         }
     ));
 
-    // 订阅 Ollama 连接状态事件
+    // 订阅 Ollama 连接状态事件（也用于 LLM Studio）
     m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::OllamaConnectionStatusEvent>(
         [this](const Events::OllamaConnectionStatusEvent& e) {
-            set_ollama_connection_status(e.is_connected, e.error_message);
-            LOG_INFO("InfoPanelView: Ollama connection status: {}", e.is_connected ? "Connected" : "Failed");
+            // 根据 base_url 判断是 Ollama 还是 LLM Studio
+            if (e.base_url.find("8080") != std::string::npos || e.base_url.find("llm") != std::string::npos) {
+                // LLM Studio 连接状态
+                m_llm_studio_connected = e.is_connected;
+                m_llm_studio_connection_error = e.error_message;
+                m_llm_studio_refreshing = false;  // 停止刷新状态
+                LOG_INFO("InfoPanelView: LLM Studio connection status: {}", e.is_connected ? "Connected" : "Failed");
+            } else {
+                // Ollama 连接状态
+                set_ollama_connection_status(e.is_connected, e.error_message);
+                LOG_INFO("InfoPanelView: Ollama connection status: {}", e.is_connected ? "Connected" : "Failed");
+            }
         }
     ));
 
@@ -245,6 +259,12 @@ void InfoPanelView::draw_ai_settings() {
     // Ollama 专用设置
     if (m_selected_provider_id == "ollama") {
         draw_ollama_settings();
+        ImGui::Separator();
+    }
+
+    // LLM Studio 专用设置
+    if (m_selected_provider_id == "llmstudio") {
+        draw_llm_studio_settings();
         ImGui::Separator();
     }
 
@@ -458,6 +478,91 @@ void InfoPanelView::refresh_ollama_models() {
     LOG_INFO("Requested Ollama model list refresh from {}", m_ollama_base_url);
 }
 
+void InfoPanelView::draw_llm_studio_settings() {
+    ImGui::Text("%s LLM Studio 设置", ICON_SERVER);
+
+    // 连接状态指示器
+    float cursor_x = ImGui::GetCursorPosX();
+    float cursor_y = ImGui::GetCursorPosY();
+
+    // 绘制状态圆点
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    const ImVec2 p_min = ImGui::GetCursorScreenPos();
+    const ImVec2 p_max = ImVec2(p_min.x + 8, p_min.y + 8);
+    const ImU32 status_color = m_llm_studio_connected ?
+        IM_COL32(100, 255, 100, 255) : IM_COL32(255, 100, 100, 255);
+    draw_list->AddCircleFilled(ImVec2(p_min.x + 4, p_min.y + 4), 4.0f, status_color);
+
+    ImGui::SetCursorPosX(cursor_x + 15);
+    ImGui::SetCursorPosY(cursor_y);
+
+    ImGui::Text("%s", m_llm_studio_connected ? "已连接" : "未连接");
+
+    if (!m_llm_studio_connected && !m_llm_studio_connection_error.empty()) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "(%s)", m_llm_studio_connection_error.c_str());
+    }
+
+    // API URL 输入
+    ImGui::Text("API 地址:");
+    char url_buffer[256];
+    strncpy(url_buffer, m_llm_studio_base_url.c_str(), sizeof(url_buffer) - 1);
+    url_buffer[sizeof(url_buffer) - 1] = '\0';
+
+    if (ImGui::InputText("##llm_studio_url", url_buffer, sizeof(url_buffer))) {
+        m_llm_studio_base_url = url_buffer;
+    }
+
+    ImGui::SameLine();
+
+    // 测试连接按钮
+    if (ImGui::Button("测试连接##llm_studio")) {
+        m_llm_studio_refreshing = true;
+        // 发布测试请求事件（复用 Ollama 事件，但使用不同的 base_url）
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            .is_connected = false,
+            .base_url = m_llm_studio_base_url,
+            .error_message = ""
+        });
+    }
+
+    // 刷新模型列表按钮
+    if (m_llm_studio_refreshing) {
+        ImGui::BeginDisabled();
+        ImGui::Button("刷新中...##llm_studio");
+        ImGui::EndDisabled();
+    } else {
+        if (ImGui::Button("刷新模型列表##llm_studio")) {
+            refresh_llm_studio_models();
+        }
+    }
+
+    ImGui::SameLine();
+
+    // 显示可用模型数量
+    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "(%zu 个模型)", m_available_models.size());
+
+    // 连接提示
+    if (!m_llm_studio_connected) {
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.5f, 1.0f));
+        ImGui::TextWrapped("提示: 确保 LLM Studio 服务正在运行，默认地址为 http://localhost:8080/v1");
+        ImGui::PopStyleColor();
+    }
+}
+
+void InfoPanelView::refresh_llm_studio_models() {
+    m_llm_studio_refreshing = true;
+
+    // 发布刷新请求事件（复用 Ollama 事件，LLM Studio 使用 /v1/models 端点）
+    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
+        .models = {},  // 空列表表示请求刷新
+        .base_url = m_llm_studio_base_url
+    });
+
+    LOG_INFO("Requested LLM Studio model list refresh from {}", m_llm_studio_base_url);
+}
+
 void InfoPanelView::draw_model_settings() {
     ImGui::Text("%s 模型设置", ICON_SMART_TOY);
 
@@ -619,9 +724,11 @@ void InfoPanelView::change_llm_provider(const std::string& provider_id) {
     const LLMProviderConfig* config = get_current_provider_config();
     if (config) {
         m_selected_model = config->default_model;
-        // 同步更新 m_ollama_base_url（向后兼容）
+        // 同步更新对应的 base_url
         if (provider_id == "ollama") {
             m_ollama_base_url = config->default_base_url;
+        } else if (provider_id == "llmstudio") {
+            m_llm_studio_base_url = config->default_base_url;
         }
     }
 

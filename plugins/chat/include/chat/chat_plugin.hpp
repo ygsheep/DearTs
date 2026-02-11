@@ -100,6 +100,16 @@ private:
      */
     void handle_ollama_connection_test(const std::string& base_url);
 
+    /**
+     * @brief 处理 LLM Studio 模型列表刷新
+     */
+    void handle_llm_studio_models_refresh(const std::string& base_url);
+
+    /**
+     * @brief 处理 LLM Studio 连接测试
+     */
+    void handle_llm_studio_connection_test(const std::string& base_url);
+
     // 管理器
     std::shared_ptr<ConversationManager> m_conversation_manager;
     InfoPanelView* m_info_panel = nullptr;  // 信息面板视图指针

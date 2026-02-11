@@ -42,6 +42,14 @@ std::unique_ptr<ILLMProvider> LLMProviderFactory::create_ollama_provider(
     return std::make_unique<OllamaLLMProvider>(base_url, model);
 }
 
+std::unique_ptr<ILLMProvider> LLMProviderFactory::create_llm_studio_provider(
+    const std::string& base_url,
+    const std::string& model
+) {
+    // LLM Studio 使用 OpenAI 兼容 API，复用 HTTPLLMProvider
+    return std::make_unique<HTTPLLMProvider>(base_url, "", model);
+}
+
 // LLMManager 实现
 LLMManager& LLMManager::instance() {
     static LLMManager instance;

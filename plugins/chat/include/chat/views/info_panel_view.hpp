@@ -75,6 +75,14 @@ inline const std::vector<LLMProviderConfig> PRESET_LLM_PROVIDERS = {
         .is_chinese_provider = true
     },
     {
+        .id = "llmstudio",
+        .display_name = "LLM Studio (本地)",
+        .default_base_url = "http://localhost:1234/v1",
+        .requires_api_key = false,
+        .default_model = "qwen/qwen3-4b",
+        .is_chinese_provider = false
+    },
+    {
         .id = "ollama",
         .display_name = "Ollama (本地)",
         .default_base_url = "http://localhost:11434",
@@ -117,9 +125,19 @@ private:
     void draw_ollama_settings();
 
     /**
+     * @brief 绘制 LLM Studio 设置
+     */
+    void draw_llm_studio_settings();
+
+    /**
      * @brief 刷新 Ollama 模型列表
      */
     void refresh_ollama_models();
+
+    /**
+     * @brief 刷新 LLM Studio 模型列表
+     */
+    void refresh_llm_studio_models();
 
     /**
      * @brief 设置可用模型列表
@@ -308,6 +326,12 @@ private:
     bool m_ollama_connected = false;
     std::string m_ollama_connection_error;
     bool m_ollama_refreshing = false;
+
+    // LLM Studio 设置
+    std::string m_llm_studio_base_url = "http://localhost:8080/v1";
+    bool m_llm_studio_connected = false;
+    std::string m_llm_studio_connection_error;
+    bool m_llm_studio_refreshing = false;
 
     // 参数设置
     float m_temperature = 0.7f;

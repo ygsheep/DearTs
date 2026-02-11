@@ -57,32 +57,71 @@ DearTs::Core::Result<void, std::string> MemoryCorePlugin::on_load() {
     auto& config_manager = DearTs::Core::Config::ConfigManager::instance();
     DearTs::Core::Config::ConfigScope config("chat");
 
-    std::string base_url = config.get_or<std::string>("llm.custom_base_url", "");
-    std::string ollama_base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
-    if (base_url.empty()) {
-        base_url = ollama_base_url;
+    // 读取当前使用的 LLM 提供商
+    std::string provider_id = config.get_or<std::string>("llm.provider", "llmstudio");
+
+    std::string base_url;
+    std::string embed_model;
+
+    if (provider_id == "llmstudio") {
+        // LM Studio 配置
+        base_url = config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234/v1");
+        embed_model = config.get_or<std::string>("llm.embed_model", "text-embedding-nomic-embed-text-v1.5");
+        LOG_INFO("Using LM Studio for embeddings: url={}, model={}", base_url, embed_model);
+    } else if (provider_id == "ollama") {
+        // Ollama 配置
+        base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+        embed_model = config.get_or<std::string>("llm.embed_model", "nomic-embed-text");
+        LOG_INFO("Using Ollama for embeddings: url={}, model={}", base_url, embed_model);
+    } else {
+        // 其他提供商使用 HTTP 模式
+        base_url = config.get_or<std::string>("llm.custom_base_url", "");
+        if (base_url.empty()) {
+            // 尝试从预设提供商获取默认 URL
+            // 简化处理：使用 LM Studio 作为默认
+            base_url = "http://localhost:1234/v1";
+        }
+        embed_model = config.get_or<std::string>("llm.embed_model", "text-embedding-nomic-embed-text-v1.5");
+        LOG_INFO("Using HTTP provider for embeddings: url={}, model={}", base_url, embed_model);
     }
 
-    // 嵌入模型配置（与聊天模型分开）
-    std::string embed_model = config.get_or<std::string>("llm.embed_model", "nomic-embed-text");
+    // 创建嵌入提供者（根据提供商类型）
+    std::unique_ptr<RAG::IEmbeddingProvider> embedding_provider;
 
-    LOG_INFO("Initializing RAG service with embedding model: {}", embed_model);
-
-    // 创建 Ollama 嵌入提供者
-    auto embedding_provider = RAG::EmbeddingProviderFactory::create_ollama_provider(
-        base_url,
-        embed_model
-    );
+    if (provider_id == "ollama") {
+        embedding_provider = RAG::EmbeddingProviderFactory::create_ollama_provider(
+            base_url,
+            embed_model
+        );
+    } else {
+        // LM Studio 和其他提供商使用 HTTP 模式
+        embedding_provider = RAG::EmbeddingProviderFactory::create_http_provider(
+            base_url,
+            embed_model,
+            ""  // API Key（本地服务通常不需要）
+        );
+    }
 
     // 初始化 RAG 服务
     auto& rag_service = RAG::RAGService::instance();
     rag_service.initialize(RAG::CacheConfig::default_config(), std::move(embedding_provider));
 
     // 设置 MemoryManager 的嵌入提供者（创建一个新的）
-    auto memory_embedding_provider = RAG::EmbeddingProviderFactory::create_ollama_provider(
-        base_url,
-        embed_model
-    );
+    std::unique_ptr<RAG::IEmbeddingProvider> memory_embedding_provider;
+
+    if (provider_id == "ollama") {
+        memory_embedding_provider = RAG::EmbeddingProviderFactory::create_ollama_provider(
+            base_url,
+            embed_model
+        );
+    } else {
+        memory_embedding_provider = RAG::EmbeddingProviderFactory::create_http_provider(
+            base_url,
+            embed_model,
+            ""
+        );
+    }
+
     Memory::MemoryManager::instance().set_embedding_provider(std::move(memory_embedding_provider));
 
     LOG_INFO("RAG service and embedding provider initialized");
@@ -152,7 +191,7 @@ DearTs::Core::Result<void, std::string> MemoryCorePlugin::initialize_database() 
 
     if (DEARTS_DEBUG) {
         // Debug 模式：使用项目根目录的 data 文件夹
-        db_path = config.get_or<std::string>("db_path", "F:/develop/CPlusPlus/Dear_SDL/DearTsd/data/memory.db");
+        db_path = config.get_or<std::string>("db_path", "D:/develop/CPlusPlus/Dear_SDL/DearTsd/data/memory.db");
         LOG_INFO("Debug mode detected, using project database path");
     } else {
         // Release 模式：使用相对路径
@@ -251,8 +290,10 @@ DearTs::Core::Result<void, std::string> MemoryCorePlugin::initialize_events() {
 // ============ 事件处理器实现 ============
 
 void MemoryCorePlugin::handle_message_save_requested(const Events::MessageSaveRequestedEvent& event) {
-    LOG_INFO("Handling message save request: conv_id={}, uuid={}",
-             event.conversation_id, event.message_uuid);
+    LOG_INFO("[DB SAVE] Handling message save request: conv_id={}, uuid={}, role='{}', content='{}...' (len={})",
+             event.conversation_id, event.message_uuid, event.role,
+             event.content.substr(0, std::min(size_t(30), event.content.length())),
+             event.content.length());
 
     auto& db = Persistence::SQLiteDatabase::instance();
     auto& event_bus = DearTs::Core::Event::EventBus::instance();
@@ -597,15 +638,27 @@ void MemoryCorePlugin::handle_conversation_deleted(
 ) {
     LOG_INFO("Handling conversation deleted: conv_id={}", event.conversation_id);
 
-    auto& db = Persistence::SQLiteDatabase::instance();
+    try {
+        LOG_INFO("Getting database instance...");
+        auto& db = Persistence::SQLiteDatabase::instance();
 
-    // 从数据库删除会话（由于外键约束，相关消息会自动删除）
-    auto result = db.delete_conversation(event.conversation_id);
+        LOG_INFO("Calling delete_conversation...");
+        // 从数据库删除会话（由于外键约束，相关消息会自动删除）
+        auto result = db.delete_conversation(event.conversation_id);
 
-    if (result.isErr()) {
-        LOG_ERROR("Failed to delete conversation from database: {}", result.error());
-    } else {
-        LOG_INFO("Conversation deleted from database: conv_id={}", event.conversation_id);
+        LOG_INFO("delete_conversation returned...");
+        if (result.isErr()) {
+            // 不记录完整的错误消息，因为它可能太长
+            LOG_ERROR("Failed to delete conversation from database");
+        } else {
+            LOG_INFO("Conversation deleted from database: conv_id={}", event.conversation_id);
+        }
+    } catch (const std::exception& e) {
+        // 捕获任何异常，避免传播到 EventBus
+        LOG_ERROR("Exception in handle_conversation_deleted");
+    } catch (...) {
+        // 捕获所有其他异常
+        LOG_ERROR("Unknown exception in handle_conversation_deleted");
     }
 }
 

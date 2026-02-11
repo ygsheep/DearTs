@@ -11,6 +11,7 @@
 #include "chat/ui/markdown_renderer.hpp"
 #include "chat/llm/llm_interface.hpp"
 #include "chat/llm/ollama_llm_provider.hpp"
+#include "chat/llm/http_llm_provider.hpp"
 #include "chat/events/chat_events.hpp"
 #include "memory_core/events/memory_events.hpp"
 #include "memory_core/persistence/database.hpp"
@@ -20,6 +21,8 @@
 #include <memory>
 #include <thread>
 #include <chrono>
+#include <set>
+#include <functional>
 
 namespace DearTs::Plugins::Chat {
 
@@ -193,7 +196,7 @@ void ChatPlugin::on_enable() {
             ).count();
 
             // 30 天 = 30 * 24 * 60 * 60 * 1000 = 2,592,000,000 毫秒
-            constexpr int64_t thirty_days_ms = 30 * 24 * 60 * 60 * 1000;
+            constexpr int64_t thirty_days_ms = 30LL * 24 * 60 * 60 * 1000;
 
             // ✅ DEBUG: 输出当前时间的日期
             auto now_days = now_ms / 86400000;
@@ -339,15 +342,27 @@ void ChatPlugin::setup_event_listeners() {
     // 订阅消息发送事件
     m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::MessageSentEvent>(
         [this](const Events::MessageSentEvent& e) {
-            LOG_INFO("Message sent in conversation {}: {}", e.conversation_id, e.message.content);
+            LOG_INFO("MessageSentEvent received: conv_id={}, msg_id={}, role={}, content='{}...'",
+                     e.conversation_id, e.message.id,
+                     static_cast<int>(e.message.role),
+                     e.message.content.substr(0, std::min(size_t(30), e.message.content.length())));
 
             // 更新消息状态为已发送
             auto conv = m_conversation_manager->find_by_id(e.conversation_id);
             if (conv && !conv->messages.empty()) {
                 conv->messages.back().status = MessageStatus::Sent;
+            } else {
+                LOG_WARN("Conversation {} not found or empty when handling MessageSentEvent", e.conversation_id);
             }
 
-            // ✅ 发布 memory_core 事件：请求保存消息到数据库
+            // 捕获需要的数据
+            auto conversation_id = e.conversation_id;
+            auto message_id = e.message.id;
+            auto message_role = e.message.role;
+            auto message_content = e.message.content;
+            auto message_tokens = e.message.token_count;
+            auto conversation_title = conv ? conv->title : "新对话";
+
             auto now = std::chrono::system_clock::now();
             auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                 now.time_since_epoch()
@@ -362,18 +377,26 @@ void ChatPlugin::setup_event_listeners() {
                 default: role_str = "user"; break;
             }
 
+            // ✅ 使用 publish_async 保存消息到数据库（避免阻塞 UI，但确保及时保存）
+            // 注意：publish_async 会在下一帧的 process_async_events 中处理
             MemoryCore::Events::MessageSaveRequestedEvent save_event;
-            save_event.conversation_id = e.conversation_id;
-            save_event.message_uuid = e.message.id;  // 使用 id 而不是 uuid
+            save_event.conversation_id = conversation_id;
+            save_event.message_uuid = message_id;
             save_event.role = role_str;
-            save_event.content = e.message.content;
+            save_event.content = message_content;
             save_event.timestamp = timestamp;
-            save_event.tokens = e.message.token_count;
-            save_event.conversation_title = conv ? conv->title : "新对话";
+            save_event.tokens = message_tokens;
+            save_event.conversation_title = conversation_title;
 
-            DearTs::Core::Event::EventBus::instance().publish(save_event);
+            LOG_INFO("[USER MSG] Publishing MessageSaveRequestedEvent: conv_id={}, msg_uuid={}, role='{}', content_len={}",
+                     save_event.conversation_id, save_event.message_uuid,
+                     save_event.role, save_event.content.length());
 
-            // 发布 memory_core 事件：请求记忆提取
+            DearTs::Core::Event::EventBus::instance().publish_async(save_event);
+
+            LOG_INFO("[USER MSG] MessageSaveRequestedEvent published to async queue");
+
+            // 发布 memory_core 事件：请求记忆提取（异步）
             std::vector<std::string> message_contents;
             message_contents.push_back(e.message.content);
 
@@ -443,16 +466,41 @@ void ChatPlugin::setup_event_listeners() {
             // 流式输出回调
             // Ollama 在单个 HTTP chunk 内的多个 NDJSON 行是累积的，
             // 但跨 chunk 时内容是增量的，需要追加
-            request.on_chunk = [this, conversation_id = e.conversation_id](const std::string& chunk) {
+            // 使用 shared_ptr 来共享去重集合，避免捕获问题
+            auto processed_chunks = std::make_shared<std::set<size_t>>();  // 存储已处理的 chunk 内容哈希
+
+            request.on_chunk = [this, conversation_id = e.conversation_id, processed_chunks](const std::string& chunk) {
+                // 计算 chunk 的简单哈希（用于去重）
+                size_t chunk_hash = std::hash<std::string>{}(chunk);
+
+                // 检查是否已经处理过这个 chunk
+                if (processed_chunks->find(chunk_hash) != processed_chunks->end()) {
+                    LOG_DEBUG("UI on_chunk: skipping duplicate chunk (hash={})", chunk_hash);
+                    return;  // 跳过重复的 chunk
+                }
+
+                // 标记为已处理
+                processed_chunks->insert(chunk_hash);
+
                 auto conv_ptr = m_conversation_manager->find_by_id(conversation_id);
                 if (conv_ptr && !conv_ptr->messages.empty()) {
                     // 获取最后一条消息（AI 消息）
                     auto& msg = conv_ptr->messages.back();
                     if (msg.is_assistant()) {
+                        // 记录追加前的状态
+                        const std::string before = msg.content;
                         // 追加新内容（ollama_llm_provider 已处理 chunk 内的累积问题）
                         msg.content += chunk;
                         msg.displayed_chars = msg.content.length();
                         msg.is_streaming = true;
+
+                        // 详细日志：追踪每次追加
+                        // LOG_INFO("UI on_chunk: chunk='{}' (len={}), before='{}...', after='{}...', total_len={})",
+                        //         chunk.substr(0, std::min(size_t(20), chunk.length())),
+                        //         chunk.length(),
+                        //         before.substr(0, std::min(size_t(20), before.length())),
+                        //         msg.content.substr(0, std::min(size_t(20), msg.content.length())),
+                        //         msg.content.length());
                     }
                 }
             };
@@ -474,6 +522,26 @@ void ChatPlugin::setup_event_listeners() {
                                 msg.status = MessageStatus::Sent;
                                 msg.is_streaming = false;
                                 msg.displayed_chars = msg.content.length();
+
+                                // ✅ 直接保存 AI 消息到数据库（此回调已在后台线程中执行）
+                                auto now = std::chrono::system_clock::now();
+                                auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    now.time_since_epoch()
+                                ).count();
+
+                                MemoryCore::Events::MessageSaveRequestedEvent save_event;
+                                save_event.conversation_id = conversation_id;
+                                save_event.message_uuid = msg.id;
+                                save_event.role = "assistant";
+                                save_event.content = msg.content;
+                                save_event.timestamp = timestamp;
+                                save_event.tokens = msg.token_count;
+                                save_event.conversation_title = conv->title;
+
+                                DearTs::Core::Event::EventBus::instance().publish(save_event);
+
+                                LOG_INFO("AI message saved to database: conv_id={}, uuid={}",
+                                         conversation_id, msg.id);
                             }
                         }
                         conv->touch();
@@ -528,6 +596,11 @@ void ChatPlugin::setup_event_listeners() {
             // ✅ 总是从数据库加载消息（确保显示最新的历史记录）
             // 如果内存中已有消息，load_messages 会跳过（见 conversation.cpp:260-264）
             LOG_INFO("Loading messages for conversation {} from database", e.conversation->id);
+
+            // ✅ 先处理所有待处理的异步事件（确保消息已保存）
+            // 这样可以避免：发送消息 → 立即切换会话 → 用户消息还没保存的问题
+            DearTs::Core::Event::EventBus::instance().process_async_events();
+
             auto result = m_conversation_manager->load_messages(e.conversation->id);
             if (result.isErr()) {
                 LOG_ERROR("Failed to load messages for conversation {}: {}",
@@ -557,10 +630,31 @@ void ChatPlugin::setup_event_listeners() {
         [this](const Events::OllamaModelsUpdatedEvent& e) {
             if (e.models.empty()) {
                 // 空列表表示请求刷新，执行实际的刷新
-                handle_ollama_models_refresh(e.base_url);
+                // 根据 base_url 判断是 Ollama 还是 LLM Studio
+                if (e.base_url.find("8080") != std::string::npos || e.base_url.find("llm") != std::string::npos) {
+                    handle_llm_studio_models_refresh(e.base_url);
+                } else {
+                    handle_ollama_models_refresh(e.base_url);
+                }
             }
             // ✅ 注意：不再在处理器中发布新的事件，避免无限循环
             // InfoPanelView 会直接监听这个事件并更新 UI
+        }
+    ));
+
+    // 订阅 Ollama 连接状态事件（也用于 LLM Studio 连接测试）
+    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::OllamaConnectionStatusEvent>(
+        [this](const Events::OllamaConnectionStatusEvent& e) {
+            if (!e.is_connected) {
+                // is_connected = false 表示请求测试连接
+                // 根据 base_url 判断是 Ollama 还是 LLM Studio
+                if (e.base_url.find("8080") != std::string::npos || e.base_url.find("llm") != std::string::npos) {
+                    handle_llm_studio_connection_test(e.base_url);
+                } else {
+                    handle_ollama_connection_test(e.base_url);
+                }
+            }
+            // 否则，这是连接测试的结果，由 InfoPanelView 直接监听并更新 UI
         }
     ));
 
@@ -621,26 +715,84 @@ void ChatPlugin::setup_event_listeners() {
                 LOG_INFO("LLM model changed from {} to {}", e.old_model, e.new_model);
 
                 // 从 ConfigManager 读取当前供应商配置
-                auto& config_manager = DearTs::Core::Config::ConfigManager::instance();
                 DearTs::Core::Config::ConfigScope config("chat");
 
                 std::string provider_id = config.get_or<std::string>("llm.provider", "ollama");
                 std::string base_url = config.get_or<std::string>("llm.custom_base_url", "");
                 std::string ollama_base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+                std::string llm_studio_base_url = config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234/v1");
 
-                // 如果 custom_base_url 为空，使用向后兼容的 ollama_base_url
-                if (base_url.empty() && provider_id == "ollama") {
-                    base_url = ollama_base_url;
-                }
-
-                // 如果是 Ollama 提供商，重新创建 Provider 以更新模型
+                // 根据供应商 ID 选择正确的 base URL
                 if (provider_id == "ollama") {
+                    if (base_url.empty()) {
+                        base_url = ollama_base_url;
+                    }
                     auto new_provider = LLM::LLMProviderFactory::create_ollama_provider(
                         base_url,
-                        e.new_model  // 使用新模型
+                        e.new_model
                     );
                     LLM::LLMManager::instance().set_provider(std::move(new_provider));
                     LOG_INFO("Ollama provider updated with model: {}", e.new_model);
+                } else if (provider_id == "llmstudio") {
+                    if (base_url.empty()) {
+                        base_url = llm_studio_base_url;
+                    }
+                    auto new_provider = LLM::LLMProviderFactory::create_llm_studio_provider(
+                        base_url,
+                        e.new_model
+                    );
+                    LLM::LLMManager::instance().set_provider(std::move(new_provider));
+                    LOG_INFO("LLM Studio provider updated with model: {}", e.new_model);
+                }
+            }
+        )
+    );
+
+    // 订阅 LLM 提供商切换事件
+    m_event_tokens.push_back(
+        DearTs::Core::Event::EventBus::instance().subscribe<Events::LLMProviderChangedEvent>(
+            [this](const Events::LLMProviderChangedEvent& e) {
+                LOG_INFO("LLM provider changed from {} to {}", e.old_provider, e.new_provider);
+
+                // 从 ConfigManager 读取供应商配置
+                DearTs::Core::Config::ConfigScope config("chat");
+
+                std::string base_url = config.get_or<std::string>("llm.custom_base_url", "");
+                std::string model = config.get_or<std::string>("llm.model", "llama3.2");
+
+                // 根据新供应商创建对应的 provider
+                if (e.new_provider == "ollama") {
+                    std::string ollama_base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+                    if (base_url.empty()) {
+                        base_url = ollama_base_url;
+                    }
+                    auto new_provider = LLM::LLMProviderFactory::create_ollama_provider(base_url, model);
+                    LLM::LLMManager::instance().set_provider(std::move(new_provider));
+                    LOG_INFO("Created Ollama provider with model: {}", model);
+                } else if (e.new_provider == "llmstudio") {
+                    std::string llm_studio_base_url = config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234/v1");
+                    if (base_url.empty()) {
+                        base_url = llm_studio_base_url;
+                    }
+                    auto new_provider = LLM::LLMProviderFactory::create_llm_studio_provider(base_url, model);
+                    LLM::LLMManager::instance().set_provider(std::move(new_provider));
+                    LOG_INFO("Created LLM Studio provider with model: {}", model);
+                } else {
+                    // 其他供应商使用 HTTP provider
+                    if (base_url.empty()) {
+                        // 获取供应商的默认 base_url
+                        auto provider_it = std::find_if(
+                            PRESET_LLM_PROVIDERS.begin(),
+                            PRESET_LLM_PROVIDERS.end(),
+                            [&](const LLMProviderConfig& cfg) { return cfg.id == e.new_provider; }
+                        );
+                        if (provider_it != PRESET_LLM_PROVIDERS.end()) {
+                            base_url = provider_it->default_base_url;
+                        }
+                    }
+                    auto new_provider = LLM::LLMProviderFactory::create_http_provider(base_url, "", model);
+                    LLM::LLMManager::instance().set_provider(std::move(new_provider));
+                    LOG_INFO("Created HTTP provider for {} with model: {}", e.new_provider, model);
                 }
             }
         )
@@ -759,6 +911,128 @@ void ChatPlugin::handle_ollama_connection_test(const std::string& base_url) {
     // 测试连接
     bool connected = ollama_provider->is_available();
     LOG_INFO("Ollama connection test result: {}", connected ? "Connected" : "Failed");
+
+    // 发布连接状态事件
+    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+        .is_connected = connected,
+        .base_url = base_url,
+        .error_message = connected ? "" : "Connection failed"
+    });
+}
+
+void ChatPlugin::handle_llm_studio_models_refresh(const std::string& base_url) {
+    LOG_INFO("Refreshing LLM Studio models from {}", base_url);
+
+    // 检查当前 LLM 提供商类型
+    auto* provider = LLM::LLMManager::instance().get_provider();
+    if (!provider) {
+        LOG_ERROR("No LLM provider set");
+        return;
+    }
+
+    // 检查是否是 HTTP 提供商（LLM Studio 使用 HTTP Provider）
+    if (provider->get_name() != "HTTP") {
+        LOG_WARN("Current provider is not HTTP (LLM Studio): {}", provider->get_name());
+
+        // 发布失败事件
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            .is_connected = false,
+            .base_url = base_url,
+            .error_message = "Provider is not HTTP (LLM Studio)"
+        });
+        return;
+    }
+
+    // 尝试转换为 HTTPLLMProvider
+    auto* http_provider = dynamic_cast<LLM::HTTPLLMProvider*>(provider);
+    if (!http_provider) {
+        LOG_ERROR("Failed to cast provider to HTTPLLMProvider");
+
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            .is_connected = false,
+            .base_url = base_url,
+            .error_message = "Failed to access HTTP provider"
+        });
+        return;
+    }
+
+    // 获取模型列表
+    try {
+        std::vector<std::string> models = http_provider->get_models();
+        LOG_INFO("Retrieved {} models from LLM Studio", models.size());
+
+        if (!models.empty()) {
+            // 发布模型列表更新事件（复用 OllamaModelsUpdatedEvent）
+            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
+                .models = models,
+                .base_url = base_url
+            });
+
+            // 发布连接状态事件（成功）
+            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+                .is_connected = true,
+                .base_url = base_url,
+                .error_message = ""
+            });
+        } else {
+            // 模型列表为空
+            LOG_WARN("LLM Studio returned empty model list");
+            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+                .is_connected = false,
+                .base_url = base_url,
+                .error_message = "No models available"
+            });
+        }
+
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to get LLM Studio models: {}", e.what());
+
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            .is_connected = false,
+            .base_url = base_url,
+            .error_message = e.what()
+        });
+    }
+}
+
+void ChatPlugin::handle_llm_studio_connection_test(const std::string& base_url) {
+    LOG_INFO("Testing LLM Studio connection to {}", base_url);
+
+    // 检查当前 LLM 提供商类型
+    auto* provider = LLM::LLMManager::instance().get_provider();
+    if (!provider) {
+        LOG_ERROR("No LLM provider set");
+        return;
+    }
+
+    // 检查是否是 HTTP 提供商
+    if (provider->get_name() != "HTTP") {
+        LOG_WARN("Current provider is not HTTP (LLM Studio): {}", provider->get_name());
+
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            .is_connected = false,
+            .base_url = base_url,
+            .error_message = "Provider is not HTTP (LLM Studio)"
+        });
+        return;
+    }
+
+    // 尝试转换为 HTTPLLMProvider
+    auto* http_provider = dynamic_cast<LLM::HTTPLLMProvider*>(provider);
+    if (!http_provider) {
+        LOG_ERROR("Failed to cast provider to HTTPLLMProvider");
+
+        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            .is_connected = false,
+            .base_url = base_url,
+            .error_message = "Failed to access HTTP provider"
+        });
+        return;
+    }
+
+    // 测试连接
+    bool connected = http_provider->is_available();
+    LOG_INFO("LLM Studio connection test result: {}", connected ? "Connected" : "Failed");
 
     // 发布连接状态事件
     DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{

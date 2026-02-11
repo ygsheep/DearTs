@@ -213,6 +213,17 @@ public:
         const std::string& base_url = "http://localhost:11434",
         const std::string& model = "llama3.2"
     );
+
+    /**
+     * @brief 创建 LLM Studio 提供商
+     * @details 连接到本地 LLM Studio 服务，支持 OpenAI 兼容 API (SSE 流式输出)
+     * @param base_url LLM Studio 服务地址 (默认: http://localhost:1234/v1)
+     * @param model 模型名称 (默认: qwen/qwen3-4b)
+     */
+    [[nodiscard]] static std::unique_ptr<ILLMProvider> create_llm_studio_provider(
+        const std::string& base_url = "http://localhost:1234/v1",
+        const std::string& model = "qwen/qwen3-4b"
+    );
 };
 
 /**

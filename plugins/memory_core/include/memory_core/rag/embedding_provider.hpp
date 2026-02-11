@@ -145,6 +145,19 @@ public:
     );
 
     /**
+     * @brief 创建 HTTP 嵌入提供者（LM Studio、vLLM、TGI 等）
+     * @param base_url API 服务地址 (如 http://localhost:1234/v1)
+     * @param model 嵌入模型名称 (如 text-embedding-nomic-embed-text-v1.5)
+     * @param api_key API 密钥（可选）
+     * @return 嵌入提供者智能指针
+     */
+    static std::unique_ptr<IEmbeddingProvider> create_http_provider(
+        const std::string& base_url = "http://localhost:1234/v1",
+        const std::string& model = "text-embedding-nomic-embed-text-v1.5",
+        const std::string& api_key = ""
+    );
+
+    /**
      * @brief 创建自定义嵌入提供者（使用回调函数）
      * @param generate_func 嵌入生成函数
      * @param model_name 模型名称
@@ -200,6 +213,58 @@ public:
 private:
     GenerateFunction m_generate_func;
     std::string m_model_name;
+};
+
+/**
+ * @brief HTTP 嵌入提供者实现
+ *
+ * 使用 OpenAI 兼容 API（LM Studio、vLLM、TGI 等）生成嵌入向量
+ */
+class HTTPEmbeddingProvider : public IEmbeddingProvider {
+public:
+    /**
+     * @brief 构造函数
+     * @param base_url API 服务地址 (如 http://localhost:1234/v1)
+     * @param model 嵌入模型名称 (如 text-embedding-nomic-embed-text-v1.5)
+     * @param api_key API 密钥（可选，本地服务通常不需要）
+     */
+    HTTPEmbeddingProvider(
+        const std::string& base_url = "http://localhost:1234/v1",
+        const std::string& model = "text-embedding-nomic-embed-text-v1.5",
+        const std::string& api_key = ""
+    );
+
+    ~HTTPEmbeddingProvider() override = default;
+
+    // IEmbeddingProvider 接口实现
+    DearTs::Core::Result<EmbeddingVector, std::string> generate_embedding(
+        const std::string& text
+    ) override;
+
+    DearTs::Core::Result<std::vector<EmbeddingVector>, std::string> generate_embeddings_batch(
+        const std::vector<std::string>& texts
+    ) override;
+
+    std::string get_model_name() const override { return m_model; }
+    bool is_available() const override { return test_connection(); }
+
+private:
+    /**
+     * @brief 测试 API 连接
+     */
+    bool test_connection() const;
+
+    /**
+     * @brief 发送 HTTP POST 请求
+     */
+    DearTs::Core::Result<std::string, std::string> send_request(
+        const std::string& endpoint,
+        const std::string& json_body
+    ) const;
+
+    std::string m_base_url;
+    std::string m_model;
+    std::string m_api_key;
 };
 
 } // namespace DearTs::Plugins::MemoryCore::RAG
