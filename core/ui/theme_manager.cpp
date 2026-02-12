@@ -4,6 +4,7 @@
  */
 
 #include "theme_manager.h"
+#include "scale_manager.h"
 #include "logger.h"
 #include <fstream>
 #include <sstream>
@@ -29,6 +30,7 @@ void ThemeManager::setTheme(Theme theme) {
 void ThemeManager::applyImGuiStyle() {
     ImGuiStyle& style = ImGui::GetStyle();
 
+    // 首先应用主题颜色（这会设置基础样式）
     switch (m_current_theme) {
         case Theme::Dark:
             applyDarkTheme();
@@ -67,6 +69,13 @@ void ThemeManager::applyImGuiStyle() {
         } else if (key == "TitleBgActive") {
             style.Colors[ImGuiCol_TitleBgActive] = color;
         }
+    }
+
+    // 应用当前缩放比例到所有样式尺寸
+    // 注意：这个调用应该在主题颜色设置之后，因为 ScaleAllSizes 会放大所有尺寸
+    float scale = ScaleManager::instance().get_scale();
+    if (scale != 1.0f) {
+        style.ScaleAllSizes(scale);
     }
 }
 

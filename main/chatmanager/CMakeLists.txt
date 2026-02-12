@@ -77,6 +77,7 @@ target_sources(ChatManager PRIVATE
     ${CMAKE_SOURCE_DIR}/core/ui/imgui_extensions.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/icon_font.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/theme_manager.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/scale_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
@@ -250,10 +251,17 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         ${RESOURCE_SOURCE_DIR}/fonts
         ${RESOURCE_DEST_DIR}/fonts
 
+        COMMENT "Copying resources to output directory (if changed)"
+)
+
+# 只有在使用预编译 SDL3_image 时才需要手动复制 DLL
+if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/x64/SDL3_image.dll)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         # 复制 SDL3_image.dll（根据架构选择）
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/$<IF:$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>,x64,x86>/SDL3_image.dll
         ${CMAKE_BINARY_DIR}/bin/SDL3_image.dll
 
-        COMMENT "Copying resources to output directory (if changed)"
-)
+        COMMENT "Copying SDL3_image.dll (precompiled version)"
+    )
+endif()

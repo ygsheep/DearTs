@@ -9,6 +9,7 @@
 #include "core/content/commands.h"
 #include "core/ui/view.h"
 #include "core/ui/theme_manager.h"
+#include "core/ui/scale_manager.h"
 #include "core/config/config_manager.h"
 #include "plugins/memory_core/include/memory_core/memory_core_plugin.hpp"
 #include "chat/chat_plugin.hpp"
@@ -18,6 +19,7 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_gpu.h>
+#include <algorithm>
 #include <backends/imgui_impl_sdl3.h>
 #include <backends/imgui_impl_sdlgpu3.h>
 #include <imgui.h>
@@ -129,6 +131,35 @@ bool Application::initialize() {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+
+    // ==================== 初始化 ScaleManager（在 ThemeManager 之前） ====================
+    LOG_INFO("Initializing ScaleManager...");
+    auto& scale_manager = Core::UI::ScaleManager::instance();
+    SDL_Window* sdl_window = static_cast<SDL_Window*>(m_window);
+    auto scale_result = scale_manager.initialize(sdl_window);
+    if (scale_result.isErr()) {
+        LOG_WARN("Failed to initialize ScaleManager: {}", scale_result.error());
+    } else {
+        float scale = scale_manager.get_scale();
+        LOG_INFO("ScaleManager initialized: scale={:.2f}", scale);
+
+        // 应用缩放到 ImGui 字体全局缩放
+        io.FontGlobalScale = scale;
+
+        // 根据缩放调整窗口大小
+        int base_width = 1600;
+        int base_height = 900;
+        int window_width = static_cast<int>(base_width * scale);
+        int window_height = static_cast<int>(base_height * scale);
+
+        // 限制最大窗口大小
+        window_width = std::min(window_width, 3840);
+        window_height = std::min(window_height, 2160);
+
+        // 设置窗口大小（在显示之前）
+        SDL_SetWindowSize(sdl_window, window_width, window_height);
+        LOG_INFO("Window resized to: {}x{} (scale: {:.2f})", window_width, window_height, scale);
+    }
 
     // ==================== 使用 ThemeManager 设置主题 ====================
     LOG_INFO("Applying ChatManager theme...");
@@ -391,6 +422,7 @@ bool Application::initialize_window() {
         SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN | SDL_WINDOW_BORDERLESS
     );
 
+    // 先用默认大小创建窗口（稍后根据缩放调整）
     m_window = SDL_CreateWindow(
         "ChatManager",  // 无边框模式下标题由自定义标题栏绘制
         1600, 900,
@@ -402,7 +434,7 @@ bool Application::initialize_window() {
         return false;
     }
 
-    LOG_INFO("Borderless window created: 1600x900");
+    LOG_INFO("Borderless window created: 1600x900 (will be resized after ScaleManager init)");
     return true;
 }
 
