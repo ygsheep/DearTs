@@ -807,33 +807,42 @@ void Application::setup_default_dock_layout() {
     // 获取主 DockSpace ID
     ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
 
+    // 获取当前窗口大小（用于计算合理的 SizeRef）
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    float width = viewport->Size.x;   // 1600
+    float height = viewport->Size.y;  // 864
+
     // 使用 DockBuilder 构建默认停靠布局
     ImGui::DockBuilderRemoveNode(dockspace_id);  // 清除现有布局
     ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);  // 根节点
 
+    // 先分割节点，获取节点 ID
     ImGuiID dock_main_id = dockspace_id;
-    ImGuiID dock_left_id;
-    ImGuiID dock_center_id;
+    ImGuiID dock_left_id, dock_center_id, dock_right_id;
+    ImGuiID dock_input_id, dock_chat_id;
 
-    // 分割左侧（会话列表）和中间区域
-    // 比例：左侧约 19%
+    // 分割：左(会话) - 中
     dock_left_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.19f, nullptr, &dock_center_id);
 
-    // 分割右侧（信息面板）和中间区域
-    // 比例：右侧约 23%
-    ImGuiID dock_right_id;
-    dock_right_id = ImGui::DockBuilderSplitNode(dock_center_id, ImGuiDir_Right, 0.23f, nullptr, &dock_center_id);
+    // 分割：中 - 右(信息)
+    dock_right_id = ImGui::DockBuilderSplitNode(dock_center_id, ImGuiDir_Right, 0.28f, nullptr, &dock_center_id);
 
-    // 分割中间区域：上面是聊天，下面是输入
-    // 比例：聊天约 66%
-    ImGuiID dock_chat_id;
-    ImGuiID dock_input_id;
-    dock_chat_id = ImGui::DockBuilderSplitNode(dock_center_id, ImGuiDir_Down, 0.66f, nullptr, &dock_input_id);
+    // 分割：上(聊天) - 下(输入框)
+    // ImGuiDir_Down：第二个参数(out_dir_at_dir)是上方节点，第三个参数(out_other)是下方节点
+    // 比例 0.65f 表示上方(聊天)占 65%，下方(输入)占 35%
+    dock_chat_id = ImGui::DockBuilderSplitNode(dock_center_id, ImGuiDir_Down, 0.65f, &dock_chat_id, &dock_input_id);
+
+    // 关键：为每个节点设置合理的 SizeRef（基于窗口大小计算）
+    // 这样可以确保节点不会被压缩到最小尺寸
+    ImGui::DockBuilderSetNodeSize(dock_left_id, ImVec2(width * 0.19f, height));
+    ImGui::DockBuilderSetNodeSize(dock_right_id, ImVec2(width * 0.23f, height));
+    ImGui::DockBuilderSetNodeSize(dock_chat_id, ImVec2(width * 0.58f, height * 0.35f));
+    ImGui::DockBuilderSetNodeSize(dock_input_id, ImVec2(width * 0.58f, height * 0.65f));
 
     // 停靠窗口到对应的节点
     ImGui::DockBuilderDockWindow("会话", dock_left_id);
-    ImGui::DockBuilderDockWindow("聊天", dock_chat_id);
-    ImGui::DockBuilderDockWindow("输入", dock_input_id);
+    ImGui::DockBuilderDockWindow("输入", dock_chat_id);   // 输入框在上面
+    ImGui::DockBuilderDockWindow("聊天", dock_input_id);   // 聊天在下面
     ImGui::DockBuilderDockWindow("信息", dock_right_id);
 
     // 完成构建

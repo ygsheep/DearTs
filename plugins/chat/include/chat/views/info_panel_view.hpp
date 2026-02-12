@@ -196,8 +196,9 @@ private:
 
     /**
      * @brief 保存配置到 ConfigManager
+     * @param force 是否强制保存（跳过防抖检查）
      */
-    void save_config();
+    void save_config(bool force = false);
 
     /**
      * @brief 从 ConfigManager 加载配置
@@ -328,7 +329,7 @@ private:
     bool m_ollama_refreshing = false;
 
     // LLM Studio 设置
-    std::string m_llm_studio_base_url = "http://localhost:8080/v1";
+    std::string m_llm_studio_base_url = "http://localhost:1234/v1";
     bool m_llm_studio_connected = false;
     std::string m_llm_studio_connection_error;
     bool m_llm_studio_refreshing = false;

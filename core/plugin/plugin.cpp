@@ -209,17 +209,18 @@ Result<void, std::string> PluginManager::load_from_file(const std::filesystem::p
     #endif
 
     if (!valid_extension) {
+        std::string expected_ext;
+        #ifdef _WIN32
+            expected_ext = ".dll";
+        #elif defined(__linux__)
+            expected_ext = ".so";
+        #elif defined(__APPLE__)
+            expected_ext = ".dylib";
+        #endif
+
         return Result<void, std::string>::err(
             std::format("Invalid plugin extension: {} (expected: {})",
-                ext,
-                #ifdef _WIN32
-                    ".dll"
-                #elif defined(__linux__)
-                    ".so"
-                #elif defined(__APPLE__)
-                    ".dylib"
-                #endif
-            )
+                ext, expected_ext)
         );
     }
 

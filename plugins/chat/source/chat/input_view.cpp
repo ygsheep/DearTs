@@ -314,16 +314,16 @@ void InputView::send_message() {
     current_conv->add_message(message);
     current_conv->touch();
 
-    // 发布消息发送事件
-    DearTs::Core::Event::EventBus::instance().publish(Events::MessageSentEvent{
+    // 发布消息发送事件（异步，避免阻塞 UI）
+    DearTs::Core::Event::EventBus::instance().publish_async(Events::MessageSentEvent{
         .conversation_id = current_conv->id,
         .message = message
     });
 
     LOG_INFO("Sent message in conversation {}: {}", current_conv->id, content);
 
-    // 自动触发 AI 分析请求（发送消息后立即获取 AI 响应）
-    DearTs::Core::Event::EventBus::instance().publish(Events::AIAnalysisRequestEvent{
+    // 自动触发 AI 分析请求（发送消息后立即获取 AI 响应，异步）
+    DearTs::Core::Event::EventBus::instance().publish_async(Events::AIAnalysisRequestEvent{
         .conversation_id = current_conv->id,
         .context = {},  // 留空，LLM 提供商会从会话中获取上下文
         .current_message = message,

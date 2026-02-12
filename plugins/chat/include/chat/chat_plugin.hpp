@@ -69,6 +69,18 @@ public:
         m_info_panel = panel;
     }
 
+    /**
+     * @brief 取消正在运行的刷新任务
+     * @details 在切换 provider 之前取消任何正在运行的刷新任务，避免冲突
+     */
+    void cancel_pending_refresh_tasks();
+
+private:
+    /**
+     * @brief 当前正在执行的刷新任务（用于跟踪和取消）
+     * @details 使用 shared_ptr 管理，确保正确的生命周期
+     */
+    std::shared_ptr<DearTs::Core::Tasks::Task> m_pending_refresh_task;
 private:
     /**
      * @brief 注册视图

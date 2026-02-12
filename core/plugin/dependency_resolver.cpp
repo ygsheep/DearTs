@@ -415,7 +415,6 @@ void DependencyResolver::filter_by_mode(
         }
 
         // Check if plugin has errors
-        bool has_errors = false;
         for (const auto& error : ctx.errors) {
             if (error.plugin_name == plugin_name) {
                 // For lenient mode, disable on errors
@@ -431,7 +430,6 @@ void DependencyResolver::filter_by_mode(
                                      }))) {
                         entry.target_state = PluginState::Disabled;
                         result.disabled_plugins.push_back(plugin_name);
-                        has_errors = true;
                     }
                 }
             }

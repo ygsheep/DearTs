@@ -12,6 +12,38 @@
 namespace DearTs::Plugins::Chat::Events {
 
 // ============================================================================
+// LLM Provider 类型
+// ============================================================================
+
+/**
+ * @brief LLM Provider 类型枚举
+ */
+enum class LLMProviderType {
+    Ollama,         // Ollama 本地服务
+    LLMStudio,      // LLM Studio 本地服务
+    OpenAI,         // OpenAI API
+    DeepSeek,       // DeepSeek API
+    Qwen,           // 通义千问 API
+    Zhipu,          // 智谱 AI API
+    Zai,            // Z.AI API
+    Unknown         // 未知类型
+};
+
+/**
+ * @brief 从 provider_id 字符串获取类型
+ */
+[[nodiscard]] inline LLMProviderType provider_type_from_id(const std::string& provider_id) {
+    if (provider_id == "ollama") return LLMProviderType::Ollama;
+    if (provider_id == "llmstudio") return LLMProviderType::LLMStudio;
+    if (provider_id == "openai") return LLMProviderType::OpenAI;
+    if (provider_id == "deepseek") return LLMProviderType::DeepSeek;
+    if (provider_id == "qwen") return LLMProviderType::Qwen;
+    if (provider_id == "zhipu") return LLMProviderType::Zhipu;
+    if (provider_id == "zai") return LLMProviderType::Zai;
+    return LLMProviderType::Unknown;
+}
+
+// ============================================================================
 // 消息事件
 // ============================================================================
 
@@ -189,21 +221,27 @@ struct LLMModelChangedEvent {
 };
 
 /**
- * @brief Ollama 模型列表更新事件
+ * @brief LLM 模型列表更新事件（重命名，支持所有 provider）
  */
-struct OllamaModelsUpdatedEvent {
+struct LLMModelsUpdatedEvent {
     std::vector<std::string> models;
     std::string base_url;
+    LLMProviderType provider_type;  // 新增字段
 };
 
 /**
- * @brief Ollama 连接状态事件
+ * @brief LLM 连接状态事件（重命名，支持所有 provider）
  */
-struct OllamaConnectionStatusEvent {
+struct LLMConnectionStatusEvent {
     bool is_connected;
     std::string base_url;
     std::string error_message;
+    LLMProviderType provider_type;  // 新增字段
 };
+
+// 向后兼容：旧事件名作为类型别名
+using OllamaModelsUpdatedEvent = LLMModelsUpdatedEvent;
+using OllamaConnectionStatusEvent = LLMConnectionStatusEvent;
 
 // ============================================================================
 // 配置相关事件

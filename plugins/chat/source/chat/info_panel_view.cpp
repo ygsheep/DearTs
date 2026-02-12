@@ -55,14 +55,17 @@ void InfoPanelView::load_config() {
     LOG_INFO("Configuration loaded for InfoPanelView");
 }
 
-void InfoPanelView::save_config() {
+void InfoPanelView::save_config(bool force) {
     // 使用防抖（500ms），避免频繁保存
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_config_save).count();
-    if (elapsed < 500) {
-        return;  // 距离上次保存不足 500ms，跳过
+    // force 参数为 true 时跳过防抖检查
+    if (!force) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_config_save).count();
+        if (elapsed < 500) {
+            return;  // 距离上次保存不足 500ms，跳过
+        }
+        m_last_config_save = now;
     }
-    m_last_config_save = now;
 
     // 保存 LLM 配置
     m_config.set("llm.provider", m_selected_provider_id);
@@ -104,32 +107,51 @@ InfoPanelView::~InfoPanelView() {
 }
 
 void InfoPanelView::setup_event_listeners() {
-    // 订阅 Ollama 模型列表更新事件
-    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::OllamaModelsUpdatedEvent>(
-        [this](const Events::OllamaModelsUpdatedEvent& e) {
-            if (!e.models.empty()) {
-                // 更新模型列表
-                set_available_models(e.models);
+    // 订阅 LLM 模型列表更新事件
+    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::LLMModelsUpdatedEvent>(
+        [this](const Events::LLMModelsUpdatedEvent& e) {
+            // ✅ 首先重置刷新状态（无论成功或失败）
+            // 使用 provider_type 字段判断 provider 类型
+            if (e.provider_type == Events::LLMProviderType::LLMStudio) {
+                m_llm_studio_refreshing = false;
+                if (!e.models.empty()) {
+                    set_available_models(e.models);
+                    LOG_INFO("InfoPanelView: Updated {} LLM Studio models from {}", e.models.size(), e.base_url);
+                } else {
+                    LOG_DEBUG("InfoPanelView: LLM Studio model refresh completed, no models returned");
+                }
+            } else if (e.provider_type == Events::LLMProviderType::Ollama) {
                 m_ollama_refreshing = false;
-                LOG_INFO("InfoPanelView: Updated {} models from {}", e.models.size(), e.base_url);
+                if (!e.models.empty()) {
+                    set_available_models(e.models);
+                    LOG_INFO("InfoPanelView: Updated {} Ollama models from {}", e.models.size(), e.base_url);
+                } else {
+                    LOG_DEBUG("InfoPanelView: Ollama model refresh completed, no models returned");
+                }
             }
         }
     ));
 
-    // 订阅 Ollama 连接状态事件（也用于 LLM Studio）
-    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::OllamaConnectionStatusEvent>(
-        [this](const Events::OllamaConnectionStatusEvent& e) {
-            // 根据 base_url 判断是 Ollama 还是 LLM Studio
-            if (e.base_url.find("8080") != std::string::npos || e.base_url.find("llm") != std::string::npos) {
+    // 订阅 LLM 连接状态事件
+    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::LLMConnectionStatusEvent>(
+        [this](const Events::LLMConnectionStatusEvent& e) {
+            LOG_DEBUG("InfoPanelView: Received LLMConnectionStatusEvent: provider_type={}, is_connected={}, error='{}'",
+                     static_cast<int>(e.provider_type), e.is_connected, e.error_message);
+
+            // 使用 provider_type 字段判断 provider 类型
+            if (e.provider_type == Events::LLMProviderType::LLMStudio) {
                 // LLM Studio 连接状态
                 m_llm_studio_connected = e.is_connected;
                 m_llm_studio_connection_error = e.error_message;
                 m_llm_studio_refreshing = false;  // 停止刷新状态
                 LOG_INFO("InfoPanelView: LLM Studio connection status: {}", e.is_connected ? "Connected" : "Failed");
-            } else {
+            } else if (e.provider_type == Events::LLMProviderType::Ollama) {
                 // Ollama 连接状态
                 set_ollama_connection_status(e.is_connected, e.error_message);
-                LOG_INFO("InfoPanelView: Ollama connection status: {}", e.is_connected ? "Connected" : "Failed");
+                m_ollama_refreshing = false;
+                LOG_INFO("InfoPanelView: Ollama connection status: {}, error: {}", e.is_connected ? "Connected" : "Failed", e.error_message);
+            } else {
+                LOG_WARN("InfoPanelView: Unknown provider_type in LLMConnectionStatusEvent: {}", static_cast<int>(e.provider_type));
             }
         }
     ));
@@ -434,10 +456,11 @@ void InfoPanelView::draw_ollama_settings() {
         // 直接测试连接（不通过事件系统避免循环）
         m_ollama_refreshing = true;  // 使用刷新标志作为"测试中"标志
         // 发布测试请求事件
-        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+        DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
             .is_connected = false,  // false 表示请求测试
             .base_url = m_ollama_base_url,
-            .error_message = ""
+            .error_message = "",
+            .provider_type = Events::LLMProviderType::Ollama
         });
     }
 
@@ -470,9 +493,10 @@ void InfoPanelView::refresh_ollama_models() {
     m_ollama_refreshing = true;
 
     // 发布刷新请求事件（让 chat_plugin 处理）
-    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
+    DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
         .models = {},  // 空列表表示请求刷新
-        .base_url = m_ollama_base_url
+        .base_url = m_ollama_base_url,
+        .provider_type = Events::LLMProviderType::Ollama
     });
 
     LOG_INFO("Requested Ollama model list refresh from {}", m_ollama_base_url);
@@ -518,11 +542,12 @@ void InfoPanelView::draw_llm_studio_settings() {
     // 测试连接按钮
     if (ImGui::Button("测试连接##llm_studio")) {
         m_llm_studio_refreshing = true;
-        // 发布测试请求事件（复用 Ollama 事件，但使用不同的 base_url）
-        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+        // 发布测试请求事件
+        DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
             .is_connected = false,
             .base_url = m_llm_studio_base_url,
-            .error_message = ""
+            .error_message = "",
+            .provider_type = Events::LLMProviderType::LLMStudio
         });
     }
 
@@ -546,7 +571,7 @@ void InfoPanelView::draw_llm_studio_settings() {
     if (!m_llm_studio_connected) {
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.5f, 1.0f));
-        ImGui::TextWrapped("提示: 确保 LLM Studio 服务正在运行，默认地址为 http://localhost:8080/v1");
+        ImGui::TextWrapped("提示: 确保 LLM Studio 服务正在运行，默认地址为 http://localhost:1234/v1");
         ImGui::PopStyleColor();
     }
 }
@@ -554,10 +579,11 @@ void InfoPanelView::draw_llm_studio_settings() {
 void InfoPanelView::refresh_llm_studio_models() {
     m_llm_studio_refreshing = true;
 
-    // 发布刷新请求事件（复用 Ollama 事件，LLM Studio 使用 /v1/models 端点）
-    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
+    // 发布刷新请求事件（LLM Studio 使用 /v1/models 端点）
+    DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
         .models = {},  // 空列表表示请求刷新
-        .base_url = m_llm_studio_base_url
+        .base_url = m_llm_studio_base_url,
+        .provider_type = Events::LLMProviderType::LLMStudio
     });
 
     LOG_INFO("Requested LLM Studio model list refresh from {}", m_llm_studio_base_url);
@@ -745,8 +771,8 @@ void InfoPanelView::change_llm_provider(const std::string& provider_id) {
         .new_value = provider_id
     });
 
-    // 保存配置
-    save_config();
+    // 强制立即保存配置（跳过防抖，确保事件处理器能读取到新配置）
+    save_config(true);
 
     LOG_INFO("Changed LLM provider from {} to {}", old_provider, provider_id);
 }

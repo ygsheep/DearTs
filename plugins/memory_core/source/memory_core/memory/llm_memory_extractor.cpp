@@ -6,6 +6,7 @@
 #include "memory_core/memory/llm_memory_extractor.hpp"
 #include "memory_core/memory/memory_extractor.hpp"
 #include "memory_core/memory/memory_manager.hpp"
+#include "core/network/http_client.hpp"
 #include "liblogger/logger.h"
 #include <nlohmann/json.hpp>
 #include <sstream>
@@ -13,14 +14,7 @@
 #include <chrono>
 #include <format>
 #include <mutex>
-
-#ifdef _WIN32
-    #include <windows.h>
-    #include <winhttp.h>
-    #pragma comment(lib, "winhttp.lib")
-#else
-    // 简化：仅支持 Windows
-#endif
+#include <future>
 
 namespace DearTs::Plugins::MemoryCore {
 
@@ -31,16 +25,24 @@ using json = nlohmann::json;
 namespace LLMIntegration {
 
 /**
- * @brief Ollama LLM 客户端（轻量级实现）
+ * @brief Ollama LLM 客户端（基于 core/network）
  *
- * 独立实现，避免直接依赖 Chat 插件
+ * 使用统一的 Boost.Asio HTTP 客户端
  */
 class OllamaLLMClient {
 public:
-    explicit OllamaLLMClient(const std::string& base_url) : m_base_url(base_url) {}
+    explicit OllamaLLMClient(const std::string& base_url) : m_base_url(base_url) {
+        // 创建 HTTP 客户端
+        DearTs::Core::Network::HttpClientConfig config;
+        config.connect_timeout = std::chrono::seconds(10);
+        config.request_timeout = std::chrono::seconds(60);  // LLM 响应可能较慢
+        config.user_agent = "MemoryCore/1.0";
+
+        m_client = std::make_unique<DearTs::Core::Network::BoostAsioHttpClient>(base_url, config);
+    }
 
     /**
-     * @brief 发送聊天请求
+     * @brief 发送聊天请求（使用异步 HTTP，但保持同步接口）
      */
     DearTs::Core::Result<std::string, std::string> chat(
         const std::string& prompt,
@@ -48,6 +50,10 @@ public:
         double temperature = 0.7,
         int max_tokens = 500
     ) {
+        // 使用 std::promise 来等待异步操作完成
+        auto promise = std::make_shared<std::promise<DearTs::Core::Result<std::string, std::string>>>();
+        auto future = promise->get_future();
+
         try {
             // 使用 /api/chat 端点（与主聊天一致）
             json j;
@@ -66,32 +72,18 @@ public:
 
             std::string request_body = j.dump();
 
-            LOG_DEBUG("OllamaLLMClient: Sending request to /api/chat, model={}, prompt_len={}",
+            LOG_DEBUG("OllamaLLMClient: Sending async request to /api/chat, model={}, prompt_len={}",
                      model, prompt.length());
 
-            auto response = send_http_request("/api/chat", request_body);
+            // 使用异步 HTTP 请求
+            send_http_request_async("/api/chat", request_body,
+                [promise](const DearTs::Core::Result<std::string, std::string>& result) {
+                    promise->set_value(result);
+                }
+            );
 
-            if (!response.isOk()) {
-                LOG_ERROR("OllamaLLMClient: Request failed: {}", response.error());
-                return response;
-            }
-
-            std::string response_body = response.unwrap();
-
-            LOG_DEBUG("OllamaLLMClient: Received response, body_len={}", response_body.length());
-
-            // 解析响应（/api/chat 格式）
-            json resp = json::parse(response_body);
-            if (resp.contains("message") && resp["message"].contains("content")) {
-                return DearTs::Core::Result<std::string, std::string>::ok(
-                    resp["message"]["content"].get<std::string>()
-                );
-            }
-
-            // 响应格式不对，记录完整响应用于调试
-            LOG_ERROR("OllamaLLMClient: Response missing 'message.content' field. Full response: {}",
-                     response_body);
-            return DearTs::Core::Result<std::string, std::string>::err("No response in output");
+            // 等待异步操作完成
+            return future.get();
 
         } catch (const std::exception& e) {
             return DearTs::Core::Result<std::string, std::string>::err(
@@ -114,157 +106,140 @@ public:
 
 private:
     std::string m_base_url;
+    std::unique_ptr<DearTs::Core::Network::BoostAsioHttpClient> m_client;
 
     DearTs::Core::Result<std::string, std::string> send_http_request(
         const std::string& endpoint,
         const std::string& json_body
     ) {
-#ifdef _WIN32
-        HINTERNET hSession = nullptr;
-        HINTERNET hConnect = nullptr;
-        HINTERNET hRequest = nullptr;
+        using namespace DearTs::Core::Network;
 
-        // 解析 URL
-        std::string host_name = "localhost";
-        int port = 11434;
+        // 构建请求
+        HttpRequest request;
+        request.method = json_body.empty() ? "GET" : "POST";
+        request.endpoint = endpoint;
+        request.headers["Content-Type"] = "application/json";
+        request.body = json_body;
 
-        if (m_base_url.find("://") != std::string::npos) {
-            size_t host_start = m_base_url.find("://") + 3;
-            size_t colon_pos = m_base_url.find(':', host_start);
-            if (colon_pos != std::string::npos) {
-                host_name = m_base_url.substr(host_start, colon_pos - host_start);
-                size_t port_end = m_base_url.find('/', colon_pos);
-                if (port_end == std::string::npos) port_end = m_base_url.length();
-                port = std::stoi(m_base_url.substr(colon_pos + 1, port_end - colon_pos - 1));
-            } else {
-                size_t slash_pos = m_base_url.find('/', host_start);
-                if (slash_pos == std::string::npos) slash_pos = m_base_url.length();
-                host_name = m_base_url.substr(host_start, slash_pos - host_start);
-            }
-        }
-
-        std::wstring host_name_w(host_name.begin(), host_name.end());
-        std::wstring endpoint_w(endpoint.begin(), endpoint.end());
-
-        hSession = WinHttpOpen(
-            L"MemoryCore/1.0",
-            WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-            WINHTTP_NO_PROXY_NAME,
-            WINHTTP_NO_PROXY_BYPASS,
-            0
-        );
-
-        if (!hSession) {
-            return DearTs::Core::Result<std::string, std::string>::err("Failed to open WinHTTP session");
-        }
-
-        hConnect = WinHttpConnect(
-            hSession,
-            host_name_w.c_str(),
-            port,
-            0
-        );
-
-        if (!hConnect) {
-            WinHttpCloseHandle(hSession);
-            return DearTs::Core::Result<std::string, std::string>::err("Failed to connect to server");
-        }
-
-        hRequest = WinHttpOpenRequest(
-            hConnect,
-            json_body.empty() ? L"GET" : L"POST",
-            endpoint_w.c_str(),
-            nullptr,
-            WINHTTP_NO_REFERER,
-            WINHTTP_DEFAULT_ACCEPT_TYPES,
-            0
-        );
-
-        if (!hRequest) {
-            WinHttpCloseHandle(hConnect);
-            WinHttpCloseHandle(hSession);
-            return DearTs::Core::Result<std::string, std::string>::err("Failed to open request");
-        }
+        // 详细调试日志
+        LOG_DEBUG("OllamaLLMClient: Sending HTTP {} request to {}{}",
+                  request.method, m_base_url, endpoint);
 
         if (!json_body.empty()) {
-            std::wstring headers = L"Content-Type: application/json\r\n";
-            WinHttpAddRequestHeaders(hRequest, headers.c_str(), -1, WINHTTP_ADDREQ_FLAG_ADD);
-
-            if (!WinHttpSendRequest(
-                hRequest,
-                WINHTTP_NO_ADDITIONAL_HEADERS,
-                0,
-                (LPVOID)json_body.data(),
-                json_body.length(),
-                json_body.length(),
-                0
-            )) {
-                WinHttpCloseHandle(hRequest);
-                WinHttpCloseHandle(hConnect);
-                WinHttpCloseHandle(hSession);
-                return DearTs::Core::Result<std::string, std::string>::err("Failed to send request");
-            }
-        } else {
-            if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0)) {
-                WinHttpCloseHandle(hRequest);
-                WinHttpCloseHandle(hConnect);
-                WinHttpCloseHandle(hSession);
-                return DearTs::Core::Result<std::string, std::string>::err("Failed to send request");
-            }
+            LOG_DEBUG("OllamaLLMClient: Request body: {}", json_body);
         }
 
-        if (!WinHttpReceiveResponse(hRequest, nullptr)) {
-            WinHttpCloseHandle(hRequest);
-            WinHttpCloseHandle(hConnect);
-            WinHttpCloseHandle(hSession);
-            return DearTs::Core::Result<std::string, std::string>::err("Failed to receive response");
+        // 发送请求
+        auto response_result = m_client->request(request);
+
+        if (response_result.isErr()) {
+            return DearTs::Core::Result<std::string, std::string>::err(response_result.error());
         }
+
+        auto response = response_result.unwrap();
 
         // 检查 HTTP 状态码
-        DWORD status_code = 0;
-        DWORD status_size = sizeof(status_code);
-        WinHttpQueryHeaders(
-            hRequest,
-            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
-            WINHTTP_HEADER_NAME_BY_INDEX,
-            &status_code,
-            &status_size,
-            WINHTTP_NO_HEADER_INDEX
-        );
+        if (response.status_code != 200) {
+            std::string error_detail;
 
-        std::string response_data;
-        DWORD bytes_available = 0;
-
-        while (WinHttpQueryDataAvailable(hRequest, &bytes_available) && bytes_available > 0) {
-            std::vector<char> buffer(bytes_available + 1);
-            DWORD bytes_read = 0;
-
-            if (WinHttpReadData(hRequest, buffer.data(), bytes_available, &bytes_read)) {
-                buffer[bytes_read] = '\0';
-                response_data += buffer.data();
+            // 尝试从响应体中提取错误信息
+            if (!response.body.empty()) {
+                try {
+                    json j = json::parse(response.body);
+                    if (j.contains("error")) {
+                        error_detail = j["error"].get<std::string>();
+                    } else {
+                        error_detail = response.body;
+                    }
+                } catch (...) {
+                    error_detail = response.body;
+                }
             }
-        }
 
-        WinHttpCloseHandle(hRequest);
-        WinHttpCloseHandle(hConnect);
-        WinHttpCloseHandle(hSession);
+            std::string error_msg = std::format("HTTP {}", response.status_code);
+            if (!error_detail.empty()) {
+                error_msg += std::format(" - {}", error_detail);
+            }
 
-        // 检查 HTTP 状态码
-        if (status_code != 200) {
-            LOG_ERROR("OllamaLLMClient: HTTP {} error for endpoint '{}', response: {}",
-                     status_code, endpoint, response_data.empty() ? "(empty)" : response_data);
-            return DearTs::Core::Result<std::string, std::string>::err(
-                std::format("HTTP {}", status_code)
-            );
+            LOG_ERROR("OllamaLLMClient: Request failed: {}", error_msg);
+            return DearTs::Core::Result<std::string, std::string>::err(error_msg);
         }
 
         LOG_DEBUG("OllamaLLMClient: Received {} bytes from endpoint '{}'",
-                  response_data.length(), endpoint);
+                  response.body.length(), endpoint);
 
-        return DearTs::Core::Result<std::string, std::string>::ok(response_data);
-#else
-        return DearTs::Core::Result<std::string, std::string>::err("Not implemented on this platform");
-#endif
+        return DearTs::Core::Result<std::string, std::string>::ok(response.body);
+    }
+
+    /**
+     * @brief 异步发送 HTTP 请求
+     */
+    void send_http_request_async(
+        const std::string& endpoint,
+        const std::string& json_body,
+        std::function<void(DearTs::Core::Result<std::string, std::string>)> callback
+    ) {
+        using namespace DearTs::Core::Network;
+
+        // 构建请求（使用 shared_ptr 避免复制）
+        auto request = std::make_shared<HttpRequest>();
+        request->method = json_body.empty() ? "GET" : "POST";
+        request->endpoint = endpoint;
+        request->headers["Content-Type"] = "application/json";
+        request->body = json_body;
+
+        // 详细调试日志
+        LOG_DEBUG("OllamaLLMClient: Sending async HTTP {} request to {}{}",
+                  request->method, m_base_url, endpoint);
+
+        if (!json_body.empty()) {
+            LOG_DEBUG("OllamaLLMClient: Request body: {}", json_body);
+        }
+
+        // 异步发送请求（传递 shared_ptr）
+        m_client->request_async(request,
+            [callback, endpoint](const DearTs::Core::Result<HttpResponse, std::string>& response_result) {
+                if (response_result.isErr()) {
+                    callback(DearTs::Core::Result<std::string, std::string>::err(response_result.error()));
+                    return;
+                }
+
+                auto response = response_result.unwrap();
+
+                // 检查 HTTP 状态码
+                if (response.status_code != 200) {
+                    std::string error_detail;
+
+                    // 尝试从响应体中提取错误信息
+                    if (!response.body.empty()) {
+                        try {
+                            json j = json::parse(response.body);
+                            if (j.contains("error")) {
+                                error_detail = j["error"].get<std::string>();
+                            } else {
+                                error_detail = response.body;
+                            }
+                        } catch (...) {
+                            error_detail = response.body;
+                        }
+                    }
+
+                    std::string error_msg = std::format("HTTP {}", response.status_code);
+                    if (!error_detail.empty()) {
+                        error_msg += std::format(" - {}", error_detail);
+                    }
+
+                    LOG_ERROR("OllamaLLMClient: Async request failed: {}", error_msg);
+                    callback(DearTs::Core::Result<std::string, std::string>::err(error_msg));
+                    return;
+                }
+
+                LOG_DEBUG("OllamaLLMClient: Received {} bytes from endpoint '{}'",
+                          response.body.length(), endpoint);
+
+                callback(DearTs::Core::Result<std::string, std::string>::ok(response.body));
+            }
+        );
     }
 };
 

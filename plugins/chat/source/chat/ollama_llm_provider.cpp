@@ -12,10 +12,39 @@
 #include <sstream>
 #include <future>
 #include <thread>
+#include <memory>
 
 namespace DearTs::Plugins::Chat::LLM {
 
 using json = nlohmann::json;
+
+// ========== 辅助函数 ==========
+
+/**
+ * @brief 获取或创建 HTTP 客户端（线程安全）
+ * @details 使用延迟初始化，避免在构造函数中创建 IO 线程
+ *          使用双重检查锁定模式优化性能
+ *          返回原始指针（调用者应立即使用，不要存储）
+ */
+[[nodiscard]] DearTs::Core::Network::BoostAsioHttpClient* OllamaLLMProvider::get_client() const {
+    // 第一次检查（无锁）- 快速路径
+    if (m_client) {
+        return m_client.get();
+    }
+
+    // 加锁保护初始化
+    std::lock_guard<std::mutex> lock(m_client_mutex);
+
+    // 第二次检查（有锁）- 防止重复初始化
+    if (!m_client) {
+        DearTs::Core::Network::HttpClientConfig config;
+        config.connect_timeout = std::chrono::seconds(10);
+        config.request_timeout = std::chrono::seconds(60);
+        m_client = std::make_unique<DearTs::Core::Network::BoostAsioHttpClient>(m_base_url, config);
+        LOG_INFO("OllamaLLMProvider: Created HTTP client for {}", m_base_url);
+    }
+    return m_client.get();
+}
 
 // ========== 辅助函数 ==========
 
@@ -86,31 +115,105 @@ std::shared_ptr<Core::Tasks::Task> OllamaLLMProvider::send_async(
     const LLMRequest& request,
     std::function<void(const LLMResponse&)> callback
 ) {
-    auto task = Core::Tasks::TaskManager::instance().launch(
-        "Ollama LLM Request",
-        [this, request, callback](const auto& cancel) {
-            // 在后台线程发送请求
-            auto result = this->send(request);
+    // 使用 std::thread 在后台执行同步 HTTP 请求
+    // 避免复杂的异步生命周期管理问题
+    using namespace DearTs::Core::Network;
 
-            if (cancel) {
-                return;
-            }
+    // 捕获所有需要的变量
+    std::string base_url = m_base_url;
+    std::string current_model = m_current_model;
+    std::string endpoint = get_api_endpoint(current_model);
+    std::string request_body = (endpoint == "/api/chat")
+        ? build_chat_request(request)
+        : build_generate_request(request);
 
-            // 调用回调
-            if (result.isOk()) {
-                callback(result.unwrap());
-            } else {
-                // 创建失败响应
-                LLMResponse error_response;
-                error_response.is_complete = false;
-                error_response.error = result.error();
-                callback(error_response);
-            }
-        },
-        Core::Tasks::TaskType::Background
-    );
+    bool has_stream = request.stream && request.on_chunk;
+    bool is_chat_endpoint = (endpoint == "/api/chat");
 
-    return task;
+    // 在新线程中执行请求
+    std::thread([base_url, current_model, endpoint, request_body, has_stream, is_chat_endpoint, request, callback]() {
+        HttpClientConfig config;
+        config.connect_timeout = std::chrono::seconds(10);
+        config.request_timeout = std::chrono::seconds(60);
+
+        // 在线程中创建 HTTP 客户端（局部变量，线程结束时销毁）
+        BoostAsioHttpClient client(base_url, config);
+
+        HttpRequest http_req;
+        http_req.method = "POST";
+        http_req.endpoint = endpoint;
+        http_req.headers["Content-Type"] = "application/json";
+        http_req.body = request_body;
+
+        if (has_stream) {
+            // 流式请求 - 使用 on_chunk 回调
+            auto incomplete_line_buffer = std::make_shared<std::string>();
+            auto previous_sent_content = std::make_shared<std::string>();
+
+            http_req.on_chunk = [is_chat_endpoint, incomplete_line_buffer,
+                                previous_sent_content, request](const std::string& chunk) {
+                // 处理 NDJSON 流式数据
+                std::string data = *incomplete_line_buffer + chunk;
+                incomplete_line_buffer->clear();
+
+                std::istringstream stream(data);
+                std::string line;
+
+                while (std::getline(stream, line)) {
+                    if (!line.empty()) {
+                        std::string content;
+                        if (is_chat_endpoint) {
+                            // /api/chat：message.content 是累积的，需要去重
+                            // 简化处理：直接调用 on_chunk，让调用者处理去重
+                            try {
+                                auto j = nlohmann::json::parse(line);
+                                if (j.contains("message") && j["message"].contains("content")) {
+                                    content = j["message"]["content"].get<std::string>();
+                                }
+                            } catch (...) {
+                                content = "";
+                            }
+                        } else {
+                            // /api/generate：response 是增量
+                            try {
+                                auto j = nlohmann::json::parse(line);
+                                if (j.contains("response")) {
+                                    content = j["response"].get<std::string>();
+                                }
+                            } catch (...) {
+                                content = "";
+                            }
+                        }
+
+                        if (!content.empty() && request.on_chunk) {
+                            request.on_chunk(content);
+                        }
+                    }
+                }
+
+                size_t last_newline = data.find_last_of('\n');
+                if (last_newline != std::string::npos && last_newline < data.length() - 1) {
+                    *incomplete_line_buffer = data.substr(last_newline + 1);
+                }
+            };
+        }
+
+        // 发送同步请求（阻塞直到完成）
+        auto result = client.request(http_req);
+
+        LLMResponse response;
+        if (result.isOk()) {
+            response.is_complete = true;
+            response.error = "";
+        } else {
+            response.is_complete = false;
+            response.error = result.error();
+        }
+        callback(response);
+    }).detach();  // detach 线程，让它独立运行
+
+    // 返回一个虚拟任务（用于兼容现有接口）
+    return nullptr;
 }
 
 DearTs::Core::Result<LLMResponse, std::string> OllamaLLMProvider::send(
@@ -375,48 +478,74 @@ DearTs::Core::Result<void, std::string> OllamaLLMProvider::send_streaming_reques
         LOG_INFO("Ollama: Using {} endpoint for streaming", endpoint);
         LOG_DEBUG("Ollama: Request body: {}", request_body);
 
-        // 跟踪之前发送的内容，用于计算增量
-        std::string previous_sent_content;
+        // 判断端点类型
+        const bool is_chat_endpoint = (endpoint == "/api/chat");
+        LOG_INFO("Ollama: {} endpoint - {} processing mode",
+                 endpoint,
+                 is_chat_endpoint ? "cumulative" : "incremental");
 
         // 使用流式回调发送 HTTP 请求
+        std::string incomplete_line_buffer;  // 缓冲不完整的 NDJSON 行
+        std::string previous_sent_content;   // 上次发送给调用者的完整内容（仅 /api/chat 使用）
+
         auto result = send_http_request(
             endpoint,
             request_body,
             [&](const std::string& chunk) {
-                // 按行分割 NDJSON
-                std::istringstream stream(chunk);
-                std::string line;
-                std::string last_content;  // 只保留最后一条（累积内容）
+                // 按行分割 NDJSON，处理可能的不完整行
+                std::string data = incomplete_line_buffer + chunk;
+                incomplete_line_buffer.clear();
 
+                std::istringstream stream(data);
+                std::string line;
+
+                // 逐条处理每个 NDJSON 行
                 while (std::getline(stream, line)) {
                     if (!line.empty()) {
                         std::string content = parse_ndjson_line(line);
-                        if (!content.empty()) {
-                            // 只保留最后一条（同一 chunk 中的多条是累积关系）
-                            last_content = content;
+                        if (!content.empty() && on_chunk) {
+                            if (is_chat_endpoint) {
+                                // /api/chat：message.content 是累积的，需要去重
+                                if (content.length() > previous_sent_content.length() &&
+                                    content.compare(0, previous_sent_content.length(), previous_sent_content) == 0) {
+                                    // 内容是累积的，只发送新增部分
+                                    std::string delta = content.substr(previous_sent_content.length());
+                                    if (!delta.empty()) {
+                                        on_chunk(delta);
+                                        previous_sent_content = content;
+                                    }
+                                } else if (previous_sent_content.empty()) {
+                                    // 第一次发送，发送完整内容
+                                    // LOG_INFO("Streaming: first content='{}' (len={})",
+                                    //         content.substr(0, std::min(size_t(30), content.length())),
+                                    //         content.length());
+                                    on_chunk(content);
+                                    previous_sent_content = content;
+                                } else {
+                                    // 异常情况：内容不是累积的
+                                    // LOG_WARN("Streaming: non-cumulative content detected, prev='{}...', curr='{}...'",
+                                    //          previous_sent_content.substr(0, 20),
+                                    //          content.substr(0, 20));
+                                    on_chunk(content);
+                                    previous_sent_content = content;
+                                }
+                            } else {
+                                // /api/generate：response 已经是增量片段，直接发送，不做任何处理
+                                // 不要假设任何累积关系，完全信任 Ollama 发送的内容
+                                // LOG_INFO("Streaming: forwarding incremental content='{}' (len={})",
+                                //         content.substr(0, std::min(size_t(30), content.length())),
+                                //         content.length());
+                                on_chunk(content);
+                            }
                         }
                     }
                 }
 
-                // 只使用最后一条 NDJSON 的内容，并发送增量部分
-                if (!last_content.empty() && on_chunk) {
-                    if (last_content.length() > previous_sent_content.length() &&
-                        last_content.substr(0, previous_sent_content.length()) == previous_sent_content) {
-                        // 内容是累积的，只发送新增部分
-                        std::string delta = last_content.substr(previous_sent_content.length());
-                        if (!delta.empty()) {
-                            on_chunk(delta);
-                            previous_sent_content = last_content;
-                        }
-                    } else if (previous_sent_content.empty()) {
-                        // 第一次发送，发送完整内容
-                        on_chunk(last_content);
-                        previous_sent_content = last_content;
-                    } else {
-                        // 内容不是累积的（可能是重新生成），发送完整内容
-                        on_chunk(last_content);
-                        previous_sent_content = last_content;
-                    }
+                // 检查是否有未完成的行（没有换行符的最后一行）
+                size_t last_newline = data.find_last_of('\n');
+                if (last_newline != std::string::npos && last_newline < data.length() - 1) {
+                    // 保存未完成的行，等待下一个 chunk
+                    incomplete_line_buffer = data.substr(last_newline + 1);
                 }
             }
         );

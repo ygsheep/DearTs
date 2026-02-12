@@ -44,22 +44,26 @@ Result<void, std::string> WindowsLibraryLoader::load(const std::filesystem::path
         LPSTR errorText = nullptr;
 
         // 获取错误消息
-        FormatMessageA(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
-            nullptr,
-            error,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPSTR)&errorText,
-            0,
-            nullptr
-        );
+        if (FormatMessageA(
+                FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+                nullptr,
+                error,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                (LPSTR)&errorText,
+                0,
+                nullptr
+            )) {
+            std::string error_msg = errorText;
+            LocalFree(errorText);
 
-        std::string error_msg = errorText ? errorText : "Unknown error";
-        LocalFree(errorText);
-
-        return Result<void, std::string>::err(
-            std::format("Failed to load library '{}': {}", path.string(), error_msg)
-        );
+            return Result<void, std::string>::err(
+                std::format("Failed to load library '{}': {}", path.string(), error_msg)
+            );
+        } else {
+            return Result<void, std::string>::err(
+                std::format("Failed to load library '{}': Unknown error (code: {})", path.string(), error)
+            );
+        }
     }
 
     LOG_INFO("Loaded library: {}", path.string());

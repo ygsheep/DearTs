@@ -5,10 +5,7 @@ project(DearTs VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-# 禁用 vcpkg manifest 模式（使用已手动安装的 sqlite3）
-set(CMAKE_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "")
 
-message("vcpkg Path: $ENV{VCPKG_ROOT}")
 # ==================== CCache 配置 ====================
 # CCache 是一个编译器缓存工具，可以显著加快重复编译速度
 #
@@ -199,7 +196,7 @@ if(ENABLE_BOOST_ASIO)
     message(STATUS "Looking for Boost...")
 
     # 查找 Boost（vcpkg 或系统安装）
-    # 需要同时找到 asio 和 beast 组件
+    # vcpkg 安装 boost 后会提供 Boost::asio 和 Boost::beast 目标
     find_package(Boost REQUIRED COMPONENTS asio beast)
 
     if(Boost_FOUND)
@@ -244,7 +241,14 @@ endif()
 
 # MSVC: Enable /Zc:preprocessor for __VA_OPT__ support (C++20)
 if(MSVC)
-    add_compile_options(/Zc:preprocessor)
+    add_compile_options(/Zc:preprocessor /bigobj)
+
+    # MSVC 2026 预览版与 vcpkg 的 /external 标志有兼容性问题
+    # 需要确保标准库头文件路径正确
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19.50")
+        # 对于 MSVC 19.50 (2026 预览版)，禁用 external 头文件的隔离
+        add_compile_options(/experimental:external-)
+    endif()
 endif()
 
 # Options

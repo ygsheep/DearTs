@@ -8,6 +8,8 @@
 #include <string>
 #include <chrono>
 #include <functional>
+#include <random>
+#include <format>
 
 namespace DearTs::Plugins::Chat {
 
@@ -55,11 +57,43 @@ struct Message {
     // 展开状态（用于独立 Markdown 窗口）
     bool expanded = false;                                   // 是否展开到独立窗口
 
+    /**
+     * @brief 生成简单的 UUID v4
+     * @return 格式: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+     */
+    [[nodiscard]] static std::string generate_uuid() {
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        static std::uniform_int_distribution<> dis(0, 15);
+
+        auto to_hex = [](int value) -> char {
+            return "0123456789abcdef"[value];
+        };
+
+        std::string uuid;
+        uuid.reserve(36);
+
+        // xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx (UUID v4 格式)
+        for (int i = 0; i < 8; ++i) uuid += to_hex(dis(gen));
+        uuid += '-';
+        for (int i = 0; i < 4; ++i) uuid += to_hex(dis(gen));
+        uuid += "-4";  // 版本 4
+        for (int i = 0; i < 3; ++i) uuid += to_hex(dis(gen));
+        uuid += '-';
+        uuid += to_hex(8 + dis(gen) % 4);  // y: 8, 9, a, or b (variant)
+        for (int i = 0; i < 3; ++i) uuid += to_hex(dis(gen));
+        uuid += '-';
+        for (int i = 0; i < 12; ++i) uuid += to_hex(dis(gen));
+
+        return uuid;
+    }
+
     // 构造函数
-    Message() : timestamp(std::chrono::system_clock::now()) {}
+    Message() : id(generate_uuid()), timestamp(std::chrono::system_clock::now()) {}
 
     Message(std::string content, MessageRole role)
-        : content(std::move(content))
+        : id(generate_uuid())
+        , content(std::move(content))
         , role(role)
         , timestamp(std::chrono::system_clock::now()) {}
 

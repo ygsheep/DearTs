@@ -16,7 +16,10 @@
 #include "memory_core/events/memory_events.hpp"
 #include "memory_core/persistence/database.hpp"
 #include "core/tasks/task_manager.h"
+#include "core/network/http_client.hpp"
+#include "core/network/http_types.hpp"
 #include "liblogger/logger.h"
+#include <nlohmann/json.hpp>
 #include <imgui.h>
 #include <memory>
 #include <thread>
@@ -25,6 +28,8 @@
 #include <functional>
 
 namespace DearTs::Plugins::Chat {
+
+using json = nlohmann::json;
 
 DearTs::Core::Result<void, std::string> ChatPlugin::on_load() {
     LOG_INFO("Loading Chat plugin...");
@@ -43,28 +48,38 @@ DearTs::Core::Result<void, std::string> ChatPlugin::on_load() {
     // 创建管理器
     m_conversation_manager = std::make_shared<ConversationManager>();
 
-    // 设置默认 LLM 提供商（Ollama）
-    // 从配置读取模型名称，而不是硬编码
+    // 从配置读取 LLM 提供商类型
     auto& config_manager = DearTs::Core::Config::ConfigManager::instance();
     DearTs::Core::Config::ConfigScope config("chat");
 
-    // 读取模型配置，如果不存在则使用默认值
+    // 读取提供商配置
+    std::string provider_id = config.get_or<std::string>("llm.provider", "ollama");
     std::string model = config.get_or<std::string>("llm.model", "llama3.2");
-    std::string base_url = config.get_or<std::string>("llm.custom_base_url", "");
-    std::string ollama_base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+    std::string api_key = config.get_or<std::string>("llm.api_key", "");
 
-    // 如果 custom_base_url 为空，使用向后兼容的 ollama_base_url
-    if (base_url.empty()) {
-        base_url = ollama_base_url;
+    // 根据提供商创建对应的 LLM provider
+    std::unique_ptr<LLM::ILLMProvider> provider;
+
+    if (provider_id == "ollama") {
+        std::string ollama_base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+        LOG_INFO("Creating Ollama provider with model: {}", model);
+        provider = LLM::LLMProviderFactory::create_ollama_provider(ollama_base_url, model);
+    } else if (provider_id == "llmstudio") {
+        std::string llm_studio_base_url = config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234/v1");
+        LOG_INFO("Creating LLM Studio provider with model: {}", model);
+        provider = LLM::LLMProviderFactory::create_llm_studio_provider(llm_studio_base_url, model);
+    } else {
+        // 云端提供商（OpenAI、DeepSeek、Qwen、Zhipu、Zai）
+        std::string base_url = config.get_or<std::string>("llm.custom_base_url", "");
+        LOG_INFO("Creating HTTP provider ({}) with model: {}", provider_id, model);
+        provider = LLM::LLMProviderFactory::create_http_provider(base_url, api_key, model);
     }
 
-    LOG_INFO("Creating Ollama provider with model: {} (from config)", model);
-
-    auto ollama_provider = LLM::LLMProviderFactory::create_ollama_provider(
-        base_url,
-        model
-    );
-    LLM::LLMManager::instance().set_provider(std::move(ollama_provider));
+    if (provider) {
+        LLM::LLMManager::instance().set_provider(std::move(provider));
+    } else {
+        LOG_ERROR("Failed to create LLM provider for: {}", provider_id);
+    }
 
     // 注册视图
     register_views();
@@ -102,76 +117,116 @@ void ChatPlugin::on_unload() {
 void ChatPlugin::on_enable() {
     LOG_INFO("Chat plugin enabled");
 
-    // 检查当前 LLM 提供商是否为 Ollama，如果是则在后台刷新模型列表
-    auto* provider = LLM::LLMManager::instance().get_provider();
-    if (provider && provider->get_name() == "Ollama") {
+    // 从配置读取当前提供商
+    DearTs::Core::Config::ConfigScope config("chat");
+    std::string provider_id = config.get_or<std::string>("llm.provider", "ollama");
+
+    // 检查是否为本地提供商（Ollama 或 LLM Studio），需要刷新模型列表
+    if (provider_id == "ollama") {
         LOG_INFO("Ollama provider detected, launching background model list refresh");
 
-        // 使用任务系统在后台刷新模型列表
         DearTs::Core::Tasks::TaskManager::instance().launch(
             "Refresh Ollama Models",
             [this](const std::atomic<bool>& should_cancel) {
-                // 稍微延迟一下，避免在启动时阻塞
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                if (should_cancel) return;
 
-                if (should_cancel) {
-                    LOG_INFO("Ollama model refresh cancelled");
-                    return;
-                }
-
-                // 执行刷新
                 auto* provider = LLM::LLMManager::instance().get_provider();
-                if (!provider) {
-                    LOG_ERROR("No LLM provider set during background refresh");
+                if (!provider || provider->get_name() != "Ollama") {
+                    LOG_WARN("Provider changed during background refresh");
                     return;
                 }
 
-                // 检查是否是 Ollama 提供商
-                if (provider->get_name() != "Ollama") {
-                    LOG_WARN("Provider changed during background refresh, not Ollama: {}", provider->get_name());
-                    return;
-                }
-
-                // 尝试转换为 OllamaLLMProvider
                 auto* ollama_provider = dynamic_cast<LLM::OllamaLLMProvider*>(provider);
                 if (!ollama_provider) {
                     LOG_ERROR("Failed to cast provider to OllamaLLMProvider");
                     return;
                 }
 
-                // 获取模型列表
                 try {
                     std::vector<std::string> models = ollama_provider->get_models();
                     LOG_INFO("Background refresh retrieved {} models from Ollama", models.size());
 
-                    // 发布模型列表更新事件（使用默认 URL）
-                    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
+                    DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
                         .models = models,
-                        .base_url = "http://localhost:11434"
+                        .base_url = "http://localhost:11434",
+                        .provider_type = Events::LLMProviderType::Ollama
                     });
 
-                    // 发布连接状态事件（成功）
-                    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+                    DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
                         .is_connected = true,
                         .base_url = "http://localhost:11434",
-                        .error_message = ""
+                        .error_message = "",
+                        .provider_type = Events::LLMProviderType::Ollama
                     });
 
                 } catch (const std::exception& e) {
                     LOG_ERROR("Background Ollama model refresh failed: {}", e.what());
-
-                    // 发布连接状态事件（失败）
-                    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+                    DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
                         .is_connected = false,
                         .base_url = "http://localhost:11434",
-                        .error_message = e.what()
+                        .error_message = e.what(),
+                        .provider_type = Events::LLMProviderType::Ollama
                     });
                 }
             },
-            DearTs::Core::Tasks::TaskType::Background  // 后台任务，不影响 UI
+            DearTs::Core::Tasks::TaskType::Background
         );
-
         LOG_INFO("Launched background task to refresh Ollama models");
+
+    } else if (provider_id == "llmstudio") {
+        LOG_INFO("LLM Studio provider detected, launching background model list refresh");
+
+        DearTs::Core::Tasks::TaskManager::instance().launch(
+            "Refresh LLM Studio Models",
+            [this](const std::atomic<bool>& should_cancel) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                if (should_cancel) return;
+
+                auto* provider = LLM::LLMManager::instance().get_provider();
+                if (!provider || provider->get_name() != "HTTP") {
+                    LOG_WARN("Provider changed during background refresh");
+                    return;
+                }
+
+                auto* http_provider = dynamic_cast<LLM::HTTPLLMProvider*>(provider);
+                if (!http_provider) {
+                    LOG_ERROR("Failed to cast provider to HTTPLLMProvider");
+                    return;
+                }
+
+                try {
+                    std::vector<std::string> models = http_provider->get_models();
+                    LOG_INFO("Background refresh retrieved {} models from LLM Studio", models.size());
+
+                    DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
+                        .models = models,
+                        .base_url = "http://localhost:1234/v1",
+                        .provider_type = Events::LLMProviderType::LLMStudio
+                    });
+
+                    DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
+                        .is_connected = true,
+                        .base_url = "http://localhost:1234/v1",
+                        .error_message = "",
+                        .provider_type = Events::LLMProviderType::LLMStudio
+                    });
+
+                } catch (const std::exception& e) {
+                    LOG_ERROR("Background LLM Studio model refresh failed: {}", e.what());
+                    DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
+                        .is_connected = false,
+                        .base_url = "http://localhost:1234/v1",
+                        .error_message = e.what(),
+                        .provider_type = Events::LLMProviderType::LLMStudio
+                    });
+                }
+            },
+            DearTs::Core::Tasks::TaskType::Background
+        );
+        LOG_INFO("Launched background task to refresh LLM Studio models");
+    } else {
+        LOG_INFO("Cloud provider detected ({}), no model refresh needed", provider_id);
     }
 
     // ✅ 启动后台任务：加载最近 30 天的历史会话
@@ -336,6 +391,14 @@ void ChatPlugin::register_commands() {
     */
 
     LOG_INFO("Registered Chat commands");
+}
+
+void ChatPlugin::cancel_pending_refresh_tasks() {
+    if (m_pending_refresh_task && !m_pending_refresh_task->isFinished()) {
+        LOG_INFO("Cancelling pending refresh task before switching provider");
+        m_pending_refresh_task->cancel();
+        m_pending_refresh_task.reset();
+    }
 }
 
 void ChatPlugin::setup_event_listeners() {
@@ -625,16 +688,32 @@ void ChatPlugin::setup_event_listeners() {
         }
     ));
 
-    // 订阅 Ollama 模型列表更新事件
-    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::OllamaModelsUpdatedEvent>(
-        [this](const Events::OllamaModelsUpdatedEvent& e) {
+    // 订阅 LLM 模型列表更新事件
+    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::LLMModelsUpdatedEvent>(
+        [this](const Events::LLMModelsUpdatedEvent& e) {
             if (e.models.empty()) {
-                // 空列表表示请求刷新，执行实际的刷新
-                // 根据 base_url 判断是 Ollama 还是 LLM Studio
-                if (e.base_url.find("8080") != std::string::npos || e.base_url.find("llm") != std::string::npos) {
-                    handle_llm_studio_models_refresh(e.base_url);
+                // 空列表表示请求刷新
+                // ✅ 使用 TaskManager 异步处理网络请求，避免阻塞 UI
+                if (e.provider_type == Events::LLMProviderType::LLMStudio) {
+                    LOG_INFO("Scheduling async LLM Studio model refresh from {}", e.base_url);
+                    DearTs::Core::Tasks::TaskManager::instance().launch(
+                        "Refresh LLM Studio Models",
+                        [this, base_url = e.base_url](const auto&) {
+                            handle_llm_studio_models_refresh(base_url);
+                        },
+                        DearTs::Core::Tasks::TaskType::Background
+                    );
+                } else if (e.provider_type == Events::LLMProviderType::Ollama) {
+                    LOG_INFO("Scheduling async Ollama model refresh from {}", e.base_url);
+                    DearTs::Core::Tasks::TaskManager::instance().launch(
+                        "Refresh Ollama Models",
+                        [this, base_url = e.base_url](const auto&) {
+                            handle_ollama_models_refresh(base_url);
+                        },
+                        DearTs::Core::Tasks::TaskType::Background
+                    );
                 } else {
-                    handle_ollama_models_refresh(e.base_url);
+                    LOG_INFO("Model refresh not supported for provider type: {}", static_cast<int>(e.provider_type));
                 }
             }
             // ✅ 注意：不再在处理器中发布新的事件，避免无限循环
@@ -642,16 +721,33 @@ void ChatPlugin::setup_event_listeners() {
         }
     ));
 
-    // 订阅 Ollama 连接状态事件（也用于 LLM Studio 连接测试）
-    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::OllamaConnectionStatusEvent>(
-        [this](const Events::OllamaConnectionStatusEvent& e) {
+    // 订阅 LLM 连接状态事件（也用于 LLM Studio 连接测试）
+    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::LLMConnectionStatusEvent>(
+        [this](const Events::LLMConnectionStatusEvent& e) {
             if (!e.is_connected) {
                 // is_connected = false 表示请求测试连接
-                // 根据 base_url 判断是 Ollama 还是 LLM Studio
-                if (e.base_url.find("8080") != std::string::npos || e.base_url.find("llm") != std::string::npos) {
-                    handle_llm_studio_connection_test(e.base_url);
+                // ✅ 使用 TaskManager 异步处理连接测试，避免阻塞 UI
+                if (e.provider_type == Events::LLMProviderType::LLMStudio) {
+                    LOG_INFO("Scheduling async LLM Studio connection test to {}", e.base_url);
+                    DearTs::Core::Tasks::TaskManager::instance().launch(
+                        "Test LLM Studio Connection",
+                        [this, base_url = e.base_url](const auto&) {
+                            handle_llm_studio_connection_test(base_url);
+                        },
+                        DearTs::Core::Tasks::TaskType::Background
+                    );
+                } else if (e.provider_type == Events::LLMProviderType::Ollama) {
+                    LOG_INFO("Scheduling async Ollama connection test to {}", e.base_url);
+                    DearTs::Core::Tasks::TaskManager::instance().launch(
+                        "Test Ollama Connection",
+                        [this, base_url = e.base_url](const auto&) {
+                            handle_ollama_connection_test(base_url);
+                        },
+                        DearTs::Core::Tasks::TaskType::Background
+                    );
                 } else {
-                    handle_ollama_connection_test(e.base_url);
+                    // 云端 provider 不需要连接测试
+                    LOG_INFO("Connection test not supported for provider type: {}", static_cast<int>(e.provider_type));
                 }
             }
             // 否则，这是连接测试的结果，由 InfoPanelView 直接监听并更新 UI
@@ -722,6 +818,8 @@ void ChatPlugin::setup_event_listeners() {
                 std::string ollama_base_url = config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
                 std::string llm_studio_base_url = config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234/v1");
 
+                LOG_DEBUG("Model changed: provider_id='{}', base_url='{}', new_model='{}'", provider_id, base_url, e.new_model);
+
                 // 根据供应商 ID 选择正确的 base URL
                 if (provider_id == "ollama") {
                     if (base_url.empty()) {
@@ -743,6 +841,24 @@ void ChatPlugin::setup_event_listeners() {
                     );
                     LLM::LLMManager::instance().set_provider(std::move(new_provider));
                     LOG_INFO("LLM Studio provider updated with model: {}", e.new_model);
+                } else {
+                    // 其他供应商使用 HTTP provider
+                    LOG_WARN("Unknown provider_id '{}', creating HTTP provider for model: {}", provider_id, e.new_model);
+
+                    // 从 PRESET_LLM_PROVIDERS 获取默认 base_url
+                    auto provider_it = std::find_if(
+                        PRESET_LLM_PROVIDERS.begin(),
+                        PRESET_LLM_PROVIDERS.end(),
+                        [&](const LLMProviderConfig& cfg) { return cfg.id == provider_id; }
+                    );
+
+                    if (base_url.empty() && provider_it != PRESET_LLM_PROVIDERS.end()) {
+                        base_url = provider_it->default_base_url;
+                    }
+
+                    auto new_provider = LLM::LLMProviderFactory::create_http_provider(base_url, "", e.new_model);
+                    LLM::LLMManager::instance().set_provider(std::move(new_provider));
+                    LOG_INFO("HTTP provider created for {} with model: {}", provider_id, e.new_model);
                 }
             }
         )
@@ -769,6 +885,13 @@ void ChatPlugin::setup_event_listeners() {
                     auto new_provider = LLM::LLMProviderFactory::create_ollama_provider(base_url, model);
                     LLM::LLMManager::instance().set_provider(std::move(new_provider));
                     LOG_INFO("Created Ollama provider with model: {}", model);
+
+                    // ✅ 切换到 Ollama 时，刷新模型列表
+                    DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
+                        .models = {},
+                        .base_url = base_url,
+                        .provider_type = Events::LLMProviderType::Ollama
+                    });
                 } else if (e.new_provider == "llmstudio") {
                     std::string llm_studio_base_url = config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234/v1");
                     if (base_url.empty()) {
@@ -777,6 +900,13 @@ void ChatPlugin::setup_event_listeners() {
                     auto new_provider = LLM::LLMProviderFactory::create_llm_studio_provider(base_url, model);
                     LLM::LLMManager::instance().set_provider(std::move(new_provider));
                     LOG_INFO("Created LLM Studio provider with model: {}", model);
+
+                    // ✅ 切换到 LLM Studio 时，刷新模型列表
+                    DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
+                        .models = {},
+                        .base_url = base_url,
+                        .provider_type = Events::LLMProviderType::LLMStudio
+                    });
                 } else {
                     // 其他供应商使用 HTTP provider
                     if (base_url.empty()) {
@@ -839,35 +969,46 @@ void ChatPlugin::handle_ollama_models_refresh(const std::string& base_url) {
         // 如果列表为空（Ollama 未运行或无模型），不发布事件以避免无限循环
         if (!models.empty()) {
             // 发布模型列表更新事件
-            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
+            DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
                 .models = models,
-                .base_url = base_url
+                .base_url = base_url,
+                .provider_type = Events::LLMProviderType::Ollama
             });
 
             // 发布连接状态事件（成功）
-            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
                 .is_connected = true,
                 .base_url = base_url,
-                .error_message = ""
+                .error_message = "",
+                .provider_type = Events::LLMProviderType::Ollama
             });
         } else {
             // 模型列表为空，只发布连接状态但标记为未连接
             LOG_WARN("Ollama returned empty model list, might not be available");
-            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
                 .is_connected = false,
                 .base_url = base_url,
-                .error_message = "No models available"
+                .error_message = "No models available",
+                .provider_type = Events::LLMProviderType::Ollama
             });
         }
 
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to get Ollama models: {}", e.what());
 
-        // 发布连接状态事件（失败）
-        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+        // ✅ 首先发布模型列表更新事件（空列表 + 连接失败标志），确保刷新状态被重置
+        DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
+            .models = {},  // 空列表表示刷新失败
+            .base_url = base_url,
+            .provider_type = Events::LLMProviderType::Ollama
+        });
+
+        // 然后发布连接状态事件（失败）
+        DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
             .is_connected = false,
             .base_url = base_url,
-            .error_message = e.what()
+            .error_message = e.what(),
+            .provider_type = Events::LLMProviderType::Ollama
         });
     }
 }
@@ -913,84 +1054,91 @@ void ChatPlugin::handle_ollama_connection_test(const std::string& base_url) {
     LOG_INFO("Ollama connection test result: {}", connected ? "Connected" : "Failed");
 
     // 发布连接状态事件
-    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+    DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
         .is_connected = connected,
         .base_url = base_url,
-        .error_message = connected ? "" : "Connection failed"
+        .error_message = connected ? "" : "Connection failed",
+        .provider_type = Events::LLMProviderType::Ollama
     });
 }
 
 void ChatPlugin::handle_llm_studio_models_refresh(const std::string& base_url) {
     LOG_INFO("Refreshing LLM Studio models from {}", base_url);
 
-    // 检查当前 LLM 提供商类型
-    auto* provider = LLM::LLMManager::instance().get_provider();
-    if (!provider) {
-        LOG_ERROR("No LLM provider set");
-        return;
-    }
-
-    // 检查是否是 HTTP 提供商（LLM Studio 使用 HTTP Provider）
-    if (provider->get_name() != "HTTP") {
-        LOG_WARN("Current provider is not HTTP (LLM Studio): {}", provider->get_name());
-
-        // 发布失败事件
-        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
-            .is_connected = false,
-            .base_url = base_url,
-            .error_message = "Provider is not HTTP (LLM Studio)"
-        });
-        return;
-    }
-
-    // 尝试转换为 HTTPLLMProvider
-    auto* http_provider = dynamic_cast<LLM::HTTPLLMProvider*>(provider);
-    if (!http_provider) {
-        LOG_ERROR("Failed to cast provider to HTTPLLMProvider");
-
-        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
-            .is_connected = false,
-            .base_url = base_url,
-            .error_message = "Failed to access HTTP provider"
-        });
-        return;
-    }
-
-    // 获取模型列表
+    // 直接调用 LM Studio 的 /v1/models 端点
     try {
-        std::vector<std::string> models = http_provider->get_models();
+        using namespace DearTs::Core::Network;
+
+        HttpClientConfig config;
+        config.connect_timeout = std::chrono::seconds(10);
+        config.request_timeout = std::chrono::seconds(30);
+
+        BoostAsioHttpClient client(base_url, config);
+
+        HttpRequest request;
+        request.method = "GET";
+        request.endpoint = "/v1/models";
+
+        auto response_result = client.request(request);
+
+        if (response_result.isErr()) {
+            throw std::runtime_error(response_result.error());
+        }
+
+        auto response = response_result.unwrap();
+
+        if (response.status_code != 200) {
+            throw std::runtime_error(std::format("HTTP {}", response.status_code));
+        }
+
+        // 解析响应：OpenAI 兼容格式 {"data": [{"id": "model-name"}, ...]}
+        std::vector<std::string> models;
+        json response_json = json::parse(response.body);
+
+        if (response_json.contains("data") && response_json["data"].is_array()) {
+            for (const auto& item : response_json["data"]) {
+                if (item.contains("id")) {
+                    models.push_back(item["id"].get<std::string>());
+                }
+            }
+        }
+
         LOG_INFO("Retrieved {} models from LLM Studio", models.size());
 
         if (!models.empty()) {
-            // 发布模型列表更新事件（复用 OllamaModelsUpdatedEvent）
-            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaModelsUpdatedEvent{
+            // 发布模型列表更新事件
+            DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
                 .models = models,
-                .base_url = base_url
+                .base_url = base_url,
+                .provider_type = Events::LLMProviderType::LLMStudio
             });
 
             // 发布连接状态事件（成功）
-            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
                 .is_connected = true,
                 .base_url = base_url,
-                .error_message = ""
+                .error_message = "",
+                .provider_type = Events::LLMProviderType::LLMStudio
             });
         } else {
             // 模型列表为空
             LOG_WARN("LLM Studio returned empty model list");
-            DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+            DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
                 .is_connected = false,
                 .base_url = base_url,
-                .error_message = "No models available"
+                .error_message = "No models available",
+                .provider_type = Events::LLMProviderType::LLMStudio
             });
         }
 
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to get LLM Studio models: {}", e.what());
 
-        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+        DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
             .is_connected = false,
             .base_url = base_url,
-            .error_message = e.what()
+            .error_message = e.what(),
+            .provider_type = Events::LLMProviderType::LLMStudio
         });
     }
 }
@@ -998,48 +1146,43 @@ void ChatPlugin::handle_llm_studio_models_refresh(const std::string& base_url) {
 void ChatPlugin::handle_llm_studio_connection_test(const std::string& base_url) {
     LOG_INFO("Testing LLM Studio connection to {}", base_url);
 
-    // 检查当前 LLM 提供商类型
-    auto* provider = LLM::LLMManager::instance().get_provider();
-    if (!provider) {
-        LOG_ERROR("No LLM provider set");
-        return;
-    }
+    // 直接测试 LM Studio 的 /v1/models 端点
+    try {
+        using namespace DearTs::Core::Network;
 
-    // 检查是否是 HTTP 提供商
-    if (provider->get_name() != "HTTP") {
-        LOG_WARN("Current provider is not HTTP (LLM Studio): {}", provider->get_name());
+        HttpClientConfig config;
+        config.connect_timeout = std::chrono::seconds(5);
+        config.request_timeout = std::chrono::seconds(10);
 
-        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
+        BoostAsioHttpClient client(base_url, config);
+
+        HttpRequest request;
+        request.method = "GET";
+        request.endpoint = "/v1/models";  // LM Studio 使用 OpenAI 兼容 API
+
+        auto response_result = client.request(request);
+        bool connected = response_result.isOk() && response_result.unwrap().status_code == 200;
+
+        LOG_INFO("LLM Studio connection test result: {}", connected ? "Connected" : "Failed");
+
+        // 发布连接状态事件
+        DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
+            .is_connected = connected,
+            .base_url = base_url,
+            .error_message = connected ? "" : "Connection failed",
+            .provider_type = Events::LLMProviderType::LLMStudio
+        });
+
+    } catch (const std::exception& e) {
+        LOG_ERROR("LLM Studio connection test failed: {}", e.what());
+
+        DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
             .is_connected = false,
             .base_url = base_url,
-            .error_message = "Provider is not HTTP (LLM Studio)"
+            .error_message = e.what(),
+            .provider_type = Events::LLMProviderType::LLMStudio
         });
-        return;
     }
-
-    // 尝试转换为 HTTPLLMProvider
-    auto* http_provider = dynamic_cast<LLM::HTTPLLMProvider*>(provider);
-    if (!http_provider) {
-        LOG_ERROR("Failed to cast provider to HTTPLLMProvider");
-
-        DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
-            .is_connected = false,
-            .base_url = base_url,
-            .error_message = "Failed to access HTTP provider"
-        });
-        return;
-    }
-
-    // 测试连接
-    bool connected = http_provider->is_available();
-    LOG_INFO("LLM Studio connection test result: {}", connected ? "Connected" : "Failed");
-
-    // 发布连接状态事件
-    DearTs::Core::Event::EventBus::instance().publish(Events::OllamaConnectionStatusEvent{
-        .is_connected = connected,
-        .base_url = base_url,
-        .error_message = connected ? "" : "Connection failed"
-    });
 }
 
 } // namespace DearTs::Plugins::Chat

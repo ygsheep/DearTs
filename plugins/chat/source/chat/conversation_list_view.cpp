@@ -185,7 +185,11 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
         }
         ImGui::Separator();
         if (ImGui::MenuItem("删除会话")) {
+            // 删除会话后立即返回，避免继续访问已删除的数据
             delete_conversation(conv->id);
+            // 关闭弹出菜单，避免后续代码访问已删除的会话
+            ImGui::CloseCurrentPopup();
+            return;
         }
         ImGui::Separator();
         if (conv->is_pinned) {

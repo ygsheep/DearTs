@@ -217,6 +217,13 @@ DearTs 使用 **Git Submodules** 管理第三方依赖，确保版本可控和�
 | cppjieba | C++ 中文分词 | [yanyiwu/cppjieba](https://github.com/yanyiwu/cppjieba.git) |
 | llama.cpp | LLM 推理引擎 | [ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp.git) |
 
+### 代码检查
+
+```shell
+cppcheck --enable=all --std=c++23 --suppress=missingInclude --inconclusive -i third_party -i build -i cmake -i docs -i examples -i scripts   -j 4 src/ core/ main/ plugins/ resources/ tests/ lib/ 2> cppcheck_report.txt
+
+cppcheck --enable=all --suppress=missingInclude ...
+```
 ---
 
 ## 🚀 快速开始

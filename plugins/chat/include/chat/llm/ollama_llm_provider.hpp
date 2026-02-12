@@ -11,6 +11,12 @@
 #include <string>
 #include <functional>
 #include <vector>
+#include <memory>
+#include <mutex>
+
+namespace DearTs::Core::Network {
+    class BoostAsioHttpClient;
+}
 
 namespace DearTs::Plugins::Chat::LLM {
 
@@ -177,9 +183,18 @@ private:
      */
     bool test_connection() const;
 
+    /**
+     * @brief 获取或创建 HTTP 客户端（线程安全）
+     * @details 使用延迟初始化，避免在构造函数中创建 IO 线程
+     *          使用双重检查锁定模式优化性能
+     */
+    [[nodiscard]] DearTs::Core::Network::BoostAsioHttpClient* get_client() const;
+
     // ========== 成员变量 ==========
 
     std::string m_base_url;  // Ollama 服务地址
+    mutable std::unique_ptr<DearTs::Core::Network::BoostAsioHttpClient> m_client;  // HTTP 客户端（延迟初始化）
+    mutable std::mutex m_client_mutex;  // 保护 m_client 的互斥锁
 };
 
 } // namespace DearTs::Plugins::Chat::LLM
