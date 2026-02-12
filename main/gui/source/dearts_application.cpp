@@ -12,6 +12,7 @@
 #include "core/content/callbacks.h"
 #include "core/content/commands.h"
 #include "core/event/event_bus.h"
+#include "core/ui/scale_manager.h"
 #include "liblogger/logger.h"
 #include "logger_viewer_plugin.hpp"
 #include "navigation_plugin.hpp"
@@ -38,7 +39,16 @@ bool DearTsApplication::on_init() {
     // 1. 设置配置管理器（必须在 setup_imgui 之前，以便加载字体配置）
     setup_config();
 
-    // 2. 设置 ImGui（会从 ConfigManager 读取字体大小）
+    // 2. 初始化缩放管理器（必须在 setup_imgui 之前）
+    auto& scale_manager = Core::UI::ScaleManager::instance();
+    auto scale_result = scale_manager.initialize(m_window);
+    if (scale_result.isErr()) {
+        LOG_WARN("Failed to initialize ScaleManager: {}", scale_result.error());
+    } else {
+        LOG_INFO("ScaleManager initialized: scale={:.2f}", scale_manager.get_scale());
+    }
+
+    // 3. 设置 ImGui（会从 ConfigManager 读取字体大小，现在会应用缩放）
     if (!setup_imgui()) {
         LOG_ERROR("Failed to setup ImGui");
         return false;
@@ -366,10 +376,14 @@ bool DearTsApplication::setup_imgui() {
     font_config.OversampleV = 2;
     font_config.PixelSnapH = true;
 
-    // 从配置读取字体大小
+    // 从配置读取字体大小（基础大小，不包含缩放）
     auto& config = Core::Config::ConfigManager::instance();
-    float font_size = static_cast<float>(config.get_or<double>("dearts.font.size", 16.0));
-    LOG_INFO("字体大小配置: {:.1f}px", font_size);
+    float base_font_size = static_cast<float>(config.get_or<double>("dearts.font.size", 16.0));
+
+    // 应用 ScaleManager 的缩放比例到字体大小
+    float scale = Core::UI::ScaleManager::instance().get_scale();
+    float font_size = base_font_size * scale;
+    LOG_INFO("字体大小: {:.1f}px (基础: {:.1f}px x 缩放: {:.2f})", font_size, base_font_size, scale);
 
     // 尝试加载字体（按优先级）
     static const char* font_paths[] = {

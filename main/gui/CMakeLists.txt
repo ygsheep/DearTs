@@ -211,6 +211,7 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
+    ${CMAKE_SOURCE_DIR}/core/ui/scale_manager.cpp
     # Command Palette 现在是插件，移到了 plugins/command_palette/
     # ${CMAKE_SOURCE_DIR}/core/ui/command_palette.cpp
     ${CMAKE_SOURCE_DIR}/core/ui/title_bar.cpp
@@ -234,7 +235,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         imgui_full
         implot
         SDL3::SDL3-shared
-        SDL3_image-static
+        # SDL3_image-static  # 暂时注释：需要预编译库或从源码构建
         deartsdl_logger
         freetype
         lunasvg::lunasvg
