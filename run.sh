@@ -41,4 +41,4 @@ echo "使用后端: $SDL_VIDEODRIVER"
 echo ""
 
 # 在 nix-shell 中运行
-nix-shell --run "cd \"$BIN_DIR\" && ./DearTs"
+nix-shell --run "cd \"$BIN_DIR\" && ./ChatManager"

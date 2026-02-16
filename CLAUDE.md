@@ -2,8 +2,9 @@
 
 DearTs Framework is a modern C++20 application framework based on SDL3 + ImGui, featuring an ImHex-style plugin system, type-safe event bus, and comprehensive developer tools.
 
-# replay message
-- use chinese for user
+## Project Overview
+
+**Output Format**: Reply in Chinese (中文), end with "喵！"
 
 ## Build Commands
 

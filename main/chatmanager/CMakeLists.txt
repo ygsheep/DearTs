@@ -183,6 +183,7 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(ChatManager PRIVATE
         pthread
         dl
+        boost_asio  # Linux 也需要 Boost.Asio
     )
 endif()
 

@@ -195,9 +195,16 @@ option(ENABLE_BOOST_ASIO "Enable Boost.Asio support for HTTP requests" ON)
 if(ENABLE_BOOST_ASIO)
     message(STATUS "Looking for Boost...")
 
-    # 查找 Boost（vcpkg 或系统安装）
-    # vcpkg 安装 boost 后会提供 Boost::asio 和 Boost::beast 目标
-    find_package(Boost REQUIRED COMPONENTS asio beast)
+    # 根据平台使用不同的查找方式
+    # Windows (vcpkg): 使用组件查找，vcpkg 会提供 Boost::asio 和 Boost::beast 目标
+    # Linux (系统包/Nix): asio 和 beast 是 header-only，使用简单查找
+    if(WIN32)
+        # Windows: 使用 vcpkg 组件查找
+        find_package(Boost REQUIRED COMPONENTS asio beast)
+    else()
+        # Linux: 简单查找，asio/beast 是 header-only
+        find_package(Boost REQUIRED)
+    endif()
 
     if(Boost_FOUND)
         message(STATUS "Boost: Found (version ${Boost_VERSION})")
@@ -209,6 +216,26 @@ if(ENABLE_BOOST_ASIO)
 
         # 添加头文件目录
         target_include_directories(boost_asio INTERFACE ${Boost_INCLUDE_DIRS})
+
+        # Linux: 检查并手动创建缺失的 Boost::asio 和 Boost::beast 目标
+        # 因为它们是 header-only，可能没有独立的 CMake 配置
+        if(NOT WIN32)
+            if(NOT TARGET Boost::asio)
+                message(STATUS "  Creating Boost::asio target (header-only)")
+                add_library(Boost::asio INTERFACE IMPORTED)
+                set_target_properties(Boost::asio PROPERTIES
+                    INTERFACE_INCLUDE_DIRECTORIES "${Boost_INCLUDE_DIRS}"
+                )
+            endif()
+            
+            if(NOT TARGET Boost::beast)
+                message(STATUS "  Creating Boost::beast target (header-only)")
+                add_library(Boost::beast INTERFACE IMPORTED)
+                set_target_properties(Boost::beast PROPERTIES
+                    INTERFACE_INCLUDE_DIRECTORIES "${Boost_INCLUDE_DIRS}"
+                )
+            endif()
+        endif()
 
         # 链接 Boost 库
         target_link_libraries(boost_asio INTERFACE Boost::asio Boost::beast)
@@ -229,8 +256,7 @@ if(ENABLE_BOOST_ASIO)
     else()
         message(FATAL_ERROR "Boost.Asio not found. Please install:")
         message(STATUS "  Windows: vcpkg install boost-asio:x64-windows boost-beast:x64-windows")
-        message(STATUS "  Linux: vcpkg install boost-asio:x64-linux boost-beast:x64-linux")
-        message(STATUS "  Then set VCPKG_ROOT environment variable")
+        message(STATUS "  Linux: sudo apt install libboost-all-dev 或 vcpkg install boost-asio:x64-linux")
     endif()
 else()
     message(FATAL_ERROR "Boost.Asio is required. Cannot continue without ENABLE_BOOST_ASIO=ON")
