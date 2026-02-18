@@ -136,9 +136,9 @@ void ConversationListView::draw_conversation_list() {
 }
 
 void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversation>& conv) {
-    // 判断是否为当前选中的会话
-    const bool is_selected = (m_conversation_manager->get_current_conversation() &&
-                              m_conversation_manager->get_current_conversation()->id == conv->id);
+    // 判断是否为当前选中的会话（先获取指针避免解引用空指针）
+    auto current_conv = m_conversation_manager->get_current_conversation();
+    const bool is_selected = (current_conv && current_conv->id == conv->id);
 
     // 判断是否悬停
     const bool is_hovered = (m_hovered_conversation && m_hovered_conversation->id == conv->id);
@@ -323,6 +323,11 @@ void ConversationListView::create_new_conversation() {
 }
 
 void ConversationListView::delete_conversation(const std::string& id) {
+    // 如果删除的是当前悬停的会话，清空悬停引用
+    if (m_hovered_conversation && m_hovered_conversation->id == id) {
+        m_hovered_conversation.reset();
+    }
+
     if (m_conversation_manager->delete_conversation(id)) {
         LOG_INFO("Deleted conversation: {}", id);
     }

@@ -96,7 +96,7 @@ DearTs::Core::Result<LLMResponse, std::string> HTTPLLMProvider::send(const LLMRe
         // 非流式：发送常规 HTTP 请求
         const std::string request_body = build_chat_completion_request(request);
 
-        auto response_body = send_http_request("/chat/completions", request_body);
+        auto response_body = send_http_request("/v1/chat/completions", request_body);
         if (!response_body.isOk()) {
             return DearTs::Core::Result<LLMResponse, std::string>::err(response_body.error());
         }
@@ -121,9 +121,9 @@ DearTs::Core::Result<LLMResponse, std::string> HTTPLLMProvider::send(const LLMRe
 }
 
 std::vector<std::string> HTTPLLMProvider::get_models() const {
-    // 尝试从 /models 端点获取可用模型
+    // 尝试从 /v1/models 端点获取可用模型（OpenAI 兼容 API）
     try {
-        auto response = send_http_request("/models", "");
+        auto response = send_http_request("/v1/models", "");
         if (response.isOk()) {
             json j = json::parse(response.unwrap());
             if (j.contains("data") && j["data"].is_array()) {
@@ -300,8 +300,8 @@ DearTs::Core::Result<LLMResponse, std::string> HTTPLLMProvider::parse_chat_compl
 
 bool HTTPLLMProvider::test_connection() const {
     try {
-        // 发送一个简单的请求测试连接
-        auto response = send_http_request("/models", "");
+        // 发送一个简单的请求测试连接（OpenAI 兼容 API）
+        auto response = send_http_request("/v1/models", "");
         return response.isOk();
     } catch (...) {
         return false;
@@ -337,7 +337,7 @@ DearTs::Core::Result<void, std::string> HTTPLLMProvider::send_streaming_request(
         // 构建请求
         HttpRequest http_req;
         http_req.method = "POST";
-        http_req.endpoint = "/chat/completions";
+        http_req.endpoint = "/v1/chat/completions";
         http_req.headers["Content-Type"] = "application/json";
 
         if (!m_api_key.empty()) {
