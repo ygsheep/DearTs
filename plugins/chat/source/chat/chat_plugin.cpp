@@ -65,7 +65,7 @@ DearTs::Core::Result<void, std::string> ChatPlugin::on_load() {
         LOG_INFO("Creating Ollama provider with model: {}", model);
         provider = LLM::LLMProviderFactory::create_ollama_provider(ollama_base_url, model);
     } else if (provider_id == "llmstudio") {
-        std::string llm_studio_base_url = config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234/v1");
+        std::string llm_studio_base_url = config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234");
         LOG_INFO("Creating LLM Studio provider with model: {}", model);
         provider = LLM::LLMProviderFactory::create_llm_studio_provider(llm_studio_base_url, model);
     } else {
