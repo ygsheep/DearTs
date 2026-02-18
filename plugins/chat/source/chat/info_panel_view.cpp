@@ -6,17 +6,17 @@
 #include "chat/views/info_panel_view.hpp"
 #include "chat/events/chat_events.hpp"
 #include "chat/ui/measure_context.hpp"
+#include "core/ui/icon_font.hpp"
+#include "core/ui/imgui_extensions.h"
+#include "liblogger/logger.h"
+#include "memory_core/events/memory_events.hpp"
 #include "memory_core/memory/memory_manager.hpp"
 #include "memory_core/persistence/database.hpp"
-#include "memory_core/events/memory_events.hpp"
-#include "core/ui/imgui_extensions.h"
-#include "core/ui/icon_font.hpp"
-#include "liblogger/logger.h"
-#include <imgui.h>
 #include <format>
 #include <fstream>
-#include <unordered_map>
+#include <imgui.h>
 #include <nlohmann/json.hpp>
+#include <unordered_map>
 
 namespace DearTs::Plugins::Chat {
 
@@ -31,11 +31,13 @@ void InfoPanelView::load_config() {
 
     // 向后兼容：如果存在旧的 ollama_base_url，使用它
     if (m_custom_base_url.empty() && m_selected_provider_id == "ollama") {
-        m_ollama_base_url = m_config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
+        m_ollama_base_url =
+            m_config.get_or<std::string>("llm.ollama_base_url", "http://localhost:11434");
     }
 
     // LLM Studio 配置
-    m_llm_studio_base_url = m_config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234/v1");
+    m_llm_studio_base_url =
+        m_config.get_or<std::string>("llm.llm_studio_base_url", "http://localhost:1234/v1");
 
     m_temperature = m_config.get_or<double>("llm.temperature", 0.7);
     m_max_tokens = m_config.get_or<int>("llm.max_tokens", 2048);
@@ -60,9 +62,10 @@ void InfoPanelView::save_config(bool force) {
     // force 参数为 true 时跳过防抖检查
     if (!force) {
         auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_config_save).count();
+        auto elapsed =
+            std::chrono::duration_cast<std::chrono::milliseconds>(now - m_last_config_save).count();
         if (elapsed < 500) {
-            return;  // 距离上次保存不足 500ms，跳过
+            return; // 距离上次保存不足 500ms，跳过
         }
         m_last_config_save = now;
     }
@@ -72,8 +75,8 @@ void InfoPanelView::save_config(bool force) {
     m_config.set("llm.model", m_selected_model);
     m_config.set("llm.custom_base_url", m_custom_base_url);
     m_config.set("llm.api_key", m_api_key);
-    m_config.set("llm.ollama_base_url", m_ollama_base_url);  // 向后兼容
-    m_config.set("llm.llm_studio_base_url", m_llm_studio_base_url);  // LLM Studio
+    m_config.set("llm.ollama_base_url", m_ollama_base_url);         // 向后兼容
+    m_config.set("llm.llm_studio_base_url", m_llm_studio_base_url); // LLM Studio
     m_config.set("llm.temperature", m_temperature);
     m_config.set("llm.max_tokens", m_max_tokens);
 
@@ -93,8 +96,7 @@ void InfoPanelView::save_config(bool force) {
 }
 
 InfoPanelView::InfoPanelView(std::shared_ptr<ConversationManager> manager)
-    : ViewWindow(UnlocalizedString("信息"), ICON_INFO)
-    , m_conversation_manager(std::move(manager)) {
+    : ViewWindow(UnlocalizedString("信息"), ICON_INFO), m_conversation_manager(std::move(manager)) {
     // 加载配置
     load_config();
     // 设置事件监听
@@ -108,53 +110,66 @@ InfoPanelView::~InfoPanelView() {
 
 void InfoPanelView::setup_event_listeners() {
     // 订阅 LLM 模型列表更新事件
-    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::LLMModelsUpdatedEvent>(
-        [this](const Events::LLMModelsUpdatedEvent& e) {
-            // ✅ 首先重置刷新状态（无论成功或失败）
-            // 使用 provider_type 字段判断 provider 类型
-            if (e.provider_type == Events::LLMProviderType::LLMStudio) {
-                m_llm_studio_refreshing = false;
-                if (!e.models.empty()) {
-                    set_available_models(e.models);
-                    LOG_INFO("InfoPanelView: Updated {} LLM Studio models from {}", e.models.size(), e.base_url);
-                } else {
-                    LOG_DEBUG("InfoPanelView: LLM Studio model refresh completed, no models returned");
+    m_event_tokens.push_back(
+        DearTs::Core::Event::EventBus::instance().subscribe<Events::LLMModelsUpdatedEvent>(
+            [this](const Events::LLMModelsUpdatedEvent& e) {
+                // ✅ 首先重置刷新状态（无论成功或失败）
+                // 使用 provider_type 字段判断 provider 类型
+                if (e.provider_type == Events::LLMProviderType::LLMStudio) {
+                    m_llm_studio_refreshing = false;
+                    if (!e.models.empty()) {
+                        set_available_models(e.models);
+                        LOG_INFO("InfoPanelView: Updated {} LLM Studio models from {}",
+                                 e.models.size(),
+                                 e.base_url);
+                    } else {
+                        LOG_DEBUG("InfoPanelView: LLM Studio model refresh completed, no models "
+                                  "returned");
+                    }
+                } else if (e.provider_type == Events::LLMProviderType::Ollama) {
+                    m_ollama_refreshing = false;
+                    if (!e.models.empty()) {
+                        set_available_models(e.models);
+                        LOG_INFO("InfoPanelView: Updated {} Ollama models from {}",
+                                 e.models.size(),
+                                 e.base_url);
+                    } else {
+                        LOG_DEBUG(
+                            "InfoPanelView: Ollama model refresh completed, no models returned");
+                    }
                 }
-            } else if (e.provider_type == Events::LLMProviderType::Ollama) {
-                m_ollama_refreshing = false;
-                if (!e.models.empty()) {
-                    set_available_models(e.models);
-                    LOG_INFO("InfoPanelView: Updated {} Ollama models from {}", e.models.size(), e.base_url);
-                } else {
-                    LOG_DEBUG("InfoPanelView: Ollama model refresh completed, no models returned");
-                }
-            }
-        }
-    ));
+            }));
 
     // 订阅 LLM 连接状态事件
-    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<Events::LLMConnectionStatusEvent>(
-        [this](const Events::LLMConnectionStatusEvent& e) {
-            LOG_DEBUG("InfoPanelView: Received LLMConnectionStatusEvent: provider_type={}, is_connected={}, error='{}'",
-                     static_cast<int>(e.provider_type), e.is_connected, e.error_message);
+    m_event_tokens.push_back(
+        DearTs::Core::Event::EventBus::instance().subscribe<Events::LLMConnectionStatusEvent>(
+            [this](const Events::LLMConnectionStatusEvent& e) {
+                LOG_DEBUG("InfoPanelView: Received LLMConnectionStatusEvent: provider_type={}, "
+                          "is_connected={}, error='{}'",
+                          static_cast<int>(e.provider_type),
+                          e.is_connected,
+                          e.error_message);
 
-            // 使用 provider_type 字段判断 provider 类型
-            if (e.provider_type == Events::LLMProviderType::LLMStudio) {
-                // LLM Studio 连接状态
-                m_llm_studio_connected = e.is_connected;
-                m_llm_studio_connection_error = e.error_message;
-                m_llm_studio_refreshing = false;  // 停止刷新状态
-                LOG_INFO("InfoPanelView: LLM Studio connection status: {}", e.is_connected ? "Connected" : "Failed");
-            } else if (e.provider_type == Events::LLMProviderType::Ollama) {
-                // Ollama 连接状态
-                set_ollama_connection_status(e.is_connected, e.error_message);
-                m_ollama_refreshing = false;
-                LOG_INFO("InfoPanelView: Ollama connection status: {}, error: {}", e.is_connected ? "Connected" : "Failed", e.error_message);
-            } else {
-                LOG_WARN("InfoPanelView: Unknown provider_type in LLMConnectionStatusEvent: {}", static_cast<int>(e.provider_type));
-            }
-        }
-    ));
+                // 使用 provider_type 字段判断 provider 类型
+                if (e.provider_type == Events::LLMProviderType::LLMStudio) {
+                    // LLM Studio 连接状态
+                    m_llm_studio_connected = e.is_connected;
+                    m_llm_studio_connection_error = e.error_message;
+                    m_llm_studio_refreshing = false; // 停止刷新状态
+                    LOG_INFO("InfoPanelView: LLM Studio connection status: {}",
+                             e.is_connected ? "Connected" : "Failed");
+                } else if (e.provider_type == Events::LLMProviderType::Ollama) {
+                    // Ollama 连接状态
+                    set_ollama_connection_status(e.is_connected, e.error_message);
+                    m_ollama_refreshing = false;
+                    LOG_INFO("InfoPanelView: Ollama connection status: {}, error: {}",
+                             e.is_connected ? "Connected" : "Failed",
+                             e.error_message);
+                } else {
+                    LOG_WARN("InfoPanelView: Unknown provider_type in LLMConnectionStatusEvent: {}",
+                             static_cast<int>(e.provider_type));
+                }
+            }));
 
 #ifdef SQLITE3_FOUND
     // ========== Memory Core 事件订阅 ==========
@@ -167,13 +182,12 @@ void InfoPanelView::setup_event_listeners() {
                 // 更新查询结果
                 m_memory_debug_data.last_query_results.clear();
                 for (const auto& item : e.results) {
-                    m_memory_debug_data.last_query_results.push_back({
-                        .content = item.content,
-                        .source_conversation_id = item.source_conversation_id,
-                        .similarity = item.similarity,
-                        .memory_type = item.memory_type,
-                        .timestamp = item.timestamp
-                    });
+                    m_memory_debug_data.last_query_results.push_back(
+                        {.content = item.content,
+                         .source_conversation_id = item.source_conversation_id,
+                         .similarity = item.similarity,
+                         .memory_type = item.memory_type,
+                         .timestamp = item.timestamp});
                 }
                 m_memory_debug_data.last_query = e.query;
 
@@ -183,11 +197,10 @@ void InfoPanelView::setup_event_listeners() {
                 stats.last_triggered = std::chrono::system_clock::now();
 
                 // 添加事件日志
-                m_memory_debug_data.event_log.push_back({
-                    .timestamp = format_current_time(),
-                    .message = std::format("RAG 查询完成: {} 条结果", e.results.size()),
-                    .color = ImVec4(0.3f, 1.0f, 0.3f, 1.0f)
-                });
+                m_memory_debug_data.event_log.push_back(
+                    {.timestamp = format_current_time(),
+                     .message = std::format("RAG 查询完成: {} 条结果", e.results.size()),
+                     .color = ImVec4(0.3f, 1.0f, 0.3f, 1.0f)});
 
                 // 限制日志大小
                 if (m_memory_debug_data.event_log.size() > MemoryDebugData::MAX_LOG_ENTRIES) {
@@ -195,9 +208,7 @@ void InfoPanelView::setup_event_listeners() {
                 }
 
                 LOG_DEBUG("InfoPanelView: RAG query completed with {} results", e.results.size());
-            }
-        )
-    );
+            }));
 
     // 记忆提取完成事件
     m_event_tokens.push_back(
@@ -209,34 +220,28 @@ void InfoPanelView::setup_event_listeners() {
                 stats.last_triggered = std::chrono::system_clock::now();
 
                 // 添加事件日志
-                m_memory_debug_data.event_log.push_back({
-                    .timestamp = format_current_time(),
-                    .message = std::format("提取了 {} 条记忆", e.memories.size()),
-                    .color = ImVec4(0.3f, 0.7f, 1.0f, 1.0f)
-                });
+                m_memory_debug_data.event_log.push_back(
+                    {.timestamp = format_current_time(),
+                     .message = std::format("提取了 {} 条记忆", e.memories.size()),
+                     .color = ImVec4(0.3f, 0.7f, 1.0f, 1.0f)});
 
                 if (m_memory_debug_data.event_log.size() > MemoryDebugData::MAX_LOG_ENTRIES) {
                     m_memory_debug_data.event_log.erase(m_memory_debug_data.event_log.begin());
                 }
 
                 LOG_DEBUG("InfoPanelView: Memory extracted: {} memories", e.memories.size());
-            }
-        )
-    );
+            }));
 
     // 消息保存完成事件
-    m_event_tokens.push_back(
-        DearTs::Core::Event::EventBus::instance().subscribe<MessageSavedEvent>(
-            [this](const MessageSavedEvent& e) {
-                // 更新事件统计
-                auto& stats = m_memory_debug_data.event_stats["MessageSaved"];
-                stats.count++;
-                stats.last_triggered = std::chrono::system_clock::now();
+    m_event_tokens.push_back(DearTs::Core::Event::EventBus::instance().subscribe<MessageSavedEvent>(
+        [this](const MessageSavedEvent& e) {
+            // 更新事件统计
+            auto& stats = m_memory_debug_data.event_stats["MessageSaved"];
+            stats.count++;
+            stats.last_triggered = std::chrono::system_clock::now();
 
-                LOG_DEBUG("InfoPanelView: Message saved: {}", e.message_uuid);
-            }
-        )
-    );
+            LOG_DEBUG("InfoPanelView: Message saved: {}", e.message_uuid);
+        }));
 #endif
 }
 
@@ -302,7 +307,8 @@ void InfoPanelView::draw_ai_settings() {
         if (config) {
             ImGui::Text("供应商: %s", config->display_name.c_str());
             ImGui::Text("API 地址: %s",
-                m_custom_base_url.empty() ? config->default_base_url.c_str() : m_custom_base_url.c_str());
+                        m_custom_base_url.empty() ? config->default_base_url.c_str()
+                                                  : m_custom_base_url.c_str());
             ImGui::Separator();
         }
 
@@ -312,11 +318,10 @@ void InfoPanelView::draw_ai_settings() {
         if (ImGui::SliderFloat("##top_p", &temp_float, 0.0f, 1.0f, "%.2f")) {
             m_temperature = static_cast<double>(temp_float);
             // 发布配置更新事件
-            DearTs::Core::Event::EventBus::instance().publish(Events::ConfigUpdatedEvent{
-                .config_key = "llm.top_p",
-                .old_value = "",
-                .new_value = std::format("{}", m_temperature)
-            });
+            DearTs::Core::Event::EventBus::instance().publish(
+                Events::ConfigUpdatedEvent{.config_key = "llm.top_p",
+                                           .old_value = "",
+                                           .new_value = std::format("{}", m_temperature)});
         }
 
         // 停止序列
@@ -329,7 +334,8 @@ void InfoPanelView::draw_ai_settings() {
         // 系统提示词
         static char system_prompt[1024] = "你是一个友好、专业的 AI 助手。";
         ImGui::Text("系统提示词:");
-        if (ImGui::InputTextMultiline("##system_prompt", system_prompt, sizeof(system_prompt), ImVec2(-1, 60))) {
+        if (ImGui::InputTextMultiline(
+                "##system_prompt", system_prompt, sizeof(system_prompt), ImVec2(-1, 60))) {
             // 更新系统提示词
         }
     }
@@ -359,8 +365,7 @@ void InfoPanelView::draw_llm_provider_selector() {
     // 供应商说明
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
     if (current_config) {
-        ImGui::TextWrapped("%s", current_config->is_chinese_provider ?
-            "中国供应商" : "国际供应商");
+        ImGui::TextWrapped("%s", current_config->is_chinese_provider ? "中国供应商" : "国际供应商");
     }
     ImGui::PopStyleColor();
 
@@ -371,7 +376,9 @@ void InfoPanelView::draw_llm_provider_selector() {
         strncpy(api_key_buffer, m_api_key.c_str(), sizeof(api_key_buffer) - 1);
         api_key_buffer[sizeof(api_key_buffer) - 1] = '\0';
 
-        if (ImGui::InputText("##api_key", api_key_buffer, sizeof(api_key_buffer),
+        if (ImGui::InputText("##api_key",
+                             api_key_buffer,
+                             sizeof(api_key_buffer),
                              ImGuiInputTextFlags_Password)) {
             m_api_key = api_key_buffer;
             // 保存到配置
@@ -383,8 +390,9 @@ void InfoPanelView::draw_llm_provider_selector() {
     // 自定义 Base URL（可选）
     ImGui::Text("API 地址:");
     char url_buffer[256];
-    const std::string& url_to_show = m_custom_base_url.empty() ?
-        (current_config ? current_config->default_base_url : "") : m_custom_base_url;
+    const std::string& url_to_show = m_custom_base_url.empty()
+                                         ? (current_config ? current_config->default_base_url : "")
+                                         : m_custom_base_url;
     strncpy(url_buffer, url_to_show.c_str(), sizeof(url_buffer) - 1);
     url_buffer[sizeof(url_buffer) - 1] = '\0';
 
@@ -392,8 +400,9 @@ void InfoPanelView::draw_llm_provider_selector() {
         m_custom_base_url = url_buffer;
         // 同步到 ollama_base_url（向后兼容）
         if (m_selected_provider_id == "ollama") {
-            m_ollama_base_url = m_custom_base_url.empty() ?
-                (current_config ? current_config->default_base_url : "") : m_custom_base_url;
+            m_ollama_base_url = m_custom_base_url.empty()
+                                    ? (current_config ? current_config->default_base_url : "")
+                                    : m_custom_base_url;
         }
         // 保存到配置
         m_config.set("llm.custom_base_url", m_custom_base_url);
@@ -425,8 +434,8 @@ void InfoPanelView::draw_ollama_settings() {
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     const ImVec2 p_min = ImGui::GetCursorScreenPos();
     const ImVec2 p_max = ImVec2(p_min.x + 8, p_min.y + 8);
-    const ImU32 status_color = m_ollama_connected ?
-        IM_COL32(100, 255, 100, 255) : IM_COL32(255, 100, 100, 255);
+    const ImU32 status_color =
+        m_ollama_connected ? IM_COL32(100, 255, 100, 255) : IM_COL32(255, 100, 100, 255);
     draw_list->AddCircleFilled(ImVec2(p_min.x + 4, p_min.y + 4), 4.0f, status_color);
 
     ImGui::SetCursorPosX(cursor_x + 15);
@@ -436,7 +445,8 @@ void InfoPanelView::draw_ollama_settings() {
 
     if (!m_ollama_connected && !m_ollama_connection_error.empty()) {
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "(%s)", m_ollama_connection_error.c_str());
+        ImGui::TextColored(
+            ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "(%s)", m_ollama_connection_error.c_str());
     }
 
     // API URL 输入
@@ -454,14 +464,13 @@ void InfoPanelView::draw_ollama_settings() {
     // 测试连接按钮
     if (ImGui::Button("测试连接")) {
         // 直接测试连接（不通过事件系统避免循环）
-        m_ollama_refreshing = true;  // 使用刷新标志作为"测试中"标志
+        m_ollama_refreshing = true; // 使用刷新标志作为"测试中"标志
         // 发布测试请求事件
-        DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
-            .is_connected = false,  // false 表示请求测试
-            .base_url = m_ollama_base_url,
-            .error_message = "",
-            .provider_type = Events::LLMProviderType::Ollama
-        });
+        DearTs::Core::Event::EventBus::instance().publish(
+            Events::LLMConnectionStatusEvent{.is_connected = false, // false 表示请求测试
+                                             .base_url = m_ollama_base_url,
+                                             .error_message = "",
+                                             .provider_type = Events::LLMProviderType::Ollama});
     }
 
     // 刷新模型列表按钮
@@ -493,11 +502,10 @@ void InfoPanelView::refresh_ollama_models() {
     m_ollama_refreshing = true;
 
     // 发布刷新请求事件（让 chat_plugin 处理）
-    DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
-        .models = {},  // 空列表表示请求刷新
-        .base_url = m_ollama_base_url,
-        .provider_type = Events::LLMProviderType::Ollama
-    });
+    DearTs::Core::Event::EventBus::instance().publish(
+        Events::LLMModelsUpdatedEvent{.models = {}, // 空列表表示请求刷新
+                                      .base_url = m_ollama_base_url,
+                                      .provider_type = Events::LLMProviderType::Ollama});
 
     LOG_INFO("Requested Ollama model list refresh from {}", m_ollama_base_url);
 }
@@ -513,8 +521,8 @@ void InfoPanelView::draw_llm_studio_settings() {
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     const ImVec2 p_min = ImGui::GetCursorScreenPos();
     const ImVec2 p_max = ImVec2(p_min.x + 8, p_min.y + 8);
-    const ImU32 status_color = m_llm_studio_connected ?
-        IM_COL32(100, 255, 100, 255) : IM_COL32(255, 100, 100, 255);
+    const ImU32 status_color =
+        m_llm_studio_connected ? IM_COL32(100, 255, 100, 255) : IM_COL32(255, 100, 100, 255);
     draw_list->AddCircleFilled(ImVec2(p_min.x + 4, p_min.y + 4), 4.0f, status_color);
 
     ImGui::SetCursorPosX(cursor_x + 15);
@@ -524,7 +532,8 @@ void InfoPanelView::draw_llm_studio_settings() {
 
     if (!m_llm_studio_connected && !m_llm_studio_connection_error.empty()) {
         ImGui::SameLine();
-        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "(%s)", m_llm_studio_connection_error.c_str());
+        ImGui::TextColored(
+            ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "(%s)", m_llm_studio_connection_error.c_str());
     }
 
     // API URL 输入
@@ -543,12 +552,11 @@ void InfoPanelView::draw_llm_studio_settings() {
     if (ImGui::Button("测试连接##llm_studio")) {
         m_llm_studio_refreshing = true;
         // 发布测试请求事件
-        DearTs::Core::Event::EventBus::instance().publish(Events::LLMConnectionStatusEvent{
-            .is_connected = false,
-            .base_url = m_llm_studio_base_url,
-            .error_message = "",
-            .provider_type = Events::LLMProviderType::LLMStudio
-        });
+        DearTs::Core::Event::EventBus::instance().publish(
+            Events::LLMConnectionStatusEvent{.is_connected = false,
+                                             .base_url = m_llm_studio_base_url,
+                                             .error_message = "",
+                                             .provider_type = Events::LLMProviderType::LLMStudio});
     }
 
     // 刷新模型列表按钮
@@ -571,7 +579,8 @@ void InfoPanelView::draw_llm_studio_settings() {
     if (!m_llm_studio_connected) {
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.5f, 1.0f));
-        ImGui::TextWrapped("提示: 确保 LLM Studio 服务正在运行，默认地址为 http://localhost:1234/v1");
+        ImGui::TextWrapped(
+            "提示: 确保 LLM Studio 服务正在运行，默认地址为 http://localhost:1234/v1");
         ImGui::PopStyleColor();
     }
 }
@@ -580,11 +589,10 @@ void InfoPanelView::refresh_llm_studio_models() {
     m_llm_studio_refreshing = true;
 
     // 发布刷新请求事件（LLM Studio 使用 /v1/models 端点）
-    DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelsUpdatedEvent{
-        .models = {},  // 空列表表示请求刷新
-        .base_url = m_llm_studio_base_url,
-        .provider_type = Events::LLMProviderType::LLMStudio
-    });
+    DearTs::Core::Event::EventBus::instance().publish(
+        Events::LLMModelsUpdatedEvent{.models = {}, // 空列表表示请求刷新
+                                      .base_url = m_llm_studio_base_url,
+                                      .provider_type = Events::LLMProviderType::LLMStudio});
 
     LOG_INFO("Requested LLM Studio model list refresh from {}", m_llm_studio_base_url);
 }
@@ -618,11 +626,10 @@ void InfoPanelView::draw_model_settings() {
             current_conv->temperature = m_temperature;
         }
 
-        DearTs::Core::Event::EventBus::instance().publish(Events::ConfigUpdatedEvent{
-            .config_key = "llm.temperature",
-            .old_value = "",
-            .new_value = std::format("{}", m_temperature)
-        });
+        DearTs::Core::Event::EventBus::instance().publish(
+            Events::ConfigUpdatedEvent{.config_key = "llm.temperature",
+                                       .old_value = "",
+                                       .new_value = std::format("{}", m_temperature)});
 
         // 保存配置
         save_config();
@@ -665,10 +672,18 @@ void InfoPanelView::draw_conversation_info() {
     // 类型
     const char* type_str = "未知";
     switch (current_conv->type) {
-        case ConversationType::Chat: type_str = "单聊"; break;
-        case ConversationType::Group: type_str = "群聊"; break;
-        case ConversationType::AI: type_str = "AI 对话"; break;
-        case ConversationType::System: type_str = "系统"; break;
+    case ConversationType::Chat:
+        type_str = "单聊";
+        break;
+    case ConversationType::Group:
+        type_str = "群聊";
+        break;
+    case ConversationType::AI:
+        type_str = "AI 对话";
+        break;
+    case ConversationType::System:
+        type_str = "系统";
+        break;
     }
     ImGui::Text("类型: %s", type_str);
 
@@ -717,7 +732,8 @@ void InfoPanelView::draw_export_section() {
     ImGui::Text("导出格式:");
     const char* formats[] = {"JSON", "Markdown", "TXT"};
     for (int i = 0; i < 3; i++) {
-        if (i > 0) ImGui::SameLine();
+        if (i > 0)
+            ImGui::SameLine();
         if (ImGui::RadioButton(formats[i], m_export_format == formats[i])) {
             m_export_format = formats[i];
         }
@@ -759,17 +775,12 @@ void InfoPanelView::change_llm_provider(const std::string& provider_id) {
     }
 
     // 发布 LLM 提供商切换事件
-    DearTs::Core::Event::EventBus::instance().publish(Events::LLMProviderChangedEvent{
-        .old_provider = old_provider,
-        .new_provider = provider_id
-    });
+    DearTs::Core::Event::EventBus::instance().publish(
+        Events::LLMProviderChangedEvent{.old_provider = old_provider, .new_provider = provider_id});
 
     // 发布配置更新事件
     DearTs::Core::Event::EventBus::instance().publish(Events::ConfigUpdatedEvent{
-        .config_key = "llm.provider",
-        .old_value = old_provider,
-        .new_value = provider_id
-    });
+        .config_key = "llm.provider", .old_value = old_provider, .new_value = provider_id});
 
     // 强制立即保存配置（跳过防抖，确保事件处理器能读取到新配置）
     save_config(true);
@@ -782,10 +793,8 @@ void InfoPanelView::change_model(const std::string& model) {
     m_selected_model = model;
 
     // 发布模型切换事件
-    DearTs::Core::Event::EventBus::instance().publish(Events::LLMModelChangedEvent{
-        .old_model = old_model,
-        .new_model = model
-    });
+    DearTs::Core::Event::EventBus::instance().publish(
+        Events::LLMModelChangedEvent{.old_model = old_model, .new_model = model});
 
     auto current_conv = m_conversation_manager->get_current_conversation();
     if (current_conv) {
@@ -800,14 +809,12 @@ void InfoPanelView::change_model(const std::string& model) {
 
 void InfoPanelView::export_conversation(const std::string& format) {
     auto current_conv = m_conversation_manager->get_current_conversation();
-    if (!current_conv) return;
+    if (!current_conv)
+        return;
 
     // 发布导出请求事件
     DearTs::Core::Event::EventBus::instance().publish(Events::ExportRequestEvent{
-        .conversation_id = current_conv->id,
-        .format = format,
-        .output_path = m_export_path
-    });
+        .conversation_id = current_conv->id, .format = format, .output_path = m_export_path});
 
     LOG_INFO("Exporting conversation {} as {}", current_conv->id, format);
 }
@@ -882,9 +889,9 @@ void InfoPanelView::draw_debug_section() {
 
     // 显示内存占用估算
     ImGui::Spacing();
-    const size_t estimated_memory = stats.current_size * 100;  // 每个条目约 100 字节
-    ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f),
-        "估算内存占用: ~%zu KB", (estimated_memory + 1023) / 1024);
+    const size_t estimated_memory = stats.current_size * 100; // 每个条目约 100 字节
+    ImGui::TextColored(
+        ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "估算内存占用: ~%zu KB", (estimated_memory + 1023) / 1024);
 }
 
 void InfoPanelView::draw_test_messages_section() {
@@ -906,29 +913,29 @@ void InfoPanelView::draw_test_messages_section() {
     ImGui::SameLine();
 
     if (ImGui::Button("添加纯文本 AI 回复")) {
-        add_test_message("这是一条纯文本 AI 回复，用于测试文本对齐和间距。", MessageRole::Assistant);
+        add_test_message("这是一条纯文本 AI 回复，用于测试文本对齐和间距。",
+                         MessageRole::Assistant);
     }
 
     ImGui::Spacing();
 
     if (ImGui::Button("添加 Markdown AI 回复")) {
-        std::string markdown_content =
-            "这是一条**包含 Markdown** 的 AI 回复：\n\n"
-            "```cpp\n"
-            "void hello() {\n"
-            "    printf(\"Hello World\");\n"
-            "}\n"
-            "```\n\n"
-            "* 列表项 1\n"
-            "* 列表项 2\n"
-            "* 列表项 3";
+        std::string markdown_content = "这是一条**包含 Markdown** 的 AI 回复：\n\n"
+                                       "```cpp\n"
+                                       "void hello() {\n"
+                                       "    printf(\"Hello World\");\n"
+                                       "}\n"
+                                       "```\n\n"
+                                       "* 列表项 1\n"
+                                       "* 列表项 2\n"
+                                       "* 列表项 3";
         add_test_message(markdown_content, MessageRole::Assistant);
     }
 
     ImGui::SameLine();
 
     if (ImGui::Button("imgui_markdown 文档")) {
-        const std::string markdown_text =R"(
+        const std::string markdown_text = R"(
 # imgui_markdown 文档
 
 Markdown For Dear ImGui 是一个宽松授权的单头文件库。
@@ -1006,16 +1013,15 @@ ___
     ImGui::SameLine();
 
     if (ImGui::Button("添加多行代码块")) {
-        std::string code_content =
-            "这是一个包含代码块的示例：\n\n"
-            "```cpp\n"
-            "// Calculate factorial\n"
-            "unsigned long factorial(unsigned long n) {\n"
-            "    if (n == 0) return 1;\n"
-            "    return n * factorial(n - 1);\n"
-            "}\n"
-            "```\n\n"
-            "这段代码展示了递归计算阶乘的实现方式。";
+        std::string code_content = "这是一个包含代码块的示例：\n\n"
+                                   "```cpp\n"
+                                   "// Calculate factorial\n"
+                                   "unsigned long factorial(unsigned long n) {\n"
+                                   "    if (n == 0) return 1;\n"
+                                   "    return n * factorial(n - 1);\n"
+                                   "}\n"
+                                   "```\n\n"
+                                   "这段代码展示了递归计算阶乘的实现方式。";
         add_test_message(code_content, MessageRole::Assistant);
     }
 
@@ -1040,9 +1046,8 @@ void InfoPanelView::add_test_message(const std::string& content, MessageRole rol
     current_conv->touch();
 
     // 发布滚动到底部事件
-    DearTs::Core::Event::EventBus::instance().publish(Events::ScrollToBottomEvent{
-        .conversation_id = current_conv->id
-    });
+    DearTs::Core::Event::EventBus::instance().publish(
+        Events::ScrollToBottomEvent{.conversation_id = current_conv->id});
 }
 
 // ========== Memory Debug UI 实现 ==========
@@ -1063,7 +1068,8 @@ void InfoPanelView::draw_memory_debug() {
     // 自动刷新（每 5 秒）
     if (m_memory_debug_data.auto_refresh) {
         auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_last_refresh).count();
+        auto elapsed =
+            std::chrono::duration_cast<std::chrono::seconds>(now - m_last_refresh).count();
         if (elapsed >= 5) {
             refresh_memory_debug_data();
             m_last_refresh = now;
@@ -1098,8 +1104,7 @@ void InfoPanelView::draw_memory_debug() {
     }
 
 #else
-    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f),
-        "Memory Core 功能未启用");
+    ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Memory Core 功能未启用");
     ImGui::TextWrapped("编译时未找到 SQLite3，Memory Core 功能不可用。");
     ImGui::TextWrapped("请在 CMake 配置时启用 SQLite3 支持。");
 #endif
@@ -1116,9 +1121,11 @@ void InfoPanelView::draw_memory_stats_section() {
         for (const auto& type_count : m_memory_debug_data.memory_type_counts) {
             float percentage = (float)type_count.count / m_memory_debug_data.total_memories;
 
-            ImGui::ProgressBar(percentage, ImVec2(-1, 0),
-                std::format("{}: {} ({:.1f}%)",
-                    type_count.name, type_count.count, percentage * 100).c_str());
+            ImGui::ProgressBar(
+                percentage,
+                ImVec2(-1, 0),
+                std::format("{}: {} ({:.1f}%)", type_count.name, type_count.count, percentage * 100)
+                    .c_str());
         }
     } else {
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "暂无记忆数据");
@@ -1211,7 +1218,11 @@ void InfoPanelView::draw_event_monitor_section() {
             // 格式化时间
             auto time_t = std::chrono::system_clock::to_time_t(stats.last_triggered);
             std::tm tm;
+#ifdef _WIN32
             localtime_s(&tm, &time_t);
+#else
+            localtime_r(&time_t, &tm);
+#endif
             char buffer[64];
             std::strftime(buffer, sizeof(buffer), "%H:%M:%S", &tm);
             ImGui::Text("%s", buffer);
@@ -1226,8 +1237,8 @@ void InfoPanelView::draw_event_monitor_section() {
 
     if (ImGui::BeginChild("EventLog", ImVec2(-1, 200), true)) {
         for (const auto& event : m_memory_debug_data.event_log) {
-            ImGui::TextColored(event.color, "[%s] %s",
-                event.timestamp.c_str(), event.message.c_str());
+            ImGui::TextColored(
+                event.color, "[%s] %s", event.timestamp.c_str(), event.message.c_str());
             if (auto_scroll && ImGui::GetScrollY() >= ImGui::GetScrollMaxY()) {
                 ImGui::SetScrollHereY(1.0f);
             }
@@ -1282,22 +1293,20 @@ void InfoPanelView::refresh_memory_debug_data() {
             auto counts = type_counts_result.unwrap();
             m_memory_debug_data.memory_type_counts.clear();
             for (const auto& [type, count] : counts) {
-                m_memory_debug_data.memory_type_counts.push_back({
-                    count, Memory::type_to_string(type)
-                });
+                m_memory_debug_data.memory_type_counts.push_back(
+                    {count, Memory::type_to_string(type)});
             }
         } else {
             LOG_ERROR("Failed to get memory count by type: {}", type_counts_result.error());
         }
 
-        LOG_DEBUG("Refreshed memory debug data: {} total memories", m_memory_debug_data.total_memories);
+        LOG_DEBUG("Refreshed memory debug data: {} total memories",
+                  m_memory_debug_data.total_memories);
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to refresh memory debug data: {}", e.what());
-        m_memory_debug_data.event_log.push_back({
-            .timestamp = format_current_time(),
-            .message = std::format("刷新失败: {}", e.what()),
-            .color = ImVec4(1.0f, 0.3f, 0.3f, 1.0f)
-        });
+        m_memory_debug_data.event_log.push_back({.timestamp = format_current_time(),
+                                                 .message = std::format("刷新失败: {}", e.what()),
+                                                 .color = ImVec4(1.0f, 0.3f, 0.3f, 1.0f)});
     }
 #endif
 }
@@ -1315,9 +1324,7 @@ void InfoPanelView::export_memory_debug_stats() {
 
     nlohmann::json event_stats_json;
     for (const auto& [event_name, stats] : m_memory_debug_data.event_stats) {
-        event_stats_json[event_name] = {
-            {"count", stats.count}
-        };
+        event_stats_json[event_name] = {{"count", stats.count}};
     }
     export_data["event_stats"] = event_stats_json;
 
@@ -1328,18 +1335,15 @@ void InfoPanelView::export_memory_debug_stats() {
         out.close();
 
         LOG_INFO("Exported memory debug stats to {}", export_path);
-        m_memory_debug_data.event_log.push_back({
-            .timestamp = format_current_time(),
-            .message = std::format("统计数据已导出到 {}", export_path),
-            .color = ImVec4(0.3f, 1.0f, 0.3f, 1.0f)
-        });
+        m_memory_debug_data.event_log.push_back(
+            {.timestamp = format_current_time(),
+             .message = std::format("统计数据已导出到 {}", export_path),
+             .color = ImVec4(0.3f, 1.0f, 0.3f, 1.0f)});
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to export memory debug stats: {}", e.what());
-        m_memory_debug_data.event_log.push_back({
-            .timestamp = format_current_time(),
-            .message = std::format("导出失败: {}", e.what()),
-            .color = ImVec4(1.0f, 0.3f, 0.3f, 1.0f)
-        });
+        m_memory_debug_data.event_log.push_back({.timestamp = format_current_time(),
+                                                 .message = std::format("导出失败: {}", e.what()),
+                                                 .color = ImVec4(1.0f, 0.3f, 0.3f, 1.0f)});
     }
 }
 
@@ -1347,7 +1351,11 @@ std::string InfoPanelView::format_current_time() const {
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
     std::tm tm;
+#ifdef _WIN32
     localtime_s(&tm, &time_t);
+#else
+    localtime_r(&time_t, &tm);
+#endif
     char buffer[64];
     std::strftime(buffer, sizeof(buffer), "%H:%M:%S", &tm);
     return std::string(buffer);
@@ -1356,10 +1364,10 @@ std::string InfoPanelView::format_current_time() const {
 // ========== LLM 供应商配置辅助方法 ==========
 
 const LLMProviderConfig* InfoPanelView::get_current_provider_config() const {
-    auto it = std::find_if(PRESET_LLM_PROVIDERS.begin(), PRESET_LLM_PROVIDERS.end(),
-        [&](const LLMProviderConfig& config) {
-            return config.id == m_selected_provider_id;
-        });
+    auto it = std::find_if(
+        PRESET_LLM_PROVIDERS.begin(),
+        PRESET_LLM_PROVIDERS.end(),
+        [&](const LLMProviderConfig& config) { return config.id == m_selected_provider_id; });
     return it != PRESET_LLM_PROVIDERS.end() ? &(*it) : nullptr;
 }
 

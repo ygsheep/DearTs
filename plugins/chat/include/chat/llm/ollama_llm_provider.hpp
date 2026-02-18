@@ -7,16 +7,13 @@
 #pragma once
 
 #include "chat/llm/llm_interface.hpp"
+#include "core/network/http_client.hpp"
 #include "core/result.h"
-#include <string>
 #include <functional>
-#include <vector>
 #include <memory>
 #include <mutex>
-
-namespace DearTs::Core::Network {
-    class BoostAsioHttpClient;
-}
+#include <string>
+#include <vector>
 
 namespace DearTs::Plugins::Chat::LLM {
 
@@ -24,12 +21,12 @@ namespace DearTs::Plugins::Chat::LLM {
  * @brief 向量嵌入结果
  */
 struct EmbeddingResult {
-    std::string model;                           ///< 模型名称
-    std::vector<float> embedding;                ///< 嵌入向量
-    int dimension;                                ///< 向量维度
-    int64_t total_duration_ms;                   ///< 总耗时（毫秒）
-    int64_t load_duration_ms;                    ///< 模型加载耗时（毫秒）
-    int64_t prompt_eval_count;                   ///< 提示词评估计数
+    std::string model;            ///< 模型名称
+    std::vector<float> embedding; ///< 嵌入向量
+    int dimension;                ///< 向量维度
+    int64_t total_duration_ms;    ///< 总耗时（毫秒）
+    int64_t load_duration_ms;     ///< 模型加载耗时（毫秒）
+    int64_t prompt_eval_count;    ///< 提示词评估计数
 
     /**
      * @brief 序列化为 JSON
@@ -39,9 +36,7 @@ struct EmbeddingResult {
     /**
      * @brief 从 JSON 解析
      */
-    static DearTs::Core::Result<EmbeddingResult, std::string> from_json(
-        const std::string& json
-    );
+    static DearTs::Core::Result<EmbeddingResult, std::string> from_json(const std::string& json);
 };
 
 /**
@@ -50,16 +45,14 @@ struct EmbeddingResult {
  *          支持 NDJSON 流式输出和模型管理
  */
 class OllamaLLMProvider : public ILLMProvider {
-public:
+  public:
     /**
      * @brief 构造函数
      * @param base_url Ollama 服务地址 (默认: http://localhost:11434)
      * @param model 默认模型名称 (默认: llama3.2)
      */
-    explicit OllamaLLMProvider(
-        const std::string& base_url = "http://localhost:11434",
-        const std::string& model = "llama3.2"
-    );
+    explicit OllamaLLMProvider(const std::string& base_url = "http://localhost:11434",
+                               const std::string& model = "llama3.2");
 
     ~OllamaLLMProvider() override = default;
 
@@ -69,14 +62,12 @@ public:
 
     [[nodiscard]] bool is_available() const override;
 
-    [[nodiscard]] std::shared_ptr<Core::Tasks::Task> send_async(
-        const LLMRequest& request,
-        std::function<void(const LLMResponse&)> callback
-    ) override;
+    [[nodiscard]] std::shared_ptr<Core::Tasks::Task>
+    send_async(const LLMRequest& request,
+               std::function<void(const LLMResponse&)> callback) override;
 
-    [[nodiscard]] DearTs::Core::Result<LLMResponse, std::string> send(
-        const LLMRequest& request
-    ) override;
+    [[nodiscard]] DearTs::Core::Result<LLMResponse, std::string>
+    send(const LLMRequest& request) override;
 
     [[nodiscard]] std::vector<std::string> get_models() const override;
 
@@ -88,10 +79,9 @@ public:
      * @param model 嵌入模型名称（默认: nomic-embed-text）
      * @return 嵌入结果或错误信息
      */
-    [[nodiscard]] DearTs::Core::Result<EmbeddingResult, std::string> generate_embedding(
-        const std::string& text,
-        const std::string& model = "nomic-embed-text"
-    ) const;
+    [[nodiscard]] DearTs::Core::Result<EmbeddingResult, std::string>
+    generate_embedding(const std::string& text,
+                       const std::string& model = "nomic-embed-text") const;
 
     /**
      * @brief 批量生成文本嵌入
@@ -99,10 +89,9 @@ public:
      * @param model 嵌入模型名称
      * @return 嵌入结果列表或错误信息
      */
-    [[nodiscard]] DearTs::Core::Result<std::vector<EmbeddingResult>, std::string> generate_embeddings_batch(
-        const std::vector<std::string>& texts,
-        const std::string& model = "nomic-embed-text"
-    ) const;
+    [[nodiscard]] DearTs::Core::Result<std::vector<EmbeddingResult>, std::string>
+    generate_embeddings_batch(const std::vector<std::string>& texts,
+                              const std::string& model = "nomic-embed-text") const;
 
     /**
      * @brief 获取可用的嵌入模型列表
@@ -110,7 +99,7 @@ public:
      */
     [[nodiscard]] std::vector<std::string> get_embedding_models() const;
 
-private:
+  private:
     // ========== 请求构建 ==========
 
     /**
@@ -133,9 +122,8 @@ private:
     /**
      * @brief 解析 NDJSON 响应（非流式）
      */
-    DearTs::Core::Result<LLMResponse, std::string> parse_response(
-        const std::string& ndjson_body
-    ) const;
+    DearTs::Core::Result<LLMResponse, std::string>
+    parse_response(const std::string& ndjson_body) const;
 
     /**
      * @brief 解析单行 NDJSON
@@ -146,9 +134,8 @@ private:
     /**
      * @brief 解析嵌入响应
      */
-    DearTs::Core::Result<EmbeddingResult, std::string> parse_embedding_response(
-        const std::string& json_body
-    ) const;
+    DearTs::Core::Result<EmbeddingResult, std::string>
+    parse_embedding_response(const std::string& json_body) const;
 
     // ========== 流式处理 ==========
 
@@ -158,10 +145,9 @@ private:
      * @param on_chunk 内容块回调
      * @return 成功返回 Result::ok()，失败返回错误信息
      */
-    DearTs::Core::Result<void, std::string> send_streaming_request(
-        const LLMRequest& request,
-        const std::function<void(const std::string&)>& on_chunk
-    ) const;
+    DearTs::Core::Result<void, std::string>
+    send_streaming_request(const LLMRequest& request,
+                           const std::function<void(const std::string&)>& on_chunk) const;
 
     // ========== HTTP 请求 ==========
 
@@ -175,8 +161,7 @@ private:
     DearTs::Core::Result<std::string, std::string> send_http_request(
         const std::string& endpoint,
         const std::string& json_body,
-        const std::function<void(const std::string&)>& on_stream_chunk = nullptr
-    ) const;
+        const std::function<void(const std::string&)>& on_stream_chunk = nullptr) const;
 
     /**
      * @brief 测试连接
@@ -192,9 +177,10 @@ private:
 
     // ========== 成员变量 ==========
 
-    std::string m_base_url;  // Ollama 服务地址
-    mutable std::unique_ptr<DearTs::Core::Network::BoostAsioHttpClient> m_client;  // HTTP 客户端（延迟初始化）
-    mutable std::mutex m_client_mutex;  // 保护 m_client 的互斥锁
+    std::string m_base_url; // Ollama 服务地址
+    mutable std::unique_ptr<DearTs::Core::Network::BoostAsioHttpClient>
+        m_client;                      // HTTP 客户端（延迟初始化）
+    mutable std::mutex m_client_mutex; // 保护 m_client 的互斥锁
 };
 
 } // namespace DearTs::Plugins::Chat::LLM

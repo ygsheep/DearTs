@@ -159,8 +159,23 @@ if(unofficial-sqlite3_FOUND)
     target_link_libraries(ChatManager PRIVATE unofficial::sqlite3::sqlite3)
     target_compile_definitions(ChatManager PRIVATE SQLITE3_FOUND)
 else()
-    message(WARNING "SQLite3 not found for ChatManager. MemoryCore persistence will be disabled.")
-    target_compile_definitions(ChatManager PRIVATE SQLITE3_NOT_FOUND)
+    # Linux/Unix: 尝试使用 pkg-config 查找 SQLite3
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(SQLite3 sqlite3)
+        if(SQLite3_FOUND)
+            message(STATUS "SQLite3 found via pkg-config: ${SQLite3_VERSION}")
+            target_link_libraries(ChatManager PRIVATE ${SQLite3_LIBRARIES})
+            target_include_directories(ChatManager PRIVATE ${SQLite3_INCLUDE_DIRS})
+            target_compile_definitions(ChatManager PRIVATE SQLITE3_FOUND)
+        else()
+            message(WARNING "SQLite3 not found for ChatManager. MemoryCore persistence will be disabled.")
+            target_compile_definitions(ChatManager PRIVATE SQLITE3_NOT_FOUND)
+        endif()
+    else()
+        message(WARNING "SQLite3 not found for ChatManager. MemoryCore persistence will be disabled.")
+        target_compile_definitions(ChatManager PRIVATE SQLITE3_NOT_FOUND)
+    endif()
 endif()
 
 # 查找 OpenSSL (用于 HTTPS 支持，如果 vcpkg 安装了 OpenSSL)
@@ -183,6 +198,7 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(ChatManager PRIVATE
         pthread
         dl
+        boost_asio  # Linux 也需要 Boost.Asio
     )
 endif()
 

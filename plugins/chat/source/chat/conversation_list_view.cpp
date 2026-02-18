@@ -6,8 +6,8 @@
 #include "chat/views/conversation_list_view.hpp"
 #include "core/ui/icon_font.hpp"
 #include "liblogger/logger.h"
-#include <imgui.h>
 #include <format>
+#include <imgui.h>
 
 namespace DearTs::Plugins::Chat {
 
@@ -35,7 +35,7 @@ void ConversationListView::draw_content() {
     // ✅ 重命名对话框
     if (m_show_rename_dialog) {
         ImGui::OpenPopup("重命名会话");
-        m_show_rename_dialog = false;  // 只触发一次
+        m_show_rename_dialog = false; // 只触发一次
     }
 
     if (ImGui::BeginPopupModal("重命名会话", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
@@ -52,7 +52,8 @@ void ConversationListView::draw_content() {
         }
 
         // 按 Enter 键确认
-        if (ImGui::IsItemFocused() && (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))) {
+        if (ImGui::IsItemFocused() &&
+            (ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter))) {
             confirm = true;
         }
 
@@ -71,13 +72,11 @@ void ConversationListView::draw_content() {
 void ConversationListView::draw_search_bar() {
     // 搜索输入框
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.1f, 0.1f, 0.12f, 1.0f));
-    if (ImGui::InputTextWithHint(
-        "##search",
-        ICON_SEARCH " 搜索会话...",
-        m_search_buffer,
-        sizeof(m_search_buffer),
-        ImGuiInputTextFlags_EnterReturnsTrue
-    )) {
+    if (ImGui::InputTextWithHint("##search",
+                                 ICON_SEARCH " 搜索会话...",
+                                 m_search_buffer,
+                                 sizeof(m_search_buffer),
+                                 ImGuiInputTextFlags_EnterReturnsTrue)) {
         m_search_query = m_search_buffer;
         refresh_list();
     }
@@ -159,7 +158,10 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
     const auto& title = conv->get_display_title();
     const auto& preview = conv->get_last_message_preview();
 
-    if (ImGui::Selectable(std::format("##{}", conv->id).c_str(), is_selected, ImGuiSelectableFlags_None, ImVec2(0, 60))) {
+    if (ImGui::Selectable(std::format("##{}", conv->id).c_str(),
+                          is_selected,
+                          ImGuiSelectableFlags_None,
+                          ImVec2(0, 60))) {
         select_conversation(conv);
     }
 
@@ -170,7 +172,8 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
     // 检测悬停
     if (ImGui::IsItemHovered()) {
         m_hovered_conversation = conv;
-    } else if (m_hovered_conversation && m_hovered_conversation->id == conv->id && !ImGui::IsItemHovered()) {
+    } else if (m_hovered_conversation && m_hovered_conversation->id == conv->id &&
+               !ImGui::IsItemHovered()) {
         m_hovered_conversation.reset();
     }
 
@@ -181,7 +184,12 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
             m_show_rename_dialog = true;
             m_rename_conversation_id = conv->id;
             // 初始化重命名缓冲区为当前标题
+#ifdef _WIN32
             strncpy_s(m_rename_buffer, sizeof(m_rename_buffer), conv->title.c_str(), _TRUNCATE);
+#else
+            strncpy(m_rename_buffer, conv->title.c_str(), sizeof(m_rename_buffer) - 1);
+            m_rename_buffer[sizeof(m_rename_buffer) - 1] = '\0';
+#endif
         }
         ImGui::Separator();
         if (ImGui::MenuItem("删除会话")) {
@@ -244,13 +252,15 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
     }
 
     // 绘制标题
-    ImU32 title_color = conv->unread_count > 0 ? IM_COL32(255, 255, 255, 255) : IM_COL32(200, 200, 200, 255);
+    ImU32 title_color =
+        conv->unread_count > 0 ? IM_COL32(255, 255, 255, 255) : IM_COL32(200, 200, 200, 255);
     draw_list->AddText(title_pos, title_color, display_title.c_str());
 
     // 未读徽章
     if (conv->unread_count > 0) {
         const std::string badge = std::format(" {}", conv->unread_count);
-        const ImVec2 badge_pos(title_pos.x + ImGui::CalcTextSize(display_title.c_str()).x - 5, title_pos.y);
+        const ImVec2 badge_pos(title_pos.x + ImGui::CalcTextSize(display_title.c_str()).x - 5,
+                               title_pos.y);
         draw_list->AddText(badge_pos, IM_COL32(50, 150, 255, 255), badge.c_str());
     }
 
@@ -287,7 +297,8 @@ void ConversationListView::draw_conversation_item(const std::shared_ptr<Conversa
 
     // 时间戳
     const auto now = std::chrono::system_clock::now();
-    const auto diff = std::chrono::duration_cast<std::chrono::hours>(now - conv->updated_at).count();
+    const auto diff =
+        std::chrono::duration_cast<std::chrono::hours>(now - conv->updated_at).count();
 
     std::string time_str;
     if (diff < 1) {
@@ -346,7 +357,7 @@ void ConversationListView::select_conversation(const std::shared_ptr<Conversatio
     conv->unread_count = 0;
 
     // 发布事件
-    DearTs::Core::Event::EventBus::instance().publish(Events::ConversationSelectedEvent{ conv });
+    DearTs::Core::Event::EventBus::instance().publish(Events::ConversationSelectedEvent{conv});
 }
 
 void ConversationListView::refresh_list() {

@@ -244,11 +244,15 @@ cd DearTs
 # 如果忘记 --recursive，手动初始化子模块
 git submodule update --init --recursive
 
-# 2. 配置项目（Release 模式）
+# 2.1 配置项目（Release 模式）
 cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+# 2.2 Debug 模式
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
 
 # 3. 构建
 cmake --build build --config Release
+# 
 
 # 4. 运行
 ./build/bin/DearTsApp.exe        # Windows

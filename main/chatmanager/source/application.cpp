@@ -24,6 +24,9 @@
 #include <backends/imgui_impl_sdlgpu3.h>
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 // 使用 Logger 命名空间，以便 LOG_INFO 宏可以正常工作
 using DearTs::Logger;
@@ -32,6 +35,21 @@ using DearTs::Logger;
 namespace Core = DearTs::Core;
 
 namespace ChatManager {
+
+// 安全的字体加载辅助函数 - 仅在文件存在时加载
+static ImFont* safe_add_font(ImGuiIO& io, const char* font_path, float size,
+                             const ImFontConfig* config = nullptr,
+                             const ImWchar* glyph_ranges = nullptr) {
+    if (!font_path) return nullptr;
+
+    // 检查文件是否存在
+    if (!fs::exists(font_path)) {
+        return nullptr;
+    }
+
+    // 文件存在，安全加载
+    return io.Fonts->AddFontFromFileTTF(font_path, size, config, glyph_ranges);
+}
 
 Application::Application() = default;
 Application::~Application() = default;
@@ -57,6 +75,19 @@ bool Application::initialize() {
     LOG_INFO("Current platform: {}", SDL_GetPlatform());
 
     // 1. 初始化 SDL3
+    // 注意：在 Wayland 上，程序化窗口移动（SDL_SetWindowPosition）不被支持。
+    // 为了支持自定义无边框窗口的拖动功能，我们优先使用 X11 后端（通过 XWayland）。
+    #ifdef __linux__
+        const char* sdl_video_driver = SDL_getenv("SDL_VIDEODRIVER");
+        if (!sdl_video_driver || sdl_video_driver[0] == '\0') {
+            // 如果用户没有明确指定，优先使用 x11
+            SDL_setenv_unsafe("SDL_VIDEODRIVER", "x11", 0);
+            LOG_INFO("Set SDL_VIDEODRIVER=x11 for window dragging support");
+        } else {
+            LOG_INFO("SDL_VIDEODRIVER already set to: {}", sdl_video_driver);
+        }
+    #endif
+
     LOG_INFO("Attempting to initialize SDL3...");
     bool init_result = SDL_Init(SDL_INIT_VIDEO);
 
@@ -209,7 +240,8 @@ bool Application::initialize() {
 
     bool font_loaded = false;
     for (const char* font_path : font_paths) {
-        ImFont* font = io.Fonts->AddFontFromFileTTF(
+        ImFont* font = safe_add_font(
+            io,
             font_path,
             font_size,
             &font_config,
@@ -239,7 +271,7 @@ bool Application::initialize() {
             };
 
             for (const char* icon_path : icon_font_paths) {
-                if (io.Fonts->AddFontFromFileTTF(icon_path, font_size, &icon_config, MaterialSymbolsRanges) != nullptr) {
+                if (safe_add_font(io, icon_path, font_size, &icon_config, MaterialSymbolsRanges) != nullptr) {
                     LOG_INFO("成功合并图标字体到主字体");
                     break;
                 }
@@ -262,7 +294,8 @@ bool Application::initialize() {
         };
 
         for (const char* font_path : system_font_paths) {
-            ImFont* font = io.Fonts->AddFontFromFileTTF(
+            ImFont* font = safe_add_font(
+                io,
                 font_path,
                 font_size,
                 &font_config,
@@ -306,13 +339,13 @@ bool Application::initialize() {
 
     for (const char* font_path : font_paths) {
         if (!h1_font) {
-            h1_font = io.Fonts->AddFontFromFileTTF(font_path, 24.0f, &heading_config, io.Fonts->GetGlyphRangesChineseFull());
+            h1_font = safe_add_font(io, font_path, 24.0f, &heading_config, io.Fonts->GetGlyphRangesChineseFull());
         }
         if (!h2_font) {
-            h2_font = io.Fonts->AddFontFromFileTTF(font_path, 20.0f, &heading_config, io.Fonts->GetGlyphRangesChineseFull());
+            h2_font = safe_add_font(io, font_path, 20.0f, &heading_config, io.Fonts->GetGlyphRangesChineseFull());
         }
         if (!h3_font) {
-            h3_font = io.Fonts->AddFontFromFileTTF(font_path, 16.0f, &heading_config, io.Fonts->GetGlyphRangesChineseFull());
+            h3_font = safe_add_font(io, font_path, 16.0f, &heading_config, io.Fonts->GetGlyphRangesChineseFull());
         }
         if (h1_font && h2_font && h3_font) {
             LOG_INFO("MarkdownRenderer 标题字体加载成功");
@@ -322,13 +355,17 @@ bool Application::initialize() {
 
     // 代码字体（使用等宽字体，如果找不到则回退到主字体）
     const char* code_font_paths[] = {
+        "resources/fonts/Noto nerd.ttf",           // 项目内置
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",  // Linux
+        "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",  // Linux
+        "~/.local/share/fonts/NerdFonts/JetBrainsMonoNerdFontMono-Regular.ttf",  // 用户字体
+        "/run/current-system/sw/share/fonts/truetype/JetBrainsMonoNerdFontMono-Regular.ttf",  // NixOS
         "C:/Windows/Fonts/consola.ttf",   // Windows Consolas
         "C:/Windows/Fonts/consolaz.ttf",  // Windows Consolas Bold
-        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",  // Linux
     };
 
     for (const char* font_path : code_font_paths) {
-        code_font = io.Fonts->AddFontFromFileTTF(font_path, 14.0f, &heading_config, io.Fonts->GetGlyphRangesChineseFull());
+        code_font = safe_add_font(io, font_path, 14.0f, &heading_config, io.Fonts->GetGlyphRangesChineseFull());
         if (code_font) {
             LOG_INFO("MarkdownRenderer 代码字体加载成功: {}", font_path);
             break;
@@ -432,6 +469,36 @@ bool Application::initialize_window() {
     if (!m_window) {
         LOG_ERROR("SDL_CreateWindow failed: {}", SDL_GetError());
         return false;
+    }
+
+    // 设置窗口图标（仅 X11 有效，Wayland 需要通过 .desktop 文件）
+    const char* icon_paths[] = {
+        "resources/icon.bmp",
+        "resources/icon.png",  // SDL_LoadBMP 不支持 PNG，但保留作为文档
+        "icon.bmp",
+        "icon.png"
+    };
+
+    bool icon_loaded = false;
+    for (const char* icon_path : icon_paths) {
+        // 检查文件是否存在
+        if (!fs::exists(icon_path)) {
+            continue;
+        }
+
+        // 使用 SDL_LoadBMP 加载图标
+        SDL_Surface* icon_surface = SDL_LoadBMP(icon_path);
+        if (icon_surface) {
+            SDL_SetWindowIcon(static_cast<SDL_Window*>(m_window), icon_surface);
+            SDL_DestroySurface(icon_surface);
+            LOG_INFO("Window icon loaded from: {}", icon_path);
+            icon_loaded = true;
+            break;
+        }
+    }
+
+    if (!icon_loaded) {
+        LOG_WARN("Failed to load window icon (Note: Wayland requires .desktop file for icons)");
     }
 
     LOG_INFO("Borderless window created: 1600x900 (will be resized after ScaleManager init)");

@@ -190,8 +190,12 @@ DearTs::Core::Result<void, std::string> MemoryCorePlugin::initialize_database() 
     DearTs::Core::Config::ConfigScope config("memory");
 
     if (DEARTS_DEBUG) {
-        // Debug 模式：使用项目根目录的 data 文件夹
-        db_path = config.get_or<std::string>("db_path", "D:/develop/CPlusPlus/Dear_SDL/DearTsd/data/memory.db");
+        // Debug 模式：使用项目根目录的 data 文件夹（跨平台）
+        #ifdef _WIN32
+            db_path = config.get_or<std::string>("db_path", "D:/develop/CPlusPlus/Dear_SDL/DearTsd/data/memory.db");
+        #else
+            db_path = config.get_or<std::string>("db_path", "data/memory.db");
+        #endif
         LOG_INFO("Debug mode detected, using project database path");
     } else {
         // Release 模式：使用相对路径
