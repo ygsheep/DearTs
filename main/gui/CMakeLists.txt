@@ -66,14 +66,14 @@ else()
 endif()
 
 # Collect Live2D Framework source files
-file(GLOB_RECURSE LIVE2D_FRAMEWORK_SOURCES
-    ${LIVE2D_FRAMEWORK_DIR}/src/*.cpp
-)
+#file(GLOB_RECURSE LIVE2D_FRAMEWORK_SOURCES
+#    ${LIVE2D_FRAMEWORK_DIR}/src/*.cpp
+#)
 
 # Exclude platform-specific renderers we don't use
-list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*D3D.*")
-list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*Metal.*")
-list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*Vulkan.*")
+#list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*D3D.*")
+#list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*Metal.*")
+#list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*Vulkan.*")
 
 # DearTs 可执行文件
 add_executable(${PROJECT_NAME}
@@ -173,6 +173,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include
     ${CMAKE_SOURCE_DIR}/plugins/command_palette/include
     ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/include
+    ${CMAKE_SOURCE_DIR}/plugins/wuthering_waves/include
     ${CMAKE_SOURCE_DIR}/plugins/live2d/include
     ${CMAKE_SOURCE_DIR}/plugins/live2d/include/widgets
     ${CMAKE_SOURCE_DIR}/plugins/live2d/include/views
@@ -236,10 +237,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         imgui_full
         implot
         SDL3::SDL3-shared
-        # SDL3_image-static  # 暂时注释：需要预编译库或从源码构建
+        SDL3_image::SDL3_image
         deartsdl_logger
         freetype
         lunasvg::lunasvg
+        # 插件库（静态编译）
+        wuthering_waves_plugin
         # glew_s  # 暂时禁用 GLEW
         # FFmpeg (如果可用)
         $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:ffmpeg_interface>
@@ -310,14 +313,33 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 #    COMMAND ${CMAKE_COMMAND} -E copy_if_different
 #        ${RESOURCE_SOURCE_DIR}/icon.ico
 #        ${CMAKE_BINARY_DIR}/bin/icon.ico
-    # 复制 SDL3_image.dll（根据架构选择）
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/$<IF:$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>,x64,x86>/SDL3_image.dll
-        ${CMAKE_BINARY_DIR}/bin/SDL3_image.dll
+    # SDL3_image.dll 由 SDL_image 项目自动构建到 bin/ 目录，无需手动复制
     # 复制 Live2D Core DLL（仅 Windows）
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         ${LIVE2D_CORE_DLL_DIR}/Live2DCubismCore.dll
         ${CMAKE_BINARY_DIR}/bin/Live2DCubismCore.dll
+    # 复制 FFmpeg DLLs（如果 FFmpeg 支持启用）
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avcodec-62.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/avcodec-62.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avformat-62.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/avformat-62.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avutil-60.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/avutil-60.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/swresample-6.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/swresample-6.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/swscale-9.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/swscale-9.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avfilter-11.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/avfilter-11.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avdevice-62.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/avdevice-62.dll
     COMMENT "Copying resources to output directory (if changed)"
 )
 
