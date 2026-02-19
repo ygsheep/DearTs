@@ -255,8 +255,8 @@ cmake --build build --config Release
 # 
 
 # 4. 运行
-./build/bin/DearTsApp.exe        # Windows
-./build/bin/DearTsApp            # Linux/macOS
+./build/bin/DearTs.exe        # Windows
+./build/bin/DearTs            # Linux/macOS
 ```
 
 ### 运行测试

@@ -312,12 +312,17 @@ set(JSON_MultipleHeaders ON CACHE BOOL "Use multi-header version" FORCE)
 
 add_subdirectory(third_party/SDL)
 
-# 使用预编译的 SDL_image 库（third_party/SDL_image 已编译）
-add_library(SDL3_image-static STATIC IMPORTED)
-set_target_properties(SDL3_image-static PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/x64/SDL3_image.lib"
-    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/third_party/SDL_image/include/SDL3_image"
-)
+# SDL_image: 从源码构建（共享库）
+# 设置 SDL_image 编译选项
+set(SDLIMAGE_BUILD_SHARED_LIBS ON CACHE BOOL "Build SDL_image as shared library" FORCE)
+set(SDLIMAGE_TESTS OFF CACHE BOOL "Build SDL_image tests" FORCE)
+set(SDLIMAGE_DEPS_SHARED OFF CACHE BOOL "Use shared dependencies" FORCE)
+# 禁用需要 NASM 的 AV1 解码支持
+set(SDLIMAGE_AVIF OFF CACHE BOOL "AVIF support" FORCE)
+set(SDLIMAGE_JXL OFF CACHE BOOL "JPEG XL support" FORCE)
+set(SDLIMAGE_STB OFF CACHE BOOL "Use stb_image" FORCE)
+set(SDLIMAGE_WIC ON CACHE BOOL "Use Windows Imaging Component" FORCE)
+add_subdirectory(third_party/SDL_image)
 
 add_subdirectory(third_party/freetype)
 add_subdirectory(third_party/lunasvg)
@@ -541,6 +546,7 @@ add_subdirectory(plugins/chat)
 add_subdirectory(plugins/toast_notification)
 add_subdirectory(plugins/command_palette)
 add_subdirectory(plugins/clipboard_parser)  # 剪切板智能解析插件
+add_subdirectory(plugins/wuthering_waves)     # 鸣潮抽卡记录插件 (静态库)
 add_subdirectory(plugins/live2d)
 add_subdirectory(plugins/ffmpeg)  # FFmpeg 视频处理插件
 

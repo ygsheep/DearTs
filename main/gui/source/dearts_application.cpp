@@ -9,6 +9,7 @@
 #include "builtin_plugin.hpp"
 #include "command_palette_plugin.hpp"
 #include "clipboard_parser_plugin.hpp"
+#include "wuthering_waves/wuthering_waves_plugin.hpp"
 #include "core/content/callbacks.h"
 #include "core/content/commands.h"
 #include "core/event/event_bus.h"
@@ -26,6 +27,7 @@
 #include <chrono>
 #include <format>
 #include <imgui.h>
+#include <imgui_internal.h>  // 用于 DockBuilder API
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_sdlrenderer3.h>
 #include <implot.h>
@@ -757,6 +759,16 @@ void DearTsApplication::setup_plugins() {
         LOG_INFO("ClipboardParserPlugin loaded successfully");
     }
 
+    // 添加鸣潮抽卡记录插件
+    auto wuthering_waves_plugin = std::make_unique<DearTs::Plugins::WutheringWaves::WutheringWavesPlugin>();
+    result = plugin_manager.add_builtin(std::move(wuthering_waves_plugin));
+
+    if (result.isErr()) {
+        LOG_ERROR("Failed to load WutheringWavesPlugin: {}", result.error());
+    } else {
+        LOG_INFO("WutheringWavesPlugin loaded successfully");
+    }
+
 #if DEARTS_FFMPEG_SUPPORT
     // 添加 FFmpeg 插件
     auto ffmpeg_plugin = std::make_unique<DearTs::Plugins::FFmpeg::FFmpegPlugin>();
@@ -1311,6 +1323,9 @@ void DearTsApplication::render_dock_space(float title_bar_height) {
     ImGui::Begin("DockSpace", nullptr, window_flags);
     ImGui::PopStyleVar(3);
 
+    // 设置默认停靠布局（仅在第一次运行时）
+    setup_default_dock_layout();
+
     ImGui::DockSpace(ImGui::GetID("MainDockSpace"));
     ImGui::End();
 }
@@ -1325,6 +1340,46 @@ void DearTsApplication::render_views() {
             view->draw();
         }
     }
+}
+
+void DearTsApplication::setup_default_dock_layout() {
+    // 检查是否已经设置过停靠布局
+    if (m_dock_layout_initialized) {
+        return;
+    }
+
+    // 获取主 DockSpace ID
+    ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+
+    // 获取当前窗口大小（用于计算合理的 SizeRef）
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    float width = viewport->Size.x;   // 窗口宽度
+    float height = viewport->Size.y;  // 窗口高度（已减去标题栏）
+
+    // 使用 DockBuilder 构建默认停靠布局
+    ImGui::DockBuilderRemoveNode(dockspace_id);  // 清除现有布局
+    ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);  // 根节点
+
+    ImGuiID dock_main_id = dockspace_id;
+    ImGuiID dock_left_id, dock_center_id;
+
+    // 分割：左(侧边栏 25%) - 右(主区域 75%)
+    dock_left_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.25f, nullptr, &dock_center_id);
+
+    // 设置节点大小（确保节点不会被压缩到最小尺寸）
+    ImGui::DockBuilderSetNodeSize(dock_left_id, ImVec2(width * 0.25f, height));
+    ImGui::DockBuilderSetNodeSize(dock_center_id, ImVec2(width * 0.75f, height));
+
+    // 停靠窗口到对应的节点
+    // 使用 ContentRegistry 中的视图名称
+    ImGui::DockBuilderDockWindow("侧边栏", dock_left_id);
+    // 其他视图停靠到主区域（用户可以自由调整）
+
+    // 完成构建
+    ImGui::DockBuilderFinish(dockspace_id);
+
+    m_dock_layout_initialized = true;
+    LOG_INFO("Default dock layout configured: 侧边栏 (25%) | 主区域 (75%)");
 }
 
 } // namespace DearTs::Main::GUI

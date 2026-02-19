@@ -173,6 +173,11 @@ private:
      */
     void render_views();
 
+    /**
+     * @brief 设置默认停靠布局（仅在首次运行时）
+     */
+    void setup_default_dock_layout();
+
 private:
     // ImGui 相关
     ImGuiContext* m_imgui_context = nullptr;
@@ -194,6 +199,9 @@ private:
     bool m_is_maximized = false;  // 窗口是否最大化
     ImVec2 m_drag_start_pos;
     ImVec2 m_window_start_pos;
+
+    // 停靠布局状态
+    bool m_dock_layout_initialized = false;
 
     // 统计信息
     int m_last_log_time = 0;
