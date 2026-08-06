@@ -1,0 +1,214 @@
+@PACKAGE_INIT@
+
+# ---- 尝试通过 vcpkg/系统包管理器查找外部依赖 ----
+# 全部使用 QUIET + 回退：找不到时由下方 fallback 定义接口目标
+find_package(nlohmann_json CONFIG QUIET)
+find_package(Boost QUIET)
+find_package(FFMPEG QUIET)
+find_package(SDL3 CONFIG QUIET)
+find_package(SDL3_image CONFIG QUIET)
+find_package(freetype CONFIG QUIET)
+find_package(lunasvg CONFIG QUIET)
+find_package(PNG CONFIG QUIET)
+find_package(ZLIB CONFIG QUIET)
+find_package(JPEG CONFIG QUIET)
+find_package(TIFF CONFIG QUIET)
+find_package(WebP CONFIG QUIET)
+
+# ---- FFmpeg 支持开关 ----
+set(DEARTS_FFMPEG_SUPPORT OFF)
+if(TARGET FFmpeg::avcodec OR (DEFINED FFMPEG_FOUND AND FFMPEG_FOUND))
+    set(DEARTS_FFMPEG_SUPPORT ON)
+endif()
+
+# ---- 加载 DearTs 目标导出（包含第三方库目标） ----
+include("${CMAKE_CURRENT_LIST_DIR}/deartsTargets.cmake")
+
+# ---- 辅助宏：确保目标存在（未找到时回退为指向安装目录的接口目标） ----
+macro(dearts_ensure_interface target)
+    if(NOT TARGET ${target})
+        add_library(${target} INTERFACE IMPORTED)
+        set_target_properties(${target} PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+        )
+    endif()
+endmacro()
+
+# SDL3_image 依赖的图像编解码库（libpng/zlib 等，通常由 vcpkg 提供）
+dearts_ensure_interface(PNG::PNG)
+dearts_ensure_interface(ZLIB::ZLIB)
+dearts_ensure_interface(JPEG::JPEG)
+dearts_ensure_interface(TIFF::TIFF)
+dearts_ensure_interface(WebP::WebP)
+dearts_ensure_interface(WebP::webp)
+dearts_ensure_interface(WebP::webpdemux)
+dearts_ensure_interface(WebP::libwebpmux)
+
+# Boost::asio / Boost::beast（header-only，vcpkg 未提供时回退）
+dearts_ensure_interface(Boost::asio)
+dearts_ensure_interface(Boost::beast)
+
+# ---- 底层目标名回退（deartsTargets.cmake 中引用的真实目标名） ----
+# SDL3: 导出文件引用 SDL3-shared，但使用方可能通过 vcpkg 提供 SDL3::SDL3
+if(NOT TARGET SDL3-shared)
+    if(TARGET SDL3::SDL3)
+        add_library(SDL3-shared INTERFACE IMPORTED)
+        set_target_properties(SDL3-shared PROPERTIES
+            INTERFACE_LINK_LIBRARIES SDL3::SDL3
+            INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+        )
+    else()
+        dearts_ensure_interface(SDL3-shared)
+    endif()
+endif()
+dearts_ensure_interface(SDL3_Headers)
+
+# SDL3_image: 导出文件引用 SDL3_image-static
+if(NOT TARGET SDL3_image-static)
+    if(TARGET SDL3_image::SDL3_image)
+        add_library(SDL3_image-static INTERFACE IMPORTED)
+        set_target_properties(SDL3_image-static PROPERTIES
+            INTERFACE_LINK_LIBRARIES SDL3_image::SDL3_image
+            INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+        )
+    else()
+        dearts_ensure_interface(SDL3_image-static)
+    endif()
+endif()
+
+# FreeType / LunaSVG（含内部 plutovg）
+dearts_ensure_interface(freetype)
+if(NOT TARGET lunasvg)
+    if(TARGET lunasvg::lunasvg)
+        add_library(lunasvg INTERFACE IMPORTED)
+        set_target_properties(lunasvg PROPERTIES
+            INTERFACE_LINK_LIBRARIES lunasvg::lunasvg
+            INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+        )
+    else()
+        dearts_ensure_interface(lunasvg)
+    endif()
+endif()
+dearts_ensure_interface(plutovg)
+
+# nlohmann/json
+if(NOT TARGET nlohmann_json)
+    if(TARGET nlohmann_json::nlohmann_json)
+        add_library(nlohmann_json INTERFACE IMPORTED)
+        set_target_properties(nlohmann_json PROPERTIES
+            INTERFACE_LINK_LIBRARIES nlohmann_json::nlohmann_json
+            INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+        )
+    else()
+        dearts_ensure_interface(nlohmann_json)
+    endif()
+endif()
+
+# Boost.Asio + Boost.Beast (header-only)
+if(NOT TARGET boost_asio)
+    add_library(boost_asio INTERFACE IMPORTED)
+    if(TARGET Boost::asio)
+        set_target_properties(boost_asio PROPERTIES
+            INTERFACE_LINK_LIBRARIES "Boost::asio;Boost::beast"
+            INTERFACE_INCLUDE_DIRECTORIES "${Boost_INCLUDE_DIRS}"
+        )
+    else()
+        set_target_properties(boost_asio PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+        )
+    endif()
+endif()
+
+# FFmpeg 接口库
+if(NOT TARGET ffmpeg_interface)
+    add_library(ffmpeg_interface INTERFACE IMPORTED)
+    if(DEARTS_FFMPEG_SUPPORT)
+        set_target_properties(ffmpeg_interface PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${FFMPEG_INCLUDE_DIRS}"
+            INTERFACE_LINK_LIBRARIES "${FFMPEG_LIBRARIES}"
+            INTERFACE_COMPILE_DEFINITIONS "DEARTS_FFMPEG_SUPPORT=1"
+        )
+    else()
+        set_target_properties(ffmpeg_interface PROPERTIES
+            INTERFACE_COMPILE_DEFINITIONS "DEARTS_FFMPEG_SUPPORT=0"
+        )
+    endif()
+endif()
+
+# DearTs Logger (静态库)
+if(NOT TARGET deartsdl_logger)
+    if(WIN32)
+        set(_dearts_logger_file "${PACKAGE_PREFIX_DIR}/lib/deartsdl_logger.lib")
+    else()
+        set(_dearts_logger_file "${PACKAGE_PREFIX_DIR}/lib/libdeartsdl_logger.a")
+    endif()
+    add_library(deartsdl_logger STATIC IMPORTED)
+    set_target_properties(deartsdl_logger PROPERTIES
+        IMPORTED_LOCATION "${_dearts_logger_file}"
+        INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+    )
+endif()
+
+# ImGui 核心库
+if(NOT TARGET imgui)
+    if(WIN32)
+        set(_dearts_imgui_file "${PACKAGE_PREFIX_DIR}/lib/imgui.lib")
+    else()
+        set(_dearts_imgui_file "${PACKAGE_PREFIX_DIR}/lib/libimgui.a")
+    endif()
+    add_library(imgui STATIC IMPORTED)
+    set_target_properties(imgui PROPERTIES
+        IMPORTED_LOCATION "${_dearts_imgui_file}"
+        INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+        INTERFACE_COMPILE_DEFINITIONS
+            "IMGUI_USER_CONFIG=\"imgui_user_config.h\";LUNASVG_BUILD_STATIC"
+    )
+endif()
+
+# ImGui SDL3 Backend
+if(NOT TARGET imgui_sdl3)
+    if(WIN32)
+        set(_dearts_imgui_sdl3_file "${PACKAGE_PREFIX_DIR}/lib/imgui_sdl3.lib")
+    else()
+        set(_dearts_imgui_sdl3_file "${PACKAGE_PREFIX_DIR}/lib/libimgui_sdl3.a")
+    endif()
+    add_library(imgui_sdl3 STATIC IMPORTED)
+    set_target_properties(imgui_sdl3 PROPERTIES
+        IMPORTED_LOCATION "${_dearts_imgui_sdl3_file}"
+        INTERFACE_LINK_LIBRARIES imgui
+        INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+    )
+endif()
+
+# ImGui 完整接口库
+if(NOT TARGET imgui_full)
+    add_library(imgui_full INTERFACE IMPORTED)
+    set_target_properties(imgui_full PROPERTIES
+        INTERFACE_LINK_LIBRARIES "imgui;imgui_sdl3"
+    )
+endif()
+
+# ImPlot
+if(NOT TARGET implot)
+    if(WIN32)
+        set(_dearts_implot_file "${PACKAGE_PREFIX_DIR}/lib/implot.lib")
+    else()
+        set(_dearts_implot_file "${PACKAGE_PREFIX_DIR}/lib/libimplot.a")
+    endif()
+    add_library(implot STATIC IMPORTED)
+    set_target_properties(implot PROPERTIES
+        IMPORTED_LOCATION "${_dearts_implot_file}"
+        INTERFACE_LINK_LIBRARIES imgui
+        INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/include"
+    )
+endif()
+
+# ---- 兼容别名：Dearts::dearts ----
+if(NOT TARGET Dearts::dearts AND TARGET DearTs::dearts)
+    add_library(Dearts::dearts INTERFACE IMPORTED)
+    set_target_properties(Dearts::dearts PROPERTIES
+        INTERFACE_LINK_LIBRARIES DearTs::dearts
+    )
+endif()
+
+check_required_components(dearts)

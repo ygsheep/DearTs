@@ -6,28 +6,13 @@
 #include "logger.h"
 
 namespace DearTs {
-
+// 静态成员初始化
+std::shared_ptr<Logger> Logger::instance = nullptr;
+std::once_flag Logger::initFlag;
 // ============================================================================
 // Logger 实现
 // ============================================================================
 
-Logger::Logger()
-    : m_level(static_cast<int>(LogLevel::INFO)),
-      m_file_enabled(false),
-      m_writer_running(false),
-      m_buffer_size(4096),
-      m_duplicate_window_ms(DEFAULT_DUPLICATE_WINDOW_MS) {
-}
-
-Logger::~Logger() {
-    enable_file_output("", false);
-
-    if (m_writer_thread.joinable()) {
-        m_writer_running.store(false, std::memory_order_relaxed);
-        m_queue_cv.notify_all();
-        m_writer_thread.join();
-    }
-}
 
 void Logger::enable_file_output(const std::string& filename, bool enable) {
     std::lock_guard<std::mutex> lock(m_file_mutex);

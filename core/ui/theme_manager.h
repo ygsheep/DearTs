@@ -35,15 +35,21 @@ enum class Theme {
  * - ImGui 样式自动应用
  * - 颜色查询和修改
  */
-class ThemeManager {
+class ThemeManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static ThemeManager& instance() {
+    static ThemeManager& instance() noexcept {
         static ThemeManager inst;
         return inst;
     }
+
+    // 删除所有拷贝和移动操作
+    ThemeManager(const ThemeManager&) = delete;
+    ThemeManager& operator=(const ThemeManager&) = delete;
+    ThemeManager(ThemeManager&&) = delete;
+    ThemeManager& operator=(ThemeManager&&) = delete;
 
     /**
      * @brief 设置主题
@@ -105,13 +111,62 @@ public:
         m_theme_changed_callbacks.push_back(std::move(callback));
     }
 
+    // ==================== 玻璃态样式设置 ====================
+
+    /**
+     * @brief 设置玻璃态透明度
+     * @param alpha 透明度值 (0.0 - 1.0)
+     */
+    void setGlassAlpha(float alpha) { m_glass_alpha = alpha; }
+
+    /**
+     * @brief 获取玻璃态透明度
+     */
+    [[nodiscard]] float getGlassAlpha() const { return m_glass_alpha; }
+
+    /**
+     * @brief 设置圆角半径
+     * @param radius 圆角半径 (像素)
+     */
+    void setBorderRadius(float radius) { m_border_radius = radius; }
+
+    /**
+     * @brief 获取圆角半径
+     */
+    [[nodiscard]] float getBorderRadius() const { return m_border_radius; }
+
+    /**
+     * @brief 设置强调色
+     * @param color 强调色值
+     */
+    void setAccentColor(const ImVec4& color) { m_accent_color = color; }
+
+    /**
+     * @brief 获取强调色
+     */
+    [[nodiscard]] ImVec4 getAccentColor() const { return m_accent_color; }
+
+    /**
+     * @brief 应用玻璃态样式到 ImGui
+     */
+    void applyGlassmorphismStyle();
+
+    // ==================== ChatManager 主题支持 ====================
+
+    /**
+     * @brief 应用 ChatManager 专用主题颜色
+     * @details 设置聊天界面特定的颜色映射
+     */
+    void applyChatManagerTheme();
+
+    /**
+     * @brief 获取 ChatManager 颜色键名
+     */
+    [[nodiscard]] static const char* getChatColorName(size_t index);
+
 private:
     ThemeManager();
     ~ThemeManager() = default;
-
-    // 禁止拷贝
-    ThemeManager(const ThemeManager&) = delete;
-    ThemeManager& operator=(const ThemeManager&) = delete;
 
     /**
      * @brief 初始化预定义主题
@@ -142,6 +197,11 @@ private:
     Theme m_current_theme = Theme::Dark;
     std::unordered_map<std::string, ImVec4> m_colors;
     std::vector<std::function<void(Theme)>> m_theme_changed_callbacks;
+
+    // 玻璃态样式参数
+    float m_glass_alpha = 0.85f;       // 玻璃态透明度
+    float m_border_radius = 8.0f;      // 圆角半径
+    ImVec4 m_accent_color{0.3f, 0.6f, 1.0f, 1.0f};  // 强调色（蓝色）
 };
 
 } // namespace DearTs::Core::UI

@@ -52,7 +52,6 @@ build/bin/Debug/sdl_render_example.exe
 build/bin/Debug/resources/fonts/
 ├── OPPOSans-M.ttf         9.7 MB
 ├── Noto nerd.ttf          2.8 MB
-├── MaterialSymbolsOutlined.ttf    4.0 KB
 └── MaterialSymbolsRounded-VariableFont.ttf   14 MB
 ```
 

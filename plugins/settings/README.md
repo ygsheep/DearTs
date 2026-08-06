@@ -86,11 +86,11 @@ DearTs 设置管理插件，提供图形化的配置编辑界面。
 
 ### 日志配置
 
-| 配置键 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `logger.level` | int | 1 (DEBUG) | 日志级别 (0-5) |
-| `logger.file_enabled` | bool | true | 是否启用文件输出 |
-| `logger.file_path` | string | "logs/deartsdl_gui.log" | 日志文件路径 |
+| 配置键 | 类型 | 默认值            | 说明 |
+|--------|------|----------------|------|
+| `logger.level` | int | 1 (DEBUG)      | 日志级别 (0-5) |
+| `logger.file_enabled` | bool | true           | 是否启用文件输出 |
+| `logger.file_path` | string | "logs/qpp.log" | 日志文件路径 |
 
 ### 窗口配置
 
@@ -180,7 +180,7 @@ config.register_meta("my.category.setting", {
   "logger": {
     "level": 1,
     "file_enabled": true,
-    "file_path": "logs/deartsdl_gui.log"
+    "file_path": "logs/app.log"
   },
   "toolbox": {
     "titlebar": {

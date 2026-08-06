@@ -8,20 +8,24 @@
 #include "file_dialog.hpp"
 #include "core/tasks/task_manager.h"
 #include "liblogger/logger.h"
-#include <windows.h>
-#include <shlobj.h>
-#include <comdef.h>
 #include <fstream>
 #include <sstream>
 #include <thread>
 #include <mutex>
 #include <atomic>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <shlobj.h>
+#include <comdef.h>
+#endif
+
 namespace DearTs::Core::Utils {
 
-// ==================== Windows 实现 ====================
-
 namespace impl {
+
+#ifdef _WIN32
+// ==================== Windows 实现 ====================
 
 /**
  * @brief 将过滤器转换为 Windows 格式
@@ -424,6 +428,43 @@ FileDialogResult select_folder_dialog_windows(const FileDialogOptions& options) 
 
     return result;
 }
+
+#else
+// ==================== Linux/Unix 实现 ====================
+// 注意：这是一个简化的实现，返回空结果
+// TODO: 实现 Linux 文件对话框（使用 zenity 或 kdialog）
+
+/**
+ * @brief 打开文件对话框（Linux 存根实现）
+ */
+FileDialogResult open_file_dialog_windows(const FileDialogOptions& options) {
+    FileDialogResult result;
+    result.error_message = "File dialog not implemented on Linux yet";
+    LOG_WARN("File dialog not implemented on Linux yet");
+    return result;
+}
+
+/**
+ * @brief 保存文件对话框（Linux 存根实现）
+ */
+FileDialogResult save_file_dialog_windows(const FileDialogOptions& options) {
+    FileDialogResult result;
+    result.error_message = "File dialog not implemented on Linux yet";
+    LOG_WARN("File dialog not implemented on Linux yet");
+    return result;
+}
+
+/**
+ * @brief 选择文件夹对话框（Linux 存根实现）
+ */
+FileDialogResult select_folder_dialog_windows(const FileDialogOptions& options) {
+    FileDialogResult result;
+    result.error_message = "Folder dialog not implemented on Linux yet";
+    LOG_WARN("Folder dialog not implemented on Linux yet");
+    return result;
+}
+
+#endif
 
 } // namespace impl
 

@@ -1,115 +1,36 @@
 # DearTs 应用程序 CMakeLists.txt
-# 基于 DearTs 框架的 GUI 应用
+# 基于 DearTs 框架的 GUI 应用（链接 dearts 静态库）
 
 cmake_minimum_required(VERSION 3.20)
 project(DearTs)
+
 # DearTs 可执行文件
 add_executable(${PROJECT_NAME}
     include/dearts_application.hpp
     source/main.cpp
     source/dearts_application.cpp
-    # 插件源文件
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/include/builtin_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/include/views/data_inspector_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/source/builtin_plugin.cpp
-    # Settings 插件
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/settings_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/views/settings_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/theme_settings_widget.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_view.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/toast_settings_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/toast_settings_widget.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/theme_settings_widget.cpp
-    # LoggerViewer 插件
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/logger_viewer_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/views/logger_viewer_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/source/logger_viewer_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/source/logger_viewer_view.cpp
-    # Navigation 插件
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/include/navigation_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/include/views/sidebar_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/source/navigation_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/source/sidebar_view.cpp
-    # Toast Notification 插件
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include/toast.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include/toast_manager.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include/toast_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include/toast_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/source/toast_manager.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/source/toast_plugin.cpp
-    # Command Palette 插件
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/include/command_palette_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/include/command_palette_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_view.cpp
     # Windows 资源文件（仅 Windows）
     ${CMAKE_SOURCE_DIR}/resources/dearts.rc
 )
 
-# 包含目录
+# 包含目录（框架头文件由 dearts PUBLIC 传递）
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/core
-    ${CMAKE_SOURCE_DIR}/core/event
-    ${CMAKE_SOURCE_DIR}/core/content
-    ${CMAKE_SOURCE_DIR}/core/ui
-    ${CMAKE_SOURCE_DIR}/core/plugin
-    ${CMAKE_SOURCE_DIR}/core/config
-    ${CMAKE_SOURCE_DIR}/core/tasks
-    ${CMAKE_SOURCE_DIR}/core/utils
-    ${CMAKE_SOURCE_DIR}/core/app
-    ${CMAKE_SOURCE_DIR}/lib/liblogger
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/include
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/include
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/include
-    ${CMAKE_SOURCE_DIR}/third_party/SDL/include
-    ${CMAKE_SOURCE_DIR}/third_party/freetype/include
-    ${CMAKE_SOURCE_DIR}/third_party/imgui
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/misc/freetype
-    ${CMAKE_SOURCE_DIR}/third_party/implot
+    ${CMAKE_SOURCE_DIR}/plugins/wuthering_waves/include
 )
 
-# 源文件（新架构实现）
-target_sources(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}/core/content/settings.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/commands.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/tools.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/callbacks.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/project_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/imgui_layer.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
-    # Command Palette 现在是插件，移到了 plugins/command_palette/
-    # ${CMAKE_SOURCE_DIR}/core/ui/command_palette.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/title_bar.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/imgui_extensions.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/theme_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/shortcut_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/task_widget.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/icon_font.cpp
-    ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/app/application.cpp
-    ${CMAKE_SOURCE_DIR}/core/utils/file_dialog.cpp
-)
-
-# 链接库
+# 链接 dearts 框架库（core + 内置插件 + 第三方依赖）
 target_link_libraries(${PROJECT_NAME} PRIVATE
-        imgui_full
-        implot
-        SDL3-static
-        deartsdl_logger
-        freetype
-        lunasvg::lunasvg
+        dearts
+        # 独立插件库（静态编译）
+        wuthering_waves_plugin
 )
+
+# 平台特定的链接库
+if(UNIX AND NOT APPLE)
+    # Linux 需要 dl 库用于动态加载
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
+endif()
 
 # Windows 特定设置
 if(WIN32)
@@ -132,25 +53,48 @@ endif()
 set(RESOURCE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
 set(RESOURCE_DEST_DIR ${CMAKE_BINARY_DIR}/bin/resources)
 
-# 复制所有资源文件到输出目录
+# 复制所有资源文件到输出目录（仅在文件真正变化时复制）
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    # 创建 resources 目录
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}
-    # 复制字体文件
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    # 使用 copy_if_different 避免不必要的时间戳更新
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/fonts
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/images
+    # 复制字体文件（仅在变化时）
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         ${RESOURCE_SOURCE_DIR}/fonts
         ${RESOURCE_DEST_DIR}/fonts
-    # 复制图标文件
-    COMMAND ${CMAKE_COMMAND} -E copy
-        ${RESOURCE_SOURCE_DIR}/icon.ico
-        ${CMAKE_BINARY_DIR}/bin/icon.ico
-    COMMENT "Copying resources to output directory"
+    # 复制图片文件（仅在变化时）
+    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
+        ${RESOURCE_SOURCE_DIR}/images
+        ${RESOURCE_DEST_DIR}/images
+    # 复制图标文件（仅在变化时）
+#    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#        ${RESOURCE_SOURCE_DIR}/icon.ico
+#        ${CMAKE_BINARY_DIR}/bin/icon.ico
+    # SDL3_image.dll 由 SDL_image 项目自动构建到 bin/ 目录，无需手动复制
+    # 复制 FFmpeg DLLs（如果 FFmpeg 支持启用）
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avcodec-62.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/avcodec-62.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avformat-62.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/avformat-62.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avutil-60.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/avutil-60.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/swresample-6.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/swresample-6.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/swscale-9.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/swscale-9.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avfilter-11.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/avfilter-11.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avdevice-62.dll,nul>
+        ${CMAKE_BINARY_DIR}/bin/avdevice-62.dll
+    COMMENT "Copying resources to output directory (if changed)"
 )
-
-# 显示资源目录信息
-message(STATUS "Resource directories:")
-message(STATUS "  Source: ${RESOURCE_SOURCE_DIR}")
-message(STATUS "  Destination: ${RESOURCE_DEST_DIR}")
 
 # 设置输出目录
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -171,7 +115,7 @@ endif()
 
 message(STATUS "DearTs Application Configuration:")
 message(STATUS "  Target: ${PROJECT_NAME}")
-message(STATUS "  Framework: DearTs Core")
+message(STATUS "  Framework: dearts (static library)")
 message(STATUS "  ImGui: Integrated")
 message(STATUS "  Theme System: Enabled")
 message(STATUS "  Shortcut System: Enabled")

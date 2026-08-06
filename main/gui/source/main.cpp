@@ -4,7 +4,7 @@
  * @details 基于 DearTs 框架的工具箱应用主程序
  */
 
-#include "../include/dearts_application.hpp"
+#include "dearts_application.hpp"
 #include "liblogger/logger.h"
 #include "core/config/config_manager.h"
 #include <SDL3/SDL_main.h>
@@ -25,7 +25,7 @@ using namespace DearTs;
  * @brief 初始化日志系统（从 ConfigManager 读取配置）
  */
 void init_logger() {
-    auto& logger = Logger::get_instance();
+    auto logger = Logger::get_instance();
     auto& config = Core::Config::ConfigManager::instance();
 
     // 先尝试加载配置文件（如果存在）
@@ -51,17 +51,17 @@ void init_logger() {
 
     config.register_meta("logger.file_path", {
         .description = "Log file path (relative to executable or absolute)",
-        .default_value = std::string("logs/deartsdl_gui.log"),
+        .default_value = std::string("logs/app.log"),
         .is_required = false
     });
 
     // 从配置加载日志设置（现在配置已经加载了）
     int log_level = config.get_or<int>("logger.level", 1);  // DEBUG
     bool file_enabled = config.get_or<bool>("logger.file_enabled", true);
-    std::string log_file_path = config.get_or<std::string>("logger.file_path", "logs/deartsdl_gui.log");
+    std::string log_file_path = config.get_or<std::string>("logger.file_path", "logs/app.log");
 
     // 设置日志级别
-    logger.set_level(static_cast<LogLevel>(log_level));
+    logger->set_level(static_cast<LogLevel>(log_level));
 
     // 构建完整的日志文件路径
     std::filesystem::path log_file;
@@ -81,12 +81,12 @@ void init_logger() {
 
     // 启用文件输出（如果配置启用）
     if (file_enabled) {
-        logger.enable_file_output(log_file.string(), true);
+        logger->enable_file_output(log_file.string(), true);
     }
 
     LOG_INFO("========================================");
     LOG_INFO("日志系统初始化完成");
-    LOG_INFO("日志级别: {}", static_cast<int>(logger.get_level()));
+    LOG_INFO("日志级别: {}", static_cast<int>(logger->get_level()));
     if (file_enabled) {
         LOG_INFO("日志文件: {}", log_file.string());
     } else {
@@ -98,7 +98,7 @@ void init_logger() {
 /**
  * @brief 主函数
  */
-int main(int argc, char* argv[]) {
+int main(const int argc, char* argv[]) {
     (void)argc;  // 未使用参数
     (void)argv;  // 未使用参数
 

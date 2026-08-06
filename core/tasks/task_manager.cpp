@@ -4,10 +4,12 @@
  */
 
 #include "task_manager.h"
+#include "event/event_bus.h"
 #include "logger.h"
 #include <algorithm>
 
 namespace DearTs::Core::Tasks {
+using DearTs::Core::Event::EventBus;
 
 // ================ Task Implementation ================
 
@@ -21,7 +23,8 @@ Task::Task(std::string name, TaskFunc func, float max_progress)
 }
 
 Task::~Task() {
-    LOG_DEBUG("Task destroyed: {}", m_name);
+    // 注意：析构函数中不能调用 LOG，可能导致死锁
+    // （Logger 可能在析构期间持有锁，导致无法获取 m_duplicate_mutex）
 }
 
 void Task::execute() {
@@ -32,6 +35,14 @@ void Task::execute() {
 
     LOG_INFO("Task started: {}", m_name);
     m_status = TaskStatus::Running;
+    m_start_time = std::chrono::steady_clock::now();
+
+    auto task_ptr = shared_from_this();
+
+    EventBus::instance().publish_async(TaskStartedEvent{
+        .task = task_ptr,
+        .task_name = m_name
+    });
 
     try {
         m_func(m_should_cancel);
@@ -41,15 +52,64 @@ void Task::execute() {
             LOG_INFO("Task completed: {}", m_name);
         } else {
             m_status = TaskStatus::Cancelled;
+
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - m_start_time
+            ).count();
+
+            EventBus::instance().publish_async(TaskCancelledEvent{
+                .task = task_ptr,
+                .task_name = m_name,
+                .duration_ms = static_cast<float>(duration)
+            });
+
             LOG_INFO("Task cancelled: {}", m_name);
         }
     } catch (const std::exception& e) {
-        markFailed();
+        markFailed(e.what());
         LOG_ERROR("Task failed: {} - {}", m_name, e.what());
     } catch (...) {
-        markFailed();
+        markFailed("Unknown exception");
         LOG_ERROR("Task failed with unknown exception: {}", m_name);
     }
+}
+
+void Task::markCompleted() {
+    m_progress = m_max_progress;
+    m_status = TaskStatus::Completed;
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - m_start_time
+    ).count();
+
+    auto task_ptr = shared_from_this();
+
+    EventBus::instance().publish_async(TaskCompletedEvent{
+        .task = task_ptr,
+        .task_name = m_name,
+        .duration_ms = static_cast<float>(duration)
+    });
+
+    if (m_completed_callback) {
+        m_completed_callback();
+    }
+}
+
+void Task::markFailed(const std::string& error_message) {
+    m_status = TaskStatus::Failed;
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - m_start_time
+    ).count();
+
+    auto task_ptr = shared_from_this();
+
+    EventBus::instance().publish_async(TaskFailedEvent{
+        .task = task_ptr,
+        .task_name = m_name,
+        .error_message = error_message,
+        .duration_ms = static_cast<float>(duration)
+    });
 }
 
 // ================ TaskManager Implementation ================

@@ -68,6 +68,8 @@ bool Application::initialize(const ApplicationConfig& config) {
 
     // 创建窗口
     Uint32 window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN;
+    // 启用高 DPI 支持，确保在高分辨率显示器上渲染清晰
+    window_flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
     if (m_config.borderless) {
         window_flags |= SDL_WINDOW_BORDERLESS;
         LOG_INFO("Borderless window mode enabled");
@@ -333,7 +335,7 @@ void Application::update_stats() {
         m_fps_frame_count = 0;
         m_fps_timer = current_time;
 
-        LOG_DEBUG("FPS: {:.2f} (Average: {:.2f})", m_current_fps, m_average_fps);
+        // LOG_DEBUG("FPS: {:.2f} (Average: {:.2f})", m_current_fps, m_average_fps);
     }
 }
 

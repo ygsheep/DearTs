@@ -205,8 +205,25 @@ void SidebarView::draw_view_item(UI::View* view) {
 
     // 绘制选择项（只显示名称）
     if (ImGui::Selectable(item_id.c_str(), is_visible, flags, ImVec2(0, item_height))) {
-        // 切换视图可见性
-        view->get_window_open_state() = !view->get_window_open_state();
+        // 智能切换视图可见性
+        bool& window_open = view->get_window_open_state();
+
+        if (!window_open) {
+            // 窗口关闭 → 打开窗口
+            window_open = true;
+        } else {
+            // 窗口已打开 → 检查是否真正可见
+            // 如果窗口只是折叠（collapsed）或隐藏，我们需要展开它
+            // 简单的方法：关闭再打开，或者设置焦点
+
+            // 先尝试通过设置焦点来展开窗口
+            view->bring_to_front();
+
+            // 如果窗口仍然不可见（可能被折叠），则关闭它
+            // 这样用户下次点击就能重新打开
+            // 注意：这里需要延迟一帧来检查状态，但简化处理直接关闭
+            window_open = false;
+        }
     }
 
     // 在 Selectable 上面绘制内容

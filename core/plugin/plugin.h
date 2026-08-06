@@ -10,11 +10,21 @@
 #pragma once
 
 #include "core/result.h"
+#include "core/plugin/plugin_dependency.h"
 #include <string>
 #include <vector>
 #include <memory>
 #include <filesystem>
 #include <unordered_map>
+
+// 前向声明
+namespace DearTs::Core::Plugin {
+class DynamicLibraryLoader;
+
+// 依赖解析相关前向声明
+enum class DependencyResolutionMode;
+struct DependencyResolutionResult;
+}
 
 #ifdef _WIN32
     #define PLUGIN_EXPORT __declspec(dllexport)
@@ -43,6 +53,13 @@ struct PluginInfo {
 };
 
 /**
+ * @brief 插件列表刷新事件
+ * @details 当插件列表发生变化时发布此事件（用于自动刷新UI）
+ */
+struct PluginListRefreshEvent {
+    size_t total_count;           ///< 当前插件总数
+};
+/**
  * @brief 插件基类
  *
  * 所有插件都应该继承此类并实现相应的虚函数
@@ -55,6 +72,24 @@ public:
      * @brief 获取插件信息
      */
     [[nodiscard]] virtual PluginInfo get_info() const = 0;
+
+    /**
+     * @brief 获取插件依赖列表
+     * @details 声明此插件依赖的其他插件及其版本要求
+     * @return 依赖列表（默认为空，保证向后兼容）
+     *
+     * @example
+     * std::vector<PluginDependency> get_dependencies() const override {
+     *     return {
+     *         PluginDependency::required("Live2DPlugin", ">=1.0.0"),
+     *         PluginDependency::optional("FFmpegPlugin", "^2.1.0"),
+     *         PluginDependency::soft("AudioPlugin", "~1.2.0")
+     *     };
+     * }
+     */
+    [[nodiscard]] virtual std::vector<PluginDependency> get_dependencies() const {
+        return {};  // 默认：无依赖（向后兼容）
+    }
 
     /**
      * @brief 插件加载时调用
@@ -83,6 +118,33 @@ public:
 };
 
 /**
+ * @brief 插件创建函数类型
+ */
+using CreatePluginFunc = IPlugin* (*)();
+
+/**
+ * @brief 插件销毁函数类型
+ */
+using DestroyPluginFunc = void (*)(IPlugin*);
+
+/**
+ * @brief 插件删除器（用于 unique_ptr）
+ */
+struct PluginDeleter {
+    DestroyPluginFunc destroy_func = nullptr;
+
+    void operator()(IPlugin* plugin) const {
+        if (plugin) {
+            if (destroy_func) {
+                destroy_func(plugin);
+            } else {
+                delete plugin;
+            }
+        }
+    }
+};
+
+/**
  * @brief 插件状态
  */
 enum class PluginState {
@@ -98,8 +160,8 @@ enum class PluginState {
  */
 class PluginWrapper {
 public:
-    explicit PluginWrapper(std::unique_ptr<IPlugin> plugin);
-    ~PluginWrapper();
+    explicit PluginWrapper(std::unique_ptr<IPlugin, PluginDeleter> plugin);
+    virtual ~PluginWrapper();
 
     // 删除拷贝
     PluginWrapper(const PluginWrapper&) = delete;
@@ -132,7 +194,7 @@ public:
     /**
      * @brief 卸载插件
      */
-    void unload();
+    virtual void unload();
 
     /**
      * @brief 启用插件
@@ -144,10 +206,57 @@ public:
      */
     void disable();
 
-private:
-    std::unique_ptr<IPlugin> m_plugin;
+protected:
+    // 默认构造函数，供派生类使用
+    PluginWrapper() = default;
+
+    std::unique_ptr<IPlugin, PluginDeleter> m_plugin;
     PluginState m_state = PluginState::Unloaded;
     std::string m_error;
+};
+
+/**
+ * @brief 动态加载插件包装器
+ * @details 管理动态库插件的完整生命周期，包括动态库的加载和卸载
+ */
+class DynamicPluginWrapper : public PluginWrapper {
+public:
+    /**
+     * @brief 构造函数
+     * @param plugin 插件原始指针（使用自定义 deleter）
+     * @param destroy_func 插件销毁函数
+     * @param loader 动态库加载器
+     * @param source_path 插件源文件路径
+     */
+    DynamicPluginWrapper(
+        IPlugin* plugin,
+        DestroyPluginFunc destroy_func,
+        std::unique_ptr<DynamicLibraryLoader> loader,
+        std::string source_path
+    );
+
+    ~DynamicPluginWrapper() override;
+
+    // 禁止拷贝和移动
+    DynamicPluginWrapper(const DynamicPluginWrapper&) = delete;
+    DynamicPluginWrapper& operator=(const DynamicPluginWrapper&) = delete;
+    DynamicPluginWrapper(DynamicPluginWrapper&&) noexcept = delete;
+    DynamicPluginWrapper& operator=(DynamicPluginWrapper&&) noexcept = delete;
+
+    /**
+     * @brief 获取插件源路径
+     */
+    [[nodiscard]] const std::string& get_source_path() const { return m_source_path; }
+
+    /**
+     * @brief 卸载插件和动态库
+     */
+    void unload() override;
+
+private:
+    DestroyPluginFunc m_destroy_func;
+    std::unique_ptr<DynamicLibraryLoader> m_loader;
+    std::string m_source_path;
 };
 
 /**
@@ -155,12 +264,21 @@ private:
  *
  * 负责管理所有插件的生命周期
  */
-class PluginManager {
+class PluginManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static PluginManager& instance();
+    static PluginManager& instance() noexcept {
+        static PluginManager instance;
+        return instance;
+    }
+
+    // 删除所有拷贝和移动操作
+    PluginManager(const PluginManager&) = delete;
+    PluginManager& operator=(const PluginManager&) = delete;
+    PluginManager(PluginManager&&) = delete;
+    PluginManager& operator=(PluginManager&&) = delete;
 
     /**
      * @brief 从动态库加载插件
@@ -205,6 +323,47 @@ public:
     Result<void, std::string> disable(const std::string& name);
 
     /**
+     * @brief 初始化依赖配置 (NEW)
+     * @details 从 ConfigManager 读取依赖解析模式配置
+     * @note 应在应用初始化时调用，在使用 load_all_with_dependencies() 之前
+     *
+     * @example
+     * // 在应用启动时调用
+     * PluginManager::instance().initialize_dependency_config();
+     *
+     * // 配置文件 (config.json):
+     * // {
+     * //   "plugins": {
+     * //     "dependency_mode": "strict"  // 或 "lenient"
+     * //   }
+     * // }
+     */
+    void initialize_dependency_config();
+
+    /**
+     * @brief 设置依赖解析模式 (NEW)
+     * @param mode 宽松模式或严格模式
+     */
+    void set_dependency_mode(DependencyResolutionMode mode);
+
+    /**
+     * @brief 获取依赖解析模式 (NEW)
+     */
+    [[nodiscard]] DependencyResolutionMode get_dependency_mode() const;
+
+    /**
+     * @brief 获取最后一次依赖解析结果 (NEW)
+     */
+    [[nodiscard]] DependencyResolutionResult get_last_resolution_result() const;
+
+    /**
+     * @brief 解析并加载所有插件依赖 (NEW)
+     * @details 在添加所有插件后调用此方法，会按照依赖顺序加载插件
+     * @return 成功返回 void，失败返回错误信息（仅严格模式）
+     */
+    Result<void, std::string> load_all_with_dependencies();
+
+    /**
      * @brief 重载插件
      * @param name 插件名称
      * @return 成功返回 void，失败返回错误信息
@@ -231,6 +390,16 @@ public:
 
     /**
      * @brief 清空所有插件
+    /**
+     * @brief 检查插件是否为内置插件
+     * @param name 插件名称
+     * @return 如果是内置插件返回 true，否则返回 false
+     */
+    [[nodiscard]] bool is_plugin_builtin(const std::string& name) const;
+
+
+    /**
+     * @brief 清空所有插件
      */
     void clear();
 
@@ -238,24 +407,12 @@ private:
     PluginManager() = default;
     ~PluginManager() = default;
 
-    // 删除拷贝和移动
-    PluginManager(const PluginManager&) = delete;
-    PluginManager& operator=(const PluginManager&) = delete;
-    PluginManager(PluginManager&&) = delete;
-    PluginManager& operator=(PluginManager&&) = delete;
-
     std::unordered_map<std::string, std::unique_ptr<PluginWrapper>> m_plugins;
+
+    // 依赖解析相关成员 (NEW)
+    // 使用 int 避免前向声明问题 (0 = Lenient, 1 = Strict)
+    int m_dependency_mode = 0;  // 0 = Lenient, 1 = Strict
 };
-
-/**
- * @brief 插件创建函数类型
- */
-using CreatePluginFunc = IPlugin* (*)();
-
-/**
- * @brief 插件销毁函数类型
- */
-using DestroyPluginFunc = void (*)(IPlugin*);
 
 } // namespace DearTs::Core::Plugin
 

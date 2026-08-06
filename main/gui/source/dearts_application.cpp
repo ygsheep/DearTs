@@ -8,16 +8,26 @@
 #include "toast_plugin.hpp"
 #include "builtin_plugin.hpp"
 #include "command_palette_plugin.hpp"
+#include "clipboard_parser_plugin.hpp"
+#include "wuthering_waves/wuthering_waves_plugin.hpp"
 #include "core/content/callbacks.h"
 #include "core/content/commands.h"
+#include "core/event/event_bus.h"
+#include "core/ui/scale_manager.h"
 #include "liblogger/logger.h"
 #include "logger_viewer_plugin.hpp"
 #include "navigation_plugin.hpp"
 #include "settings_plugin.hpp"
+
+// FFmpeg Plugin (仅在 FFmpeg 支持时包含)
+#if DEARTS_FFMPEG_SUPPORT
+#include "ffmpeg_plugin.hpp"
+#endif
 #include <SDL3/SDL.h>
 #include <chrono>
 #include <format>
 #include <imgui.h>
+#include <imgui_internal.h>  // 用于 DockBuilder API
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_sdlrenderer3.h>
 #include <implot.h>
@@ -31,7 +41,16 @@ bool DearTsApplication::on_init() {
     // 1. 设置配置管理器（必须在 setup_imgui 之前，以便加载字体配置）
     setup_config();
 
-    // 2. 设置 ImGui（会从 ConfigManager 读取字体大小）
+    // 2. 初始化缩放管理器（必须在 setup_imgui 之前）
+    auto& scale_manager = Core::UI::ScaleManager::instance();
+    auto scale_result = scale_manager.initialize(m_window);
+    if (scale_result.isErr()) {
+        LOG_WARN("Failed to initialize ScaleManager: {}", scale_result.error());
+    } else {
+        LOG_INFO("ScaleManager initialized: scale={:.2f}", scale_manager.get_scale());
+    }
+
+    // 3. 设置 ImGui（会从 ConfigManager 读取字体大小，现在会应用缩放）
     if (!setup_imgui()) {
         LOG_ERROR("Failed to setup ImGui");
         return false;
@@ -57,7 +76,7 @@ bool DearTsApplication::on_init() {
     Core::UI::WindowControls::set_current_window(m_window);
 
     // 添加标题栏按钮
-    m_title_bar.add_button("⚙", "设置", [this]() {
+    m_title_bar.add_button(ICON_SETTINGS, "设置", [&]() {
         LOG_INFO("Settings button clicked");
         // 切换设置窗口
         auto* settings_view = Core::ContentRegistry::Views::get_by_name(
@@ -72,23 +91,133 @@ bool DearTsApplication::on_init() {
         }
     }, ImVec4(0.3f, 0.6f, 0.9f, 1.0f));
 
-    m_title_bar.add_button("ℹ", "关于", [this]() {
+    m_title_bar.add_button(ICON_INFO, "关于", [&]() {
         LOG_INFO("About button clicked");
         m_show_about_window = !m_show_about_window;
     }, ImVec4(0.4f, 0.7f, 1.0f, 1.0f));
+
+    // 9. 设置背景和角色渲染器
+    LOG_INFO("Loading background and character renderers...");
+
+    // 设置 renderer 到渲染器单例
+    Core::UI::BackgroundRenderer::instance().set_renderer(m_renderer);
+    Core::UI::CharacterRenderer::instance().set_renderer(m_renderer);
+
+    // 从 ConfigManager 加载角色配置
+    load_character_config();
 
     LOG_INFO("DearTsApplication initialized successfully");
     return true;
 }
 
+void DearTsApplication::load_character_config() {
+    auto& config = Core::Config::ConfigManager::instance();
+    auto& character_renderer = Core::UI::CharacterRenderer::instance();
+    auto& character_manager = Core::UI::CharacterManager::instance();
+
+    // 加载默认角色列表
+    character_manager.load_default_characters();
+    const auto& characters = character_manager.get_characters();
+
+    if (characters.empty()) {
+        LOG_WARN("No characters loaded");
+        return;
+    }
+
+    // 尝试从 config 加载活动角色 ID
+    auto active_id_result = config.get<std::string>("character.active_id");
+    bool character_loaded = false;
+
+    if (active_id_result.isOk()) {
+        std::string active_id = active_id_result.unwrap();
+        if (!active_id.empty() && character_manager.set_active_character(active_id)) {
+            const Core::UI::CharacterInfo* character = character_manager.get_active_character();
+            if (character) {
+                // 释放旧角色
+                character_renderer.clear();
+
+                // 加载保存的角色
+                if (character->type == Core::UI::CharacterType::Single) {
+                    std::vector<std::string> paths = {character->image_path};
+                    if (character_renderer.load_character_frames(paths)) {
+                        character_renderer.set_enabled(true);
+                        LOG_INFO("Loaded character from config: {} (Single)", character->name);
+                        character_loaded = true;
+                    }
+                } else if (character->type == Core::UI::CharacterType::Animated) {
+                    if (character_renderer.load_character_frames(character->frame_paths)) {
+                        character_renderer.set_enabled(true);
+                        LOG_INFO("Loaded character from config: {} (Animated)", character->name);
+                        character_loaded = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 如果没有加载到角色（首次运行或配置无效），加载第一个角色作为默认
+    if (!character_loaded) {
+        const auto& first_character = characters[0];
+        character_manager.set_active_character(first_character.id);
+        character_renderer.clear();
+
+        if (first_character.type == Core::UI::CharacterType::Single) {
+            std::vector<std::string> paths = {first_character.image_path};
+            if (character_renderer.load_character_frames(paths)) {
+                character_renderer.set_enabled(true);
+                character_renderer.set_position(Core::UI::CharacterPosition::BottomRight);
+                character_renderer.set_scale(first_character.scale);
+                character_renderer.set_opacity(first_character.opacity);
+                character_renderer.set_animation_mode(Core::UI::AnimationMode::None);
+                LOG_INFO("Loaded default character: {} (Single)", first_character.name);
+            }
+        } else if (first_character.type == Core::UI::CharacterType::Animated) {
+            if (character_renderer.load_character_frames(first_character.frame_paths)) {
+                character_renderer.set_enabled(true);
+                character_renderer.set_position(Core::UI::CharacterPosition::BottomRight);
+                character_renderer.set_scale(first_character.scale);
+                character_renderer.set_opacity(first_character.opacity);
+                character_renderer.set_animation_mode(Core::UI::AnimationMode::FrameLoop);
+                character_renderer.set_frame_interval(first_character.frame_interval);
+                LOG_INFO("Loaded default character: {} (Animated)", first_character.name);
+            }
+        }
+    }
+
+    // 加载并应用角色配置（覆盖上面设置的默认值）
+    int position_index = config.get_or<int>("character.position", 0);
+    character_renderer.set_position(static_cast<Core::UI::CharacterPosition>(position_index));
+
+    float scale = static_cast<float>(config.get_or<double>("character.scale", 0.5));
+    character_renderer.set_scale(scale);
+
+    float opacity = static_cast<float>(config.get_or<double>("character.opacity", 0.3));
+    character_renderer.set_opacity(opacity);
+
+    int animation_mode = config.get_or<int>("character.animation_mode", 1);
+    character_renderer.set_animation_mode(static_cast<Core::UI::AnimationMode>(animation_mode));
+
+    float frame_interval = static_cast<float>(config.get_or<double>("character.frame_interval", 0.5));
+    character_renderer.set_frame_interval(frame_interval);
+
+    LOG_INFO("Character settings loaded from config: scale={:.2f}, opacity={:.2f}, position={}",
+             scale, opacity, position_index);
+}
+
 void DearTsApplication::on_update(double delta_time) {
     m_current_fps = 1.0 / delta_time;
+
+    // 处理异步事件（必须在任务管理器更新之前）
+    Core::Event::EventBus::instance().process_async_events();
 
     // 更新任务管理器
     Core::Tasks::TaskManager::instance().update();
 
     // 更新 ToastManager
     DearTs::Plugins::Toast::ToastManager::instance().update(static_cast<float>(delta_time));
+
+    // 更新角色动画
+    Core::UI::CharacterRenderer::instance().update(delta_time);
 
     // 更新逻辑
     static double total_time = 0.0;
@@ -97,8 +226,8 @@ void DearTsApplication::on_update(double delta_time) {
     // 每5秒打印一次统计信息
     if (static_cast<int>(total_time) % 5 == 0 &&
         static_cast<int>(total_time) > m_last_log_time) {
-        LOG_INFO("Running for {:.1f} seconds, FPS: {:.2f}",
-                 total_time, m_current_fps);
+        // LOG_INFO("Running for {:.1f} seconds, FPS: {:.2f}",
+                 // total_time, m_current_fps);
         m_last_log_time = static_cast<int>(total_time);
     }
 }
@@ -110,35 +239,42 @@ void DearTsApplication::on_render() {
         SDL_RenderClear(m_renderer);
     }
 
-    // 2. ImGui NewFrame
+    // 2. 渲染背景（在 ImGui 之前）
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    Core::UI::BackgroundRenderer::instance().render(m_renderer, viewport->Size);
+
+    // 3. ImGui NewFrame
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 
-    // 3. 处理快捷键（CommandPalette快捷键由插件系统处理）
+    // 4. 处理快捷键（CommandPalette快捷键由插件系统处理）
     Core::UI::ShortcutManager::instance().handleShortcuts();
 
-    // 4. 渲染自定义标题栏（返回标题栏高度）
+    // 5. 渲染自定义标题栏（返回标题栏高度）
     float title_bar_height = render_title_bar();
 
-    // 5. 创建和渲染 DockSpace
+    // 6. 创建和渲染 DockSpace
     render_dock_space(title_bar_height);
 
-    // 6. 渲染所有视图
+    // 7. 渲染所有视图
     render_views();
 
-    // 7. 渲染其他组件
+    // 8. 渲染其他组件
     // render_menu_bar(); // 菜单已在 render_title_bar() 中绘制
     render_main_window();
     render_tool_windows();
 
-    // 8. 渲染 Toast 通知
+    // 9. 渲染 Toast 通知
     DearTs::Plugins::Toast::ToastManager::instance().render();
 
-    // 9. 渲染 ImGui
+    // 10. 渲染 ImGui
     ImGui::Render();
     ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), m_renderer);
 
-    // 10. 多视口支持
+    // 11. 渲染角色（在 ImGui 之后，确保在最上层）
+    Core::UI::CharacterRenderer::instance().render();
+
+    // 12. 多视口支持
     if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
         ImGui::UpdatePlatformWindows();
         ImGui::RenderPlatformWindowsDefault();
@@ -195,7 +331,6 @@ void DearTsApplication::on_shutdown() {
     // 保存配置文件
     Core::Config::ConfigManager::instance().save_to_file("config.json");
 
-    // 清理资源
     // CommandPalette 现在由插件系统管理，无需手动清理
 
     // 卸载所有插件
@@ -243,10 +378,14 @@ bool DearTsApplication::setup_imgui() {
     font_config.OversampleV = 2;
     font_config.PixelSnapH = true;
 
-    // 从配置读取字体大小
+    // 从配置读取字体大小（基础大小，不包含缩放）
     auto& config = Core::Config::ConfigManager::instance();
-    float font_size = static_cast<float>(config.get_or<double>("dearts.font.size", 16.0));
-    LOG_INFO("字体大小配置: {:.1f}px", font_size);
+    float base_font_size = static_cast<float>(config.get_or<double>("dearts.font.size", 16.0));
+
+    // 应用 ScaleManager 的缩放比例到字体大小
+    float scale = Core::UI::ScaleManager::instance().get_scale();
+    float font_size = base_font_size * scale;
+    LOG_INFO("字体大小: {:.1f}px (基础: {:.1f}px x 缩放: {:.2f})", font_size, base_font_size, scale);
 
     // 尝试加载字体（按优先级）
     static const char* font_paths[] = {
@@ -274,9 +413,53 @@ bool DearTsApplication::setup_imgui() {
             LOG_INFO("成功加载中文字体: {} (大小: {:.1f}px)", font_path, font_size);
             font_loaded = true;
 
-            // 添加更大的字体用于标题（1.5倍大小）
+            // 将图标字体合并到主字体中
+            // Material Symbols 图标范围：U+E000–U+E8FF
+            static const ImWchar MaterialSymbolsRanges[] = {
+                0xE000, 0xE8FF, // Material Symbols Outlined
+                0,
+            };
+
+            // 配置图标字体合并
+            ImFontConfig icon_config;
+            icon_config.MergeMode = true;  // 关键：启用合并模式
+            icon_config.PixelSnapH = true;
+            icon_config.OversampleH = 2;
+            icon_config.OversampleV = 2;
+
+            // 尝试多个可能的图标字体路径
+            const char* icon_font_paths[] = {
+                "resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf",
+                "../resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf",
+                "../../resources/fonts/MaterialSymbolsRounded-VariableFont_FILL,GRAD,opsz,wght.ttf",
+            };
+
+            bool icon_merged = false;
+            for (const char* icon_path : icon_font_paths) {
+                if (io.Fonts->AddFontFromFileTTF(icon_path, font_size, &icon_config, MaterialSymbolsRanges) != nullptr) {
+                    LOG_INFO("成功合并图标字体到主字体: {}", icon_path);
+                    icon_merged = true;
+                    break;
+                }
+            }
+
+            if (!icon_merged) {
+                LOG_WARN("图标字体合并失败，图标可能无法在中文文本中显示");
+            }
+
+            // 添加更大的字体用于标题（1.5倍大小），同样合并图标字体
             font_config.MergeMode = false; // 不合并，创建独立的字体
-            io.Fonts->AddFontFromFileTTF(font_path, font_size * 1.5f, &font_config, io.Fonts->GetGlyphRangesChineseFull());
+            ImFont* title_font = io.Fonts->AddFontFromFileTTF(font_path, font_size * 1.5f, &font_config, io.Fonts->GetGlyphRangesChineseFull());
+            if (title_font != nullptr) {
+                // 将图标字体也合并到标题字体中
+                icon_config.MergeMode = true;
+                for (const char* icon_path : icon_font_paths) {
+                    if (io.Fonts->AddFontFromFileTTF(icon_path, font_size * 1.5f, &icon_config, MaterialSymbolsRanges) != nullptr) {
+                        LOG_INFO("成功合并图标字体到标题字体");
+                        break;
+                    }
+                }
+            }
             break;
         } else {
             LOG_DEBUG("尝试加载字体失败: {}", font_path);
@@ -289,12 +472,12 @@ bool DearTsApplication::setup_imgui() {
         io.Fonts->AddFontDefault();
     }
 
-    // 加载图标字体（Material Symbols）
-    LOG_INFO("正在加载图标字体...");
+    // 加载独立的图标字体（用于只有图标的情况）
+    LOG_INFO("正在加载独立图标字体...");
     if (Core::UI::IconFont::loadMaterialSymbols(18.0f)) {
-        LOG_INFO("成功加载 Material Symbols 图标字体");
+        LOG_INFO("成功加载 Material Symbols 独立图标字体");
     } else {
-        LOG_WARN("图标字体加载失败，部分图标可能显示为 ???");
+        LOG_WARN("独立图标字体加载失败，部分图标可能显示为 ???");
         LOG_INFO("提示：运行 download_icon_font.bat 下载图标字体");
     }
 
@@ -422,7 +605,27 @@ void DearTsApplication::setup_commands_and_tools() {
         }
     });
 
+    // ============ 插件管理命令 ============
+    // 重新扫描插件目录
+    Commands::add("plugins.rescan", "重新扫描插件目录", []() {
+        auto& pm = Core::Plugin::PluginManager::instance();
+        auto& config = Core::Config::ConfigManager::instance();
+
+        std::string plugin_dir = config.get_or<std::string>("plugins.directory", "plugins");
+        LOG_INFO("Rescanning plugins in: {}", plugin_dir);
+
+        auto result = pm.load_from_directory(plugin_dir);
+
+        if (result.isOk()) {
+            size_t count = result.unwrap();
+            LOG_INFO("Rescan complete: {} new plugins loaded", count);
+        } else {
+            LOG_ERROR("Rescan failed: {}", result.error());
+        }
+    });
+
     LOG_INFO("视图切换命令已注册");
+    LOG_INFO("插件管理命令已注册");
 }
 
 void DearTsApplication::setup_shortcuts() {
@@ -481,6 +684,10 @@ void DearTsApplication::setup_views() {
 
 void DearTsApplication::setup_plugins() {
     auto& plugin_manager = Core::Plugin::PluginManager::instance();
+    auto& config = Core::Config::ConfigManager::instance();
+
+    // ============ Phase 1: 加载内置插件 ============
+    LOG_INFO("Loading builtin plugins...");
 
     // 添加内置插件
     auto builtin_plugin = std::make_unique<DearTs::Plugins::Builtin::BuiltinPlugin>();
@@ -542,13 +749,62 @@ void DearTsApplication::setup_plugins() {
         LOG_INFO("CommandPalettePlugin loaded successfully");
     }
 
-    // 获取插件信息
-    auto plugin_infos = plugin_manager.get_all_plugins_info();
-    LOG_INFO("Plugin system initialized");
-    LOG_INFO("Built-in plugins: {}", plugin_infos.size());
+    // 添加剪切板解析插件
+    auto clipboard_parser_plugin = std::make_unique<DearTs::Plugins::ClipboardParser::ClipboardParserPlugin>();
+    result = plugin_manager.add_builtin(std::move(clipboard_parser_plugin));
 
-    // 可以从目录加载插件
-    // plugin_manager.load_from_directory("plugins");
+    if (result.isErr()) {
+        LOG_ERROR("Failed to load ClipboardParserPlugin: {}", result.error());
+    } else {
+        LOG_INFO("ClipboardParserPlugin loaded successfully");
+    }
+
+    // 添加鸣潮抽卡记录插件
+    auto wuthering_waves_plugin = std::make_unique<DearTs::Plugins::WutheringWaves::WutheringWavesPlugin>();
+    result = plugin_manager.add_builtin(std::move(wuthering_waves_plugin));
+
+    if (result.isErr()) {
+        LOG_ERROR("Failed to load WutheringWavesPlugin: {}", result.error());
+    } else {
+        LOG_INFO("WutheringWavesPlugin loaded successfully");
+    }
+
+#if DEARTS_FFMPEG_SUPPORT
+    // 添加 FFmpeg 插件
+    auto ffmpeg_plugin = std::make_unique<DearTs::Plugins::FFmpeg::FFmpegPlugin>();
+    result = plugin_manager.add_builtin(std::move(ffmpeg_plugin));
+
+    if (result.isErr()) {
+        LOG_ERROR("Failed to load FFmpegPlugin: {}", result.error());
+    } else {
+        LOG_INFO("FFmpegPlugin loaded successfully");
+    }
+#endif
+
+    // ============ Phase 2: 自动发现外部插件 ============
+    bool auto_load_enabled = config.get_or<bool>("plugins.auto_load", true);
+
+    if (auto_load_enabled) {
+        // 从配置读取插件目录（默认：plugins/）
+        std::string plugin_dir = config.get_or<std::string>("plugins.directory", "plugins");
+
+        LOG_INFO("Auto-discovering plugins in: {}", plugin_dir);
+
+        auto discovery_result = plugin_manager.load_from_directory(plugin_dir);
+
+        if (discovery_result.isOk()) {
+            size_t count = discovery_result.unwrap();
+            LOG_INFO("Auto-discovered {} external plugins", count);
+        } else {
+            LOG_WARN("Plugin auto-discovery failed: {}", discovery_result.error());
+        }
+    } else {
+        LOG_INFO("Plugin auto-load disabled by configuration");
+    }
+
+    // ============ Phase 3: 统计信息 ============
+    auto plugin_infos = plugin_manager.get_all_plugins_info();
+    LOG_INFO("Plugin system initialized: {} total plugins", plugin_infos.size());
 }
 
 void DearTsApplication::render_menu_bar() {
@@ -659,15 +915,188 @@ void DearTsApplication::render_tool_windows() {
 
     // 关于窗口
     if (m_show_about_window) {
-        ImGui::Begin("关于", &m_show_about_window);
-        ImGui::Text("DearTs 工具箱");
-        ImGui::Separator();
-        ImGui::Text("版本: 1.0.0");
-        ImGui::Text("基于 DearTs 框架");
-        ImGui::Text("ImGui 版本: {}", ImGui::GetVersion());
-        ImGui::Separator();
-        ImGui::Text("作者: DearTs Team");
+        // 计算居中位置
+        ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImVec2 viewport_size = viewport->WorkSize;
+        ImVec2 viewport_pos = viewport->WorkPos;
+
+        // 窗口大小
+        ImVec2 window_size(650, 600);
+        ImVec2 window_pos(
+            viewport_pos.x + (viewport_size.x - window_size.x) * 0.5f,
+            viewport_pos.y + (viewport_size.y - window_size.y) * 0.5f
+        );
+
+        // 设置背景遮罩 - 渲染半透明背景
+        ImGui::SetNextWindowPos(viewport_pos);
+        ImGui::SetNextWindowSize(viewport_size);
+        ImGui::SetNextWindowViewport(viewport->ID);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0.5f));
+
+        ImGuiWindowFlags bg_flags = ImGuiWindowFlags_NoTitleBar |
+                                   ImGuiWindowFlags_NoResize |
+                                   ImGuiWindowFlags_NoMove |
+                                   ImGuiWindowFlags_NoScrollbar |
+                                   ImGuiWindowFlags_NoScrollWithMouse |
+                                   ImGuiWindowFlags_NoCollapse |
+                                   ImGuiWindowFlags_NoDocking;
+
+        // 背景遮罩层
+        if (ImGui::Begin("AboutWindow_Bg", nullptr, bg_flags)) {
+            // 点击遮罩层关闭窗口
+            if (ImGui::IsMouseClicked(0) && ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)) {
+                m_show_about_window = false;
+            }
+        }
         ImGui::End();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+
+        // 设置主窗口位置
+        ImGui::SetNextWindowPos(window_pos);
+        ImGui::SetNextWindowSize(window_size);
+        ImGui::SetNextWindowViewport(viewport->ID);
+
+        // 主窗口样式
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar |
+                                      ImGuiWindowFlags_NoResize |
+                                      ImGuiWindowFlags_NoMove |
+                                      ImGuiWindowFlags_NoCollapse |
+                                      ImGuiWindowFlags_NoDocking;
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(30, 30));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.15f, 0.15f, 0.15f, 0.98f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.4f, 0.4f, 0.4f, 1.0f));
+
+        if (ImGui::Begin("AboutWindow", &m_show_about_window, window_flags)) {
+            // 标题
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+            float title_width = ImGui::CalcTextSize("DearTs 工具箱").x;
+            ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - title_width) * 0.5f);
+            ImGui::Text("DearTs 工具箱");
+            ImGui::PopStyleColor();
+
+            ImGui::Spacing();
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
+            float version_width = ImGui::CalcTextSize("版本 1.0.0").x;
+            ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - version_width) * 0.5f);
+            ImGui::Text("版本 1.0.0");
+            ImGui::PopStyleColor();
+
+            ImGui::Spacing();
+            ImGui::TextDisabled("基于 DearTs Framework");
+            ImGui::Spacing();
+
+            // 分隔线
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            // 第三方库列表（可滚动）
+            ImGui::Text("  第三方库");
+            ImGui::Spacing();
+
+            // 辅助函数：绘制可点击的URL
+            auto clickable_url = [](const char* label, const char* url) {
+                ImGui::TextDisabled("%s", label);
+                ImGui::SameLine(0, 20);
+
+                ImVec2 p = ImGui::GetCursorScreenPos();
+                ImVec2 size = ImGui::CalcTextSize(url);
+
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 0.6f, 1.0f, 1.0f));
+                ImGui::Text("%s", url);
+                ImGui::PopStyleColor();
+
+                ImGuiID id = ImGui::GetID(url);
+
+                bool hovered = ImGui::IsItemHovered();
+                if (hovered) {
+                    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.8f, 1.0f, 1.0f));
+                    ImGui::Text(url);
+                    ImGui::PopStyleColor();
+                    // Underline
+                    ImVec2 min = p;
+                    ImVec2 max = ImVec2(p.x + size.x, p.y + size.y + 2);
+                    ImGui::GetWindowDrawList()->AddLine(
+                        ImVec2(min.x, min.y + 1),
+                        ImVec2(max.x, max.y - 2),
+                        ImGui::GetColorU32(ImGuiCol_Text),
+                        1.0f
+                    );
+                }
+
+                if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                    SDL_OpenURL(url);
+                }
+            };
+
+            if (ImGui::BeginChild("ThirdPartyLibs", ImVec2(0, 350), ImGuiChildFlags_Borders)) {
+                // 核心库
+                ImGui::Spacing();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+                ImGui::TextDisabled("【核心框架】");
+                ImGui::PopStyleColor();
+                clickable_url("SDL3 - 多媒体平台抽象层", "https://github.com/libsdl-org/SDL");
+                clickable_url("ImGui - 即时模式图形用户界面", "https://github.com/ocornut/imgui");
+                clickable_url("ImPlot - ImGui 绘图库", "https://github.com/epezent/implot");
+                ImGui::Spacing();
+
+                // 渲染相关
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+                ImGui::TextDisabled("【渲染与图形】");
+                ImGui::PopStyleColor();
+                clickable_url("FreeType - 字体渲染引擎", "https://freetype.org");
+                clickable_url("LunaSVG - SVG 渲染库", "https://github.com/sammycage/lunasvg");
+                ImGui::Spacing();
+
+                // 数据处理
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+                ImGui::TextDisabled("【数据处理】");
+                ImGui::PopStyleColor();
+                clickable_url("nlohmann/json - JSON 解析库", "https://github.com/nlohmann/json");
+                clickable_url("cppjieba - 中文分词库", "https://github.com/yanyiwu/cppjieba");
+                ImGui::Spacing();
+
+                // 特殊功能
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+                ImGui::TextDisabled("【特殊功能】");
+                ImGui::PopStyleColor();
+                clickable_url("ImGui Test Engine - UI 测试框架", "https://github.com/ocornut/imgui_test_engine");
+                clickable_url("ImGui Node Editor - 节点编辑器", "https://github.com/thedmd/imgui-node-editor");
+                clickable_url("ImGui Markdown - Markdown 渲染", "https://github.com/juliettef/imgui_markdown");
+                ImGui::Spacing();
+
+                // 开发工具
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
+                ImGui::TextDisabled("【开发工具】");
+                ImGui::PopStyleColor();
+                clickable_url("Google Test - 单元测试框架", "https://github.com/google/googletest");
+
+                ImGui::EndChild();
+            }
+
+            // 底部按钮
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::Spacing();
+
+            float button_width = 120;
+            ImGui::SetCursorPosX((ImGui::GetContentRegionAvail().x - button_width) * 0.5f);
+
+            if (ImGui::Button("关闭", ImVec2(button_width, 40))) {
+                m_show_about_window = false;
+            }
+
+            ImGui::End();
+
+            ImGui::PopStyleColor(2);
+            ImGui::PopStyleVar(2);
+        } else {
+            ImGui::PopStyleColor(2);
+            ImGui::PopStyleVar(2);
+        }
     }
 
     // 任务和插件管理窗口
@@ -810,7 +1239,7 @@ float DearTsApplication::render_title_bar() {
             m_show_about_window = !m_show_about_window;
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("关于");
+            // ImGui::SetTooltip("关于");
         }
 
         // 最小化按钮
@@ -821,7 +1250,7 @@ float DearTsApplication::render_title_bar() {
             }
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("最小化");
+            // ImGui::SetTooltip("最小化");
         }
 
         // 最大化/还原按钮
@@ -841,7 +1270,7 @@ float DearTsApplication::render_title_bar() {
             }
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip(m_is_maximized ? "向下还原" : "最大化");
+            // ImGui::SetTooltip(m_is_maximized ? "恢復" : "最大化");
         }
 
         // 关闭按钮
@@ -850,7 +1279,7 @@ float DearTsApplication::render_title_bar() {
             this->request_exit(0);
         }
         if (ImGui::IsItemHovered()) {
-            ImGui::SetTooltip("关闭");
+            // ImGui::SetTooltip("关闭");
         }
 
         // 恢复原来的字体
@@ -892,6 +1321,9 @@ void DearTsApplication::render_dock_space(float title_bar_height) {
     ImGui::Begin("DockSpace", nullptr, window_flags);
     ImGui::PopStyleVar(3);
 
+    // 设置默认停靠布局（仅在第一次运行时）
+    setup_default_dock_layout();
+
     ImGui::DockSpace(ImGui::GetID("MainDockSpace"));
     ImGui::End();
 }
@@ -906,6 +1338,46 @@ void DearTsApplication::render_views() {
             view->draw();
         }
     }
+}
+
+void DearTsApplication::setup_default_dock_layout() {
+    // 检查是否已经设置过停靠布局
+    if (m_dock_layout_initialized) {
+        return;
+    }
+
+    // 获取主 DockSpace ID
+    ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+
+    // 获取当前窗口大小（用于计算合理的 SizeRef）
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    float width = viewport->Size.x;   // 窗口宽度
+    float height = viewport->Size.y;  // 窗口高度（已减去标题栏）
+
+    // 使用 DockBuilder 构建默认停靠布局
+    ImGui::DockBuilderRemoveNode(dockspace_id);  // 清除现有布局
+    ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);  // 根节点
+
+    ImGuiID dock_main_id = dockspace_id;
+    ImGuiID dock_left_id, dock_center_id;
+
+    // 分割：左(侧边栏 25%) - 右(主区域 75%)
+    dock_left_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.25f, nullptr, &dock_center_id);
+
+    // 设置节点大小（确保节点不会被压缩到最小尺寸）
+    ImGui::DockBuilderSetNodeSize(dock_left_id, ImVec2(width * 0.25f, height));
+    ImGui::DockBuilderSetNodeSize(dock_center_id, ImVec2(width * 0.75f, height));
+
+    // 停靠窗口到对应的节点
+    // 使用 ContentRegistry 中的视图名称
+    ImGui::DockBuilderDockWindow("侧边栏", dock_left_id);
+    // 其他视图停靠到主区域（用户可以自由调整）
+
+    // 完成构建
+    ImGui::DockBuilderFinish(dockspace_id);
+
+    m_dock_layout_initialized = true;
+    LOG_INFO("Default dock layout configured: 侧边栏 (25%) | 主区域 (75%)");
 }
 
 } // namespace DearTs::Main::GUI

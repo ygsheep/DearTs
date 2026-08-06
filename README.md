@@ -217,6 +217,13 @@ DearTs 使用 **Git Submodules** 管理第三方依赖，确保版本可控和�
 | cppjieba | C++ 中文分词 | [yanyiwu/cppjieba](https://github.com/yanyiwu/cppjieba.git) |
 | llama.cpp | LLM 推理引擎 | [ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp.git) |
 
+### 代码检查
+
+```shell
+cppcheck --enable=all --std=c++23 --suppress=missingInclude --inconclusive -i third_party -i build -i cmake -i docs -i examples -i scripts   -j 4 src/ core/ main/ plugins/ resources/ tests/ lib/ 2> cppcheck_report.txt
+
+cppcheck --enable=all --suppress=missingInclude ...
+```
 ---
 
 ## 🚀 快速开始
@@ -237,15 +244,19 @@ cd DearTs
 # 如果忘记 --recursive，手动初始化子模块
 git submodule update --init --recursive
 
-# 2. 配置项目（Release 模式）
+# 2.1 配置项目（Release 模式）
 cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+# 2.2 Debug 模式
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
 
 # 3. 构建
 cmake --build build --config Release
+# 
 
 # 4. 运行
-./build/bin/DearTsApp.exe        # Windows
-./build/bin/DearTsApp            # Linux/macOS
+./build/bin/DearTs.exe        # Windows
+./build/bin/DearTs            # Linux/macOS
 ```
 
 ### 运行测试
@@ -259,6 +270,89 @@ ctest --test-dir build --verbose
 ./build/bin/dearts_integration_tests # 集成测试
 ./build/bin/dearts_ui_tests          # UI 自动化测试
 ```
+
+---
+
+## 📦 作为库使用（外部项目集成）
+
+DearTs 框架核心 + 内置插件会编译为 **`dearts` 静态库**，外部项目可以直接通过 CMake 导入使用，无需拷贝源码。
+
+### 方式一：find_package（推荐，安装后使用）
+
+```bash
+# 1. 在 DearTs 仓库内安装框架到指定前缀（例如 D:/DearTsSDK）
+cmake --install build --config Release --prefix D:/DearTsSDK
+```
+
+外部项目的 `CMakeLists.txt`：
+
+```cmake
+cmake_minimum_required(VERSION 3.20)
+project(MyApp LANGUAGES CXX)
+
+find_package(dearts 1.0 REQUIRED)
+
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE DearTs::dearts)
+```
+
+```bash
+# 2. 构建外部项目（通过 CMAKE_PREFIX_PATH 指向安装前缀）
+cmake -B build -DCMAKE_PREFIX_PATH=D:/DearTsSDK
+cmake --build build --config Release
+```
+
+`main.cpp` 直接使用框架核心 API：
+
+```cpp
+#include "core/event/event_bus.h"
+#include "core/config/config_manager.h"
+#include "logger.h"
+
+using namespace DearTs;
+using namespace DearTs::Core::Event;
+
+struct HelloEvent {
+    std::string message;
+};
+
+int main() {
+    // Logger
+    LOG_INFO("MyApp: started");
+
+    // EventBus 发布/订阅（RAII 自动取消订阅）
+    EventToken token = EventBus::instance().subscribe<HelloEvent>(
+        [](const HelloEvent& e) { LOG_INFO("MyApp: {}", e.message); }
+    );
+    EventBus::instance().publish(HelloEvent{"hello from my app"});
+
+    // ConfigManager 读写
+    ConfigManager::instance().set("app.counter", 42);
+    int counter = ConfigManager::instance().get<int>("app.counter").unwrap_or(-1);
+    return 0;
+}
+```
+
+> **注意**：运行时可执行文件目录下需要 `SDL3.dll`（位于安装前缀的 `bin/` 目录），
+> 或确保其路径在 `PATH` 环境变量中。
+
+### 方式二：add_subdirectory（源码集成，随 DearTs 仓库构建）
+
+```cmake
+cmake_minimum_required(VERSION 3.20)
+project(MyApp LANGUAGES CXX)
+
+# 将 DearTs 仓库放入子目录（或使用 FetchContent）
+add_subdirectory(DearTs)
+
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE dearts)
+```
+
+### 可运行的参考示例
+
+仓库内 `examples/dearts_minimal/` 是一个完整的最小示例
+（`find_package(dearts)` + Logger + EventBus + ConfigManager），可以直接对照使用。
 
 ---
 

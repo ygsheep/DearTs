@@ -114,9 +114,37 @@ inline std::string extract_filename(const char* path) noexcept {
  * logger.info("Application started");
  * @endcode
  */
-class Logger {
+class Logger final {  // 单例类，禁止继承
+    // 技巧：定义一个简单的结构体，并在构造函数中使用它
+    struct Token { explicit Token() = default; }; // 定义在私有区
 public:
-    // 删除所有复制和移动操作
+    explicit Logger(Token /*unused*/)
+    : m_level(static_cast<int>(LogLevel::INFO)),
+      m_file_enabled(false),
+      m_writer_running(false),
+      m_buffer_size(4096),
+      m_duplicate_window_ms(DEFAULT_DUPLICATE_WINDOW_MS) {
+    }
+    /**
+     * @brief 析构函数
+     */
+    ~Logger() {
+        // 停止写入线程
+        if (m_writer_thread.joinable()) {
+            m_writer_running.store(false, std::memory_order_relaxed);
+            m_queue_cv.notify_all();
+            m_writer_thread.detach();  // 使用 detach 避免阻塞
+        }
+
+        // 关闭文件流
+        {
+            std::lock_guard<std::mutex> file_lock(m_file_mutex);
+            if (m_file_stream.is_open()) {
+                m_file_stream.flush();
+                m_file_stream.close();
+            }
+        }
+    }
     Logger(const Logger&) = delete;
     Logger& operator=(const Logger&) = delete;
     Logger(Logger&&) = delete;
@@ -126,8 +154,11 @@ public:
      * @brief 获取Logger单例实例
      * @return Logger引用
      */
-    static Logger& get_instance() noexcept {
-        static Logger instance;
+    static std::shared_ptr<Logger> get_instance() noexcept {
+        std::call_once(initFlag, []() {
+            // 使用 new 初始化 unique_ptr
+            instance = std::make_shared<Logger>(Token{});
+        });
         return instance;
     }
 
@@ -232,16 +263,8 @@ public:
         log(LogLevel::FATAL, msg, file, line);
     }
 
-private:
-    /**
-     * @brief 构造函数
-     */
-    Logger();
 
-    /**
-     * @brief 析构函数
-     */
-    ~Logger();
+private:
 
     // ==================== 重复日志过滤 ====================
 
@@ -281,6 +304,8 @@ private:
     void writer_thread_func();
 
     // ==================== 成员变量 ====================
+    static std::shared_ptr<Logger> instance;
+    static std::once_flag initFlag;
 
     // 日志级别
     std::atomic<int> m_level{static_cast<int>(LogLevel::INFO)};
@@ -311,14 +336,6 @@ private:
 // 便捷访问函数
 // ============================================================================
 
-/**
- * @brief 获取Logger单例实例
- * @return Logger引用
- */
-inline Logger& get_logger() noexcept {
-    return Logger::get_instance();
-}
-
 } // namespace DearTs
 
 // ============================================================================
@@ -326,26 +343,26 @@ inline Logger& get_logger() noexcept {
 // ============================================================================
 
 // 简单字符串日志（无需格式化）
-#define LOG_TRACE_STR(msg) ::DearTs::get_logger().trace(msg)
-#define LOG_DEBUG_STR(msg) ::DearTs::get_logger().debug(msg)
-#define LOG_INFO_STR(msg)  ::DearTs::get_logger().info(msg)
-#define LOG_WARN_STR(msg)  ::DearTs::get_logger().warn(msg)
-#define LOG_ERROR_STR(msg) ::DearTs::get_logger().error(msg)
-#define LOG_FATAL_STR(msg) ::DearTs::get_logger().fatal(msg)
+#define LOG_TRACE_STR(msg) Logger::get_instance()->trace(msg)
+#define LOG_DEBUG_STR(msg) Logger::get_instance()->debug(msg)
+#define LOG_INFO_STR(msg)  Logger::get_instance()->info(msg)
+#define LOG_WARN_STR(msg)  Logger::get_instance()->warn(msg)
+#define LOG_ERROR_STR(msg) Logger::get_instance()->error(msg)
+#define LOG_FATAL_STR(msg) Logger::get_instance()->fatal(msg)
 
 // 格式化日志（使用 std::format）
-#define LOG_TRACE(fmt, ...) ::DearTs::get_logger().trace(std::format(fmt, __VA_ARGS__))
-#define LOG_DEBUG(fmt, ...) ::DearTs::get_logger().debug(std::format(fmt, __VA_ARGS__))
-#define LOG_INFO(fmt, ...)  ::DearTs::get_logger().info(std::format(fmt, __VA_ARGS__))
-#define LOG_WARN(fmt, ...)  ::DearTs::get_logger().warn(std::format(fmt, __VA_ARGS__))
-#define LOG_ERROR(fmt, ...) ::DearTs::get_logger().error(std::format(fmt, __VA_ARGS__))
-#define LOG_FATAL(fmt, ...) ::DearTs::get_logger().fatal(std::format(fmt, __VA_ARGS__))
+#define LOG_TRACE(fmt, ...) Logger::get_instance()->trace(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define LOG_DEBUG(fmt, ...) Logger::get_instance()->debug(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define LOG_INFO(fmt, ...)  Logger::get_instance()->info(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define LOG_WARN(fmt, ...)  Logger::get_instance()->warn(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define LOG_ERROR(fmt, ...) Logger::get_instance()->error(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
+#define LOG_FATAL(fmt, ...) Logger::get_instance()->fatal(std::format(fmt __VA_OPT__(,) __VA_ARGS__))
 
 // 向后兼容宏
-#define DEARTS_LOGGER() ::DearTs::get_logger()
-#define DEARTS_LOG_TRACE(msg) ::DearTs::get_logger().trace(msg)
-#define DEARTS_LOG_DEBUG(msg) ::DearTs::get_logger().debug(msg)
-#define DEARTS_LOG_INFO(msg)  ::DearTs::get_logger().info(msg)
-#define DEARTS_LOG_WARN(msg)  ::DearTs::get_logger().warn(msg)
-#define DEARTS_LOG_ERROR(msg) ::DearTs::get_logger().error(msg)
-#define DEARTS_LOG_FATAL(msg) ::DearTs::get_logger().fatal(msg)
+#define DEARTS_LOGGER() Logger::get_instance()
+#define DEARTS_LOG_TRACE(msg) Logger::get_instance()->trace(msg)
+#define DEARTS_LOG_DEBUG(msg) Logger::get_instance()->debug(msg)
+#define DEARTS_LOG_INFO(msg)  Logger::get_instance()->info(msg)
+#define DEARTS_LOG_WARN(msg)  Logger::get_instance()->warn(msg)
+#define DEARTS_LOG_ERROR(msg) Logger::get_instance()->error(msg)
+#define DEARTS_LOG_FATAL(msg) Logger::get_instance()->fatal(msg)

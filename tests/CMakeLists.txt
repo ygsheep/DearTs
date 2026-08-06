@@ -48,6 +48,8 @@ if(BUILD_UNIT_TESTS)
         ${CMAKE_SOURCE_DIR}
         ${CMAKE_SOURCE_DIR}/core
         ${CMAKE_SOURCE_DIR}/lib/liblogger
+        ${CMAKE_SOURCE_DIR}/plugins/memory_core/include
+        ${CMAKE_SOURCE_DIR}/plugins/chat/include
     )
 
     # 源文件（新架构实现）
@@ -55,6 +57,8 @@ if(BUILD_UNIT_TESTS)
             ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
             ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
             ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
+            ${CMAKE_SOURCE_DIR}/core/plugin/dynamic_library_loader.cpp
+            ${CMAKE_SOURCE_DIR}/core/plugin/dependency_resolver.cpp
     )
 
     target_link_libraries(dearts_unit_tests
@@ -62,8 +66,9 @@ if(BUILD_UNIT_TESTS)
         gtest
         gtest_main
         deartsdl_logger
+        memory_core
         # Add DearTs core libraries here
-        # e.g., DearTsCore
+        # Note: sqlite3 not found, so memory_core is built without SQLite support
     )
 
     # Enable coverage if requested

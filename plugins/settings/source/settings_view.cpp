@@ -3,17 +3,19 @@
  * @brief 设置视图实现
  */
 
-#include "views/settings_view.hpp"
-#include "toast_settings_widget.hpp"
-#include "widgets/theme_settings_widget.hpp"
+#include "../include/settings_view.hpp"
+#include "../include/widgets/toast_settings_widget.hpp"
+#include "../include/widgets/plugin_manager_widget.hpp"
 #include "core/config/config_manager.h"
-#include "core/ui/theme_manager.h"
-#include "core/ui/icon_font.hpp"
 #include "core/content/registry_base.h"
-#include "toast_manager.hpp"
+#include "core/ui/icon_font.hpp"
+#include "core/ui/theme_manager.h"
 #include "liblogger/logger.h"
-#include <imgui.h>
+#include "toast_manager.hpp"
+#include "widgets/character_settings_widget.hpp"
+#include "widgets/theme_settings_widget.hpp"
 #include <algorithm>
+#include <imgui.h>
 
 namespace DearTs::Plugins::Settings {
 using DearTs::Core::ContentRegistry::UnlocalizedString;
@@ -21,7 +23,9 @@ using DearTs::Core::ContentRegistry::UnlocalizedString;
 SettingsView::SettingsView()
     : ViewWindow(UnlocalizedString("设置"), ICON_SETTINGS)
     , m_toast_widget(std::make_unique<ToastSettingsWidget>())
-    , m_theme_widget(std::make_unique<ThemeSettingsWidget>()) {
+    , m_theme_widget(std::make_unique<ThemeSettingsWidget>())
+    , m_character_widget(std::make_unique<CharacterSettingsWidget>())
+    , m_plugin_manager_widget(std::make_unique<PluginManagerWidget>()) {
 }
 
 SettingsView::~SettingsView() = default;
@@ -55,20 +59,6 @@ void SettingsView::draw_content() {
     }
 
     ImGui::SameLine();
-
-    // 重新加载按钮
-    if (ImGui::Button("重新加载")) {
-        reload_config();
-    }
-
-    ImGui::SameLine();
-
-    // 重置默认按钮
-    if (ImGui::Button("重置默认")) {
-        ImGui::OpenPopup("确认重置");
-    }
-
-    ImGui::SameLine();
     ImGui::Text("配置文件: config.json");
 
     ImGui::Separator();
@@ -95,25 +85,6 @@ void SettingsView::draw_content() {
     draw_config_panel();
 
     ImGui::EndChild();
-
-    // 确认重置对话框
-    if (ImGui::BeginPopupModal("确认重置", &m_show_confirm_reset, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("确定要将所有配置重置为默认值吗？");
-        ImGui::Text("此操作不可撤销。");
-
-        ImGui::Spacing();
-
-        if (ImGui::Button("确定", ImVec2(120, 0))) {
-            reset_to_defaults();
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("取消", ImVec2(120, 0))) {
-            ImGui::CloseCurrentPopup();
-        }
-
-        ImGui::EndPopup();
-    }
 }
 
 void SettingsView::draw_sidebar() {
@@ -127,7 +98,9 @@ void SettingsView::draw_sidebar() {
         ConfigCategory::Logger,
         ConfigCategory::Window,
         ConfigCategory::Theme,
+        ConfigCategory::Character,
         ConfigCategory::Toast,
+        ConfigCategory::PluginManager,
         ConfigCategory::Shortcuts,
         ConfigCategory::Advanced,
     };
@@ -162,8 +135,14 @@ void SettingsView::draw_config_panel() {
         case ConfigCategory::Theme:
             draw_theme_settings();
             break;
+        case ConfigCategory::Character:
+            draw_character_settings();
+            break;
         case ConfigCategory::Toast:
             draw_toast_settings();
+            break;
+        case ConfigCategory::PluginManager:
+            draw_plugin_manager_settings();
             break;
         default:
             ImGui::Text("此分类暂无设置项");
@@ -257,7 +236,7 @@ void SettingsView::draw_logger_settings() {
     ImGui::Spacing();
 
     // 日志文件路径
-    std::string log_path = config.get_or<std::string>("logger.file_path", "logs/deartsdl_gui.log");
+    std::string log_path = config.get_or<std::string>("logger.file_path", "logs/app.log");
     char path_buffer[256];
     strncpy(path_buffer, log_path.c_str(), sizeof(path_buffer));
     path_buffer[sizeof(path_buffer) - 1] = '\0';
@@ -292,6 +271,11 @@ void SettingsView::draw_theme_settings() {
     m_theme_widget->render();
 }
 
+void SettingsView::draw_character_settings() {
+    // 使用 CharacterSettingsWidget 组件渲染
+    m_character_widget->render();
+}
+
 void SettingsView::draw_toast_settings() {
     // 使用 ToastSettingsWidget 组件渲染
     m_toast_widget->render();
@@ -316,6 +300,14 @@ void SettingsView::save_config() {
     // 合并 ThemeSettingsWidget 的修改列表
     const auto& theme_modified = m_theme_widget->get_modified_keys();
     for (const auto& key : theme_modified) {
+        if (std::find(m_modified_keys.begin(), m_modified_keys.end(), key) == m_modified_keys.end()) {
+            m_modified_keys.push_back(key);
+        }
+    }
+
+    // 合并 CharacterSettingsWidget 的修改列表
+    const auto& character_modified = m_character_widget->get_modified_keys();
+    for (const auto& key : character_modified) {
         if (std::find(m_modified_keys.begin(), m_modified_keys.end(), key) == m_modified_keys.end()) {
             m_modified_keys.push_back(key);
         }
@@ -367,6 +359,7 @@ void SettingsView::save_config() {
         m_modified_keys.clear();
         m_toast_widget->clear_modified_keys();  // 清空 toast widget 的修改记录
         m_theme_widget->clear_modified_keys();  // 清空 theme widget 的修改记录
+        m_character_widget->clear_modified_keys();  // 清空 character widget 的修改记录
         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "保存成功！");
     }
 }
@@ -407,12 +400,21 @@ const char* SettingsView::get_category_name(ConfigCategory category) const {
         case ConfigCategory::Logger:    return "日志";
         case ConfigCategory::Window:    return "窗口";
         case ConfigCategory::Theme:     return "主题";
+        case ConfigCategory::Character: return "角色";
         case ConfigCategory::Toast:     return "气泡消息";
+        case ConfigCategory::PluginManager: return "插件管理器";
         case ConfigCategory::Shortcuts: return "快捷键";
         case ConfigCategory::Advanced:  return "高级";
         default:                        return "未知";
     }
 }
+
+void SettingsView::draw_plugin_manager_settings() {
+    if (m_plugin_manager_widget) {
+        m_plugin_manager_widget->render();
+    }
+}
+
 
 std::vector<std::string> SettingsView::filter_configs_by_category(ConfigCategory category) {
     // TODO: 实现配置过滤逻辑

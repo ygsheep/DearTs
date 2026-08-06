@@ -17,8 +17,9 @@
 //---- Enable Test Engine / Automation features.
 // Note: imgui_te_imconfig.h is only available when building with Test Engine
 // The include path is added by CMake when BUILD_UI_TESTS=ON
-// Use ifndef to avoid macro redefinition warning
-#ifndef IMGUI_ENABLE_TEST_ENGINE
+// IMPORTANT: Only include if ENABLE_IMGUI_TEST_ENGINE is defined
+// This prevents linking errors when Test Engine library is not built
+#if defined(ENABLE_IMGUI_TEST_ENGINE) && !defined(IMGUI_ENABLE_TEST_ENGINE)
 #include "imgui_te_imconfig.h"
 #endif
 

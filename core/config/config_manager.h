@@ -68,12 +68,21 @@ struct ConfigMeta {
  *     .is_required = false
  * });
  */
-class ConfigManager {
+class ConfigManager final {  // 单例类，禁止继承
 public:
     /**
-     * @brief 获取单例实例
+     * @brief 获取单例实例（线程安全，Magic Statics）
      */
-    static ConfigManager& instance();
+    static ConfigManager& instance() noexcept {
+        static ConfigManager instance;
+        return instance;
+    }
+
+    // 删除所有拷贝和移动操作
+    ConfigManager(const ConfigManager&) = delete;
+    ConfigManager& operator=(const ConfigManager&) = delete;
+    ConfigManager(ConfigManager&&) = delete;
+    ConfigManager& operator=(ConfigManager&&) = delete;
 
     /**
      * @brief 设置配置值
@@ -110,8 +119,9 @@ public:
         bool has_old_value = false;
         ConfigMeta::ChangeCallback change_callback;
         bool has_change_callback = false;
+        std::vector<std::function<void()>> pending_callbacks;  // 待执行的回调
 
-        // 在锁内更新数据并调用全局回调
+        // 在锁内更新数据
         {
             std::lock_guard<std::mutex> lock(m_mutex);
 
@@ -128,10 +138,17 @@ public:
                 change_callback = meta_it->second.change_callback;
             }
 
-            // 在锁内调用全局回调（注意：回调不应该访问 ConfigManager 以避免死锁）
+            // 准备全局回调（在锁外调用以避免死锁）
             for (const auto& callback : m_global_change_callbacks) {
-                callback(key, old_value, config_value);
+                pending_callbacks.push_back([callback, key, old_value, config_value]() {
+                    callback(key, old_value, config_value);
+                });
             }
+        }
+
+        // 在锁外调用全局回调（避免死锁）
+        for (const auto& cb : pending_callbacks) {
+            cb();
         }
 
         // 在锁外调用变更回调，避免死锁
@@ -274,12 +291,6 @@ public:
 private:
     ConfigManager() = default;
     ~ConfigManager() = default;
-
-    // 删除拷贝和移动
-    ConfigManager(const ConfigManager&) = delete;
-    ConfigManager& operator=(const ConfigManager&) = delete;
-    ConfigManager(ConfigManager&&) = delete;
-    ConfigManager& operator=(ConfigManager&&) = delete;
 
     mutable std::mutex m_mutex;
     std::unordered_map<std::string, ConfigValue> m_values;

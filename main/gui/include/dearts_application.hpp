@@ -16,6 +16,9 @@
 #include "core/ui/view_manager.h"
 #include "core/ui/icon_font.hpp"
 #include "core/ui/task_widget.h"
+#include "core/ui/background_renderer.h"
+#include "core/ui/character_renderer.h"
+#include "core/ui/character_manager.h"
 #include "core/tasks/task_manager.h"
 #include "core/plugin/plugin.h"
 #include "core/config/config_manager.h"
@@ -129,6 +132,11 @@ private:
     void setup_views();
 
     /**
+     * @brief 从 ConfigManager 加载角色配置
+     */
+    void load_character_config();
+
+    /**
      * @brief 渲染菜单栏
      */
     void render_menu_bar();
@@ -160,6 +168,11 @@ private:
      */
     void render_views();
 
+    /**
+     * @brief 设置默认停靠布局（仅在首次运行时）
+     */
+    void setup_default_dock_layout();
+
 private:
     // ImGui 相关
     ImGuiContext* m_imgui_context = nullptr;
@@ -181,6 +194,9 @@ private:
     bool m_is_maximized = false;  // 窗口是否最大化
     ImVec2 m_drag_start_pos;
     ImVec2 m_window_start_pos;
+
+    // 停靠布局状态
+    bool m_dock_layout_initialized = false;
 
     // 统计信息
     int m_last_log_time = 0;

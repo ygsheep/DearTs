@@ -20,9 +20,13 @@ target_include_directories(toast_notification_plugin
 
 target_link_libraries(toast_notification_plugin
     PUBLIC
-        dear_core
-        liblogger
+        dearts
+        deartsdl_logger
 )
 
 # 设置 C++20 标准
 target_compile_features(toast_notification_plugin PUBLIC cxx_std_20)
+
+if(MSVC)
+    target_compile_options(toast_notification_plugin PRIVATE /utf-8)
+endif()

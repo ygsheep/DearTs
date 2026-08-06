@@ -27,7 +27,7 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
     ImVec2 window_screen_pos = ImGui::GetWindowPos();
 
     // 计算标题栏区域
-    ImVec2 title_bar_min = ImVec2(0, 0);  // 窗口本地坐标
+    ImVec2 title_bar_min = ImVec2(0, 0); // 窗口本地坐标
     ImVec2 title_bar_max = ImVec2(window_width, title_bar_height);
 
     // 使用稍微暗一点的背景色
@@ -35,8 +35,10 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
     draw_list->AddRectFilled(title_bar_min, title_bar_max, title_bar_color);
 
     // 顶部边框线
-    draw_list->AddLine(title_bar_min, ImVec2(title_bar_max.x, title_bar_min.y),
-                       ImGui::GetColorU32(ImVec4(0.3f, 0.3f, 0.3f, 1.0f)), 1.0f);
+    draw_list->AddLine(title_bar_min,
+                       ImVec2(title_bar_max.x, title_bar_min.y),
+                       ImGui::GetColorU32(ImVec4(0.3f, 0.3f, 0.3f, 1.0f)),
+                       1.0f);
 
     // 保存原始光标位置
     ImVec2 original_cursor = ImGui::GetCursorPos();
@@ -54,18 +56,12 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
         ImVec2 button_size_vec(button_size, button_size);
 
         ImGui::PushStyleColor(ImGuiCol_Button, btn.color);
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(
-            btn.color.x * 1.2f,
-            btn.color.y * 1.2f,
-            btn.color.z * 1.2f,
-            btn.color.w
-        ));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(
-            btn.color.x * 0.8f,
-            btn.color.y * 0.8f,
-            btn.color.z * 0.8f,
-            btn.color.w
-        ));
+        ImGui::PushStyleColor(
+            ImGuiCol_ButtonHovered,
+            ImVec4(btn.color.x * 1.2f, btn.color.y * 1.2f, btn.color.z * 1.2f, btn.color.w));
+        ImGui::PushStyleColor(
+            ImGuiCol_ButtonActive,
+            ImVec4(btn.color.x * 0.8f, btn.color.y * 0.8f, btn.color.z * 0.8f, btn.color.w));
         // 设置 FramePadding 为 0，确保按钮实际大小等于指定大小
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
@@ -75,7 +71,7 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
             }
         }
 
-        if (ImGui::IsItemHovered()) {
+        if (ImGui::IsItemHovered() && (btn.tooltip != nullptr)) {
             ImGui::SetTooltip("%s", btn.tooltip);
         }
 
@@ -102,7 +98,7 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
 
     // 4. 渲染系统控制按钮（右侧）
     if (m_borderless) {
-        ImGui::SetCursorPos(ImVec2(0, 0));  // 重置到窗口顶部
+        ImGui::SetCursorPos(ImVec2(0, 0)); // 重置到窗口顶部
         request_close = render_system_buttons(window_width, title_bar_height);
     }
 
@@ -111,18 +107,10 @@ bool TitleBar::render(const std::string& window_title, float window_width) {
 
 bool TitleBar::render_button(const char* label, const ImVec2& size, const ImVec4& color) {
     ImGui::PushStyleColor(ImGuiCol_Button, color);
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(
-        color.x * 1.2f,
-        color.y * 1.2f,
-        color.z * 1.2f,
-        color.w
-    ));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(
-        color.x * 0.8f,
-        color.y * 0.8f,
-        color.z * 0.8f,
-        color.w
-    ));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+                          ImVec4(color.x * 1.2f, color.y * 1.2f, color.z * 1.2f, color.w));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+                          ImVec4(color.x * 0.8f, color.y * 0.8f, color.z * 0.8f, color.w));
     // 设置 FramePadding 为 0，确保按钮实际大小等于指定大小
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 
@@ -148,33 +136,38 @@ bool TitleBar::render_system_buttons(float window_width, float title_bar_height)
 
     // 关闭按钮（红色）
     ImGui::SetCursorPos(ImVec2(cursor_x, button_y));
-    if (this->render_button("✕", ImVec2(button_size, button_size), ImVec4(0.8f, 0.2f, 0.2f, 1.0f))) {
+    if (this->render_button(
+            "✕", ImVec2(button_size, button_size), ImVec4(0.8f, 0.2f, 0.2f, 1.0f))) {
         request_close = true;
     }
     cursor_x -= button_size + padding;
 
     // 最大化/还原按钮
     ImGui::SetCursorPos(ImVec2(cursor_x, button_y));
-    if (this->render_button("□", ImVec2(button_size, button_size), ImVec4(0.5f, 0.5f, 0.5f, 1.0f))) {
+    if (this->render_button(
+            "□", ImVec2(button_size, button_size), ImVec4(0.5f, 0.5f, 0.5f, 1.0f))) {
         WindowControls::maximize_window();
     }
     cursor_x -= button_size + padding;
 
     // 最小化按钮
     ImGui::SetCursorPos(ImVec2(cursor_x, button_y));
-    if (this->render_button("-", ImVec2(button_size, button_size), ImVec4(0.5f, 0.5f, 0.5f, 1.0f))) {
+    if (this->render_button(
+            "-", ImVec2(button_size, button_size), ImVec4(0.5f, 0.5f, 0.5f, 1.0f))) {
         WindowControls::minimize_window();
     }
 
     return request_close;
 }
 
-void TitleBar::handle_dragging(const ImVec2& mouse_pos, float title_bar_height, const ImVec2& window_pos, float window_width) {
+void TitleBar::handle_dragging(const ImVec2& mouse_pos,
+                               float title_bar_height,
+                               const ImVec2& window_pos,
+                               float window_width) {
     // 检查是否在标题栏区域（使用屏幕坐标）
     bool in_title_bar = mouse_pos.y >= window_pos.y &&
-                       mouse_pos.y <= window_pos.y + title_bar_height &&
-                       mouse_pos.x >= window_pos.x &&
-                       mouse_pos.x <= window_pos.x + window_width;
+                        mouse_pos.y <= window_pos.y + title_bar_height &&
+                        mouse_pos.x >= window_pos.x && mouse_pos.x <= window_pos.x + window_width;
 
     // 只有在标题栏区域时才开始拖拽
     if (in_title_bar && !m_is_dragging) {
@@ -190,10 +183,8 @@ void TitleBar::handle_dragging(const ImVec2& mouse_pos, float title_bar_height, 
             m_drag_start_pos = ImVec2(mouse_x, mouse_y);
 
             // 计算鼠标相对于 SDL 窗口左上角的偏移
-            m_drag_offset = ImVec2(
-                m_drag_start_pos.x - m_window_start_pos.x,
-                m_drag_start_pos.y - m_window_start_pos.y
-            );
+            m_drag_offset = ImVec2(m_drag_start_pos.x - m_window_start_pos.x,
+                                   m_drag_start_pos.y - m_window_start_pos.y);
         }
     }
 
@@ -212,12 +203,11 @@ void TitleBar::handle_dragging(const ImVec2& mouse_pos, float title_bar_height, 
 
             if (std::abs(delta_x) > 0.5f || std::abs(delta_y) > 0.5f) {
                 // 基于初始窗口位置和鼠标偏移计算新位置
-                ImVec2 new_pos(
-                    m_window_start_pos.x + current_mouse_pos.x - m_drag_start_pos.x,
-                    m_window_start_pos.y + current_mouse_pos.y - m_drag_start_pos.y
-                );
+                ImVec2 new_pos(m_window_start_pos.x + current_mouse_pos.x - m_drag_start_pos.x,
+                               m_window_start_pos.y + current_mouse_pos.y - m_drag_start_pos.y);
 
-                WindowControls::set_window_position(static_cast<int>(new_pos.x), static_cast<int>(new_pos.y));
+                WindowControls::set_window_position(static_cast<int>(new_pos.x),
+                                                    static_cast<int>(new_pos.y));
 
                 // 更新起始位置，避免累积误差
                 m_drag_start_pos = current_mouse_pos;
@@ -230,15 +220,17 @@ void TitleBar::handle_dragging(const ImVec2& mouse_pos, float title_bar_height, 
 float TitleBar::get_title_bar_height() const {
     float height = ImGui::GetFontSize() * 1.5f + 10.0f;
 
-    #ifdef __APPLE__
-    height *= 0.7f;  // macOS 标题栏稍短
-    #endif
+#ifdef __APPLE__
+    height *= 0.7f; // macOS 标题栏稍短
+#endif
 
     return height;
 }
 
-void TitleBar::add_button(const char* icon, const char* tooltip, ButtonCallback callback,
-                         const ImVec4& color) {
+void TitleBar::add_button(const char* icon,
+                          const char* tooltip,
+                          ButtonCallback callback,
+                          const ImVec4& color) {
     m_custom_buttons.push_back({icon, tooltip, callback, color});
 }
 

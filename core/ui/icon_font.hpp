@@ -91,9 +91,11 @@ private:
 #define ICON_DELETE         "\xee\x97\x8c"  // ICON_MS_DELETE (使用 REMOVE 相同)
 #define ICON_EDIT           "\xee\xa3\x8b"  // ICON_MS_EDIT
 #define ICON_SAVE           "\xee\xa2\xb2"  // ICON_MS_SAVE
-#define ICON_COPY           "\xee\xa0\x9b"  // ICON_MS_COPY_ALL
+#define ICON_COPY           "\xee\x85\x8d"  // ICON_MS_COPY_ALL
+#define ICON_CONTENT_COPY   "\xee\x85\x8d"  // ICON_MS_COPY_ALL (别名)
 #define ICON_CUT            "\xee\xa0\x99"  // ICON_MS_CONTENT_CUT
 #define ICON_PASTE          "\xee\xa0\x9c"  // ICON_MS_CONTENT_PASTE
+#define ICON_FORMAT_QUOTE   "\xee\xa0\x9e"  // ICON_MS_FORMAT_QUOTE
 
 // 文件操作
 #define ICON_FILE           "\xee\x87\x86"  // ICON_MS_INSERT_DRIVE_FILE
@@ -116,7 +118,7 @@ private:
 #define ICON_CANCEL         "\xee\x97\x8d"  // ICON_MS_CANCEL
 #define ICON_WARNING        "\xee\x8d\x86"  // ICON_MS_WARNING
 #define ICON_ERROR          "\xee\x94\x9b"  // ICON_MS_ERROR
-#define ICON_INFO           "\xee\x8d\x8e"  // ICON_MS_INFO
+#define ICON_INFO           "\xee\xa2\x8e"  // ICON_MS_INFO
 #define ICON_SUCCESS        "\xee\x97\x8a"  // ICON_MS_CHECK (使用 CHECK)
 
 // 视图
@@ -127,11 +129,11 @@ private:
 #define ICON_FULLSCREEN_EXIT "\xef\x93\x88"  // ICON_MS_FULLSCREEN_EXIT
 
 // 代码相关
-#define ICON_CODE           "\xee\xa3\x8b"  // ICON_MS_CODE
+#define ICON_CODE           "\xee\xa1\xaf"  // ICON_MS_CODE
 #define ICON_TERMINAL       "\xee\x97\x8a"  // ICON_MS_TERMINAL (临时)
 #define ICON_CONSOLE        "\xee\x97\x8b"  // ICON_MS_CONSOLE (临时)
 #define ICON_DATABASE       "\xe1\x94\x80"  // ICON_MS_STORAGE
-#define ICON_API            "\xe1\x94\x80"  // ICON_MS_API (临时使用 STORAGE)
+#define ICON_API            "\xef\x86\xb7"  // ICON_MS_API (临时使用 STORAGE)
 #define ICON_PLUGIN         "\xe1\x94\x80"  // ICON_MS_EXTENSION
 #define ICON_EXTENSION      "\xe1\x94\x80"  // ICON_MS_EXTENSION
 
@@ -152,7 +154,7 @@ private:
 
 // 媒体
 #define ICON_IMAGE          "\xee\x97\x98"  // ICON_MS_IMAGE
-#define ICON_VIDEO          "\xee\x97\x99"  // ICON_MS_VIDEO_LIBRARY
+#define ICON_VIDEO          "\xee\xae\x87"  // ICON_MS_VIDEO_FILE
 #define ICON_AUDIO          "\xee\x97\x9a"  // ICON_MS_HEADSET
 #define ICON_VOLUME_UP      "\xee\x97\x9b"  // ICON_MS_VOLUME_UP
 #define ICON_VOLUME_DOWN    "\xee\x97\x9c"  // ICON_MS_VOLUME_DOWN
@@ -190,6 +192,16 @@ private:
 #define ICON_SIDEBAR        "\xee\x97\x92"  // ICON_MS_MENU
 #define ICON_ANALYTICS      "\xee\xbc\xbe"  // ICON_MS_ANALYTICS
 #define ICON_NOTIFICATIONS  "\xee\x9f\xb5"  // ICON_MS_NOTIFICATIONS
+
+// Chat 相关图标
+#define ICON_SEND           "\xee\x85\xa3"  // ICON_MS_SEND
+#define ICON_AUTO_FIX_HIGH  "\xee\x99\xa3"  // ICON_MS_AUTO_FIX_HIGH
+#define ICON_DONE_ALL       "\xee\xa1\xb7"  // ICON_MS_DONE_ALL
+#define ICON_SMART_TOY      "\xef\x81\xac"  // ICON_MS_SMART_TOY
+#define ICON_MESSAGE        "\xee\x83\x89"  // ICON_MS_MESSAGE
+#define ICON_PUSH_PIN       "\xef\x84\x8d"  // ICON_MS_PUSH_PIN
+#define ICON_FILE_DOWNLOAD  "\xef\x82\x90"  // ICON_MS_FILE_DOWNLOAD
+#define ICON_SERVER         "\xe1\x94\x80"  // ICON_MS_DNS (服务器)
 
 // ========== Font Awesome Icons (备用) ==========
 #define FA_ICON_HOME         "\uf015"
