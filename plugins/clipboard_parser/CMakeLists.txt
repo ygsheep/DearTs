@@ -26,7 +26,7 @@ add_library(clipboard_parser_plugin STATIC
 target_link_libraries(clipboard_parser_plugin
     PRIVATE
     imgui_full
-    logger_lib
+    deartsdl_logger
 )
 
 # Windows 平台特定设置
@@ -42,3 +42,7 @@ target_include_directories(clipboard_parser_plugin PUBLIC
 
 # 设置 C++20 标准
 target_compile_features(clipboard_parser_plugin PUBLIC cxx_std_20)
+
+if(MSVC)
+    target_compile_options(clipboard_parser_plugin PRIVATE /utf-8)
+endif()

@@ -54,7 +54,8 @@ endif()
 if(MSVC)
     target_compile_options(ffmpeg_plugin PRIVATE
         /W4
-        /wd4996  # 禁用 "sprintf": 函数不安全
+        /wd4996  # 禁用 "sprintf": 可能不安全
+        /utf-8
     )
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(ffmpeg_plugin PRIVATE

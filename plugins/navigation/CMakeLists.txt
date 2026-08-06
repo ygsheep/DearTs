@@ -44,3 +44,7 @@ target_link_libraries(navigation_plugin
 target_compile_features(navigation_plugin PUBLIC cxx_std_20)
 
 message(STATUS "Navigation plugin configured")
+
+if(MSVC)
+    target_compile_options(navigation_plugin PRIVATE /utf-8)
+endif()

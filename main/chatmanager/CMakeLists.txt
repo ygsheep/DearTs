@@ -32,70 +32,11 @@ else()
     add_executable(ChatManager ${CHATMANAGER_SOURCES} ${CHATMANAGER_HEADERS})
 endif()
 
-# 设置包含目录
+# 设置包含目录（框架头文件由 dearts PUBLIC 传递）
 target_include_directories(ChatManager PRIVATE
-    ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/main/chatmanager/include
     ${CMAKE_SOURCE_DIR}/plugins/chat/include
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/include
     ${CMAKE_SOURCE_DIR}/plugins/memory_core/include
-    ${CMAKE_SOURCE_DIR}/core
-    ${CMAKE_SOURCE_DIR}/core/event
-    ${CMAKE_SOURCE_DIR}/core/content
-    ${CMAKE_SOURCE_DIR}/core/ui
-    ${CMAKE_SOURCE_DIR}/core/plugin
-    ${CMAKE_SOURCE_DIR}/core/config
-    ${CMAKE_SOURCE_DIR}/core/tasks
-    ${CMAKE_SOURCE_DIR}/core/utils
-    ${CMAKE_SOURCE_DIR}/core/app
-    ${CMAKE_SOURCE_DIR}/core/network
-    ${CMAKE_SOURCE_DIR}/lib/liblogger
-    ${CMAKE_SOURCE_DIR}/third_party/SDL/include
-    ${CMAKE_SOURCE_DIR}/third_party/imgui
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
-    ${CMAKE_SOURCE_DIR}/third_party/json/include
-)
-
-# 添加 DearTs 核心源文件（直接编译到可执行文件中）
-target_sources(ChatManager PRIVATE
-    # Content Registry
-    ${CMAKE_SOURCE_DIR}/core/content/settings.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/commands.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/tools.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/callbacks.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/project_manager.cpp
-    # Config
-    ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
-    # Plugin System
-    ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_loader.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/version.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/version_range.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_dependency.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/dependency_resolver.cpp
-    # UI Components (needed by views)
-    ${CMAKE_SOURCE_DIR}/core/ui/imgui_extensions.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/icon_font.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/theme_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/scale_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/title_bar.cpp
-    # Task Manager
-    ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
-    # Network (HTTP Client)
-    ${CMAKE_SOURCE_DIR}/core/network/http_client.cpp
-    ${CMAKE_SOURCE_DIR}/core/network/sse_parser.cpp
-)
-
-# 收集 Builtin Plugin 源文件
-file(GLOB_RECURSE BUILTIN_PLUGIN_SOURCES
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/source/*.cpp
-)
-file(GLOB_RECURSE BUILTIN_PLUGIN_HEADERS
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/include/*.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/include/*.h
 )
 
 # 收集 Chat Plugin 源文件
@@ -116,10 +57,8 @@ file(GLOB_RECURSE MEMORY_CORE_HEADERS
     ${CMAKE_SOURCE_DIR}/plugins/memory_core/include/**/*.hpp
 )
 
-# 添加插件源文件
+# 添加插件源文件（core + builtin 插件由 dearts 库提供）
 target_sources(ChatManager PRIVATE
-    ${BUILTIN_PLUGIN_SOURCES}
-    ${BUILTIN_PLUGIN_HEADERS}
     ${CHAT_PLUGIN_SOURCES}
     ${CHAT_PLUGIN_HEADERS}
     ${MEMORY_CORE_SOURCES}
@@ -131,25 +70,9 @@ target_sources(ChatManager PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_sdlgpu3.cpp
 )
 
-# 链接 DearTs Logger 库
+# 链接 DearTs 框架库（core + 内置插件 + 第三方依赖）
 target_link_libraries(ChatManager PRIVATE
-    deartsdl_logger
-)
-
-# 链接 SDL3（项目中的 SDL3 子目录）
-target_link_libraries(ChatManager PRIVATE
-    SDL3::SDL3-shared
-)
-
-# 链接 ImGui（项目中的 ImGui 库）
-target_link_libraries(ChatManager PRIVATE
-    imgui
-    imgui_sdl3
-)
-
-# 链接第三方库
-target_link_libraries(ChatManager PRIVATE
-    nlohmann_json::nlohmann_json
+    dearts
 )
 
 # 查找 SQLite3 (可选)
@@ -232,6 +155,7 @@ if(MSVC)
         /std:c++20
         /MP
         /Zc:preprocessor
+        /utf-8
     )
 else()
     target_compile_options(ChatManager PRIVATE

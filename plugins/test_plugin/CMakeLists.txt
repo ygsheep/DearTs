@@ -74,3 +74,7 @@ endif()
 message(STATUS "Test plugin configured:")
 message(STATUS "  Output directory: ${PLUGIN_OUTPUT_DIR}")
 message(STATUS "  Library name: ${PROJECT_NAME}")
+
+if(MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /utf-8)
+endif()

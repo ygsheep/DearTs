@@ -1049,7 +1049,6 @@ void DearTsApplication::render_tool_windows() {
                 ImGui::PopStyleColor();
                 clickable_url("FreeType - 字体渲染引擎", "https://freetype.org");
                 clickable_url("LunaSVG - SVG 渲染库", "https://github.com/sammycage/lunasvg");
-                clickable_url("GLEW - OpenGL 扩展加载库", "https://github.com/nigels-com/glew");
                 ImGui::Spacing();
 
                 // 数据处理
@@ -1064,7 +1063,6 @@ void DearTsApplication::render_tool_windows() {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.7f, 1.0f, 1.0f));
                 ImGui::TextDisabled("【特殊功能】");
                 ImGui::PopStyleColor();
-                clickable_url("Live2D Cubism - 2D 角色动画", "https://www.live2d.com");
                 clickable_url("ImGui Test Engine - UI 测试框架", "https://github.com/ocornut/imgui_test_engine");
                 clickable_url("ImGui Node Editor - 节点编辑器", "https://github.com/thedmd/imgui-node-editor");
                 clickable_url("ImGui Markdown - Markdown 渲染", "https://github.com/juliettef/imgui_markdown");

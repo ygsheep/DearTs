@@ -1,251 +1,29 @@
 # DearTs 应用程序 CMakeLists.txt
-# 基于 DearTs 框架的 GUI 应用
+# 基于 DearTs 框架的 GUI 应用（链接 dearts 静态库）
 
 cmake_minimum_required(VERSION 3.20)
 project(DearTs)
-
-
-# FFmpeg Plugin Support
-option(DEARTS_FFMPEG_SUPPORT "Enable FFmpeg plugin support" ON)
-# Live2D SDK directories
-set(LIVE2D_SDK_DIR ${CMAKE_SOURCE_DIR}/third_party/Live2D)
-set(LIVE2D_CORE_DIR ${LIVE2D_SDK_DIR}/Core)
-set(LIVE2D_FRAMEWORK_DIR ${LIVE2D_SDK_DIR}/Framework)
-
-# GLEW directories (for Live2D SDK OpenGL support)
-# 暂时禁用 GLEW 链接
-# set(GLEW_DIR ${CMAKE_SOURCE_DIR}/third_party/glew)
-
-# Add GLEW as subdirectory to build from source
-# Build static library to avoid DLL dependencies
-# set(BUILD_UTILS OFF CACHE BOOL "Build GLEW utilities" FORCE)
-# set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared GLEW library" FORCE)
-# add_subdirectory(${GLEW_DIR}/build/cmake ${CMAKE_BINARY_DIR}/glew)
-
-# Platform-specific Live2D Core library
-if(WIN32)
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        # Windows x64
-        # Detect MSVC toolset version (140=VS2015, 141=VS2017, 142=VS2019, 143=VS2022)
-        if(MSVC_VERSION EQUAL 1930)
-            set(LIVE2D_VS_TOOLSET "143")
-        elseif(MSVC_VERSION EQUAL 1920)
-            set(LIVE2D_VS_TOOLSET "142")
-        elseif(MSVC_VERSION EQUAL 1910)
-            set(LIVE2D_VS_TOOLSET "141")
-        else()
-            set(LIVE2D_VS_TOOLSET "140")  # Default to VS2015
-        endif()
-
-        set(LIVE2D_CORE_LIB_DIR ${LIVE2D_CORE_DIR}/lib/windows/x86_64/${LIVE2D_VS_TOOLSET})
-        set(LIVE2D_CORE_DLL_DIR ${LIVE2D_CORE_DIR}/dll/windows/x86_64)
-    else()
-        # Windows x86
-        set(LIVE2D_CORE_LIB_DIR ${LIVE2D_CORE_DIR}/lib/windows/x86/${LIVE2D_VS_TOOLSET})
-        set(LIVE2D_CORE_DLL_DIR ${LIVE2D_CORE_DIR}/dll/windows/x86)
-    endif()
-
-    # Select runtime library variant (MD/MT)
-    if(MSVC)
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            set(LIVE2D_CORE_LIB_SUFFIX "d")
-        else()
-            set(LIVE2D_CORE_LIB_SUFFIX "")
-        endif()
-    endif()
-elseif(APPLE)
-    # macOS
-    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-        set(LIVE2D_CORE_LIB_DIR ${LIVE2D_CORE_DIR}/lib/macos/arm64)
-    else()
-        set(LIVE2D_CORE_LIB_DIR ${LIVE2D_CORE_DIR}/lib/macos/x86_64)
-    endif()
-else()
-    # Linux
-    set(LIVE2D_CORE_LIB_DIR ${LIVE2D_CORE_DIR}/lib/linux/x86_64)
-endif()
-
-# Collect Live2D Framework source files
-#file(GLOB_RECURSE LIVE2D_FRAMEWORK_SOURCES
-#    ${LIVE2D_FRAMEWORK_DIR}/src/*.cpp
-#)
-
-# Exclude platform-specific renderers we don't use
-#list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*D3D.*")
-#list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*Metal.*")
-#list(FILTER LIVE2D_FRAMEWORK_SOURCES EXCLUDE REGEX ".*Vulkan.*")
 
 # DearTs 可执行文件
 add_executable(${PROJECT_NAME}
     include/dearts_application.hpp
     source/main.cpp
     source/dearts_application.cpp
-    # 插件源文件
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/include/builtin_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/include/views/data_inspector_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/source/builtin_plugin.cpp
-    # Settings 插件
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/settings_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/settings_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/theme_settings_widget.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/character_settings_widget.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/plugin_manager_widget.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/dependency_graph_widget.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_view.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/toast_settings_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets/toast_settings_widget.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/theme_settings_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/character_settings_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/plugin_manager_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/dependency_graph_widget.cpp
-    # LoggerViewer 插件
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/logger_viewer_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/views/logger_viewer_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/source/logger_viewer_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/source/logger_viewer_view.cpp
-    # Navigation 插件
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/include/navigation_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/include/views/sidebar_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/source/navigation_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/source/sidebar_view.cpp
-    # Toast Notification 插件
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include/toast.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include/toast_manager.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include/toast_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include/toast_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/source/toast_manager.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/source/toast_plugin.cpp
-    # Command Palette 插件
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/include/command_palette_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/include/command_palette_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_view.cpp
-    # Clipboard Parser 插件
-    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/include/clipboard_parser_plugin.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/include/views/clipboard_parser_view.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/source/clipboard_parser_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/source/views/clipboard_parser_view.cpp
-    # Live2D 插件
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_plugin.hpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_model_instance.hpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/live2d_model_manager.hpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/widgets/live2d_settings_widget.hpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/views/live2d_settings_view.hpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_plugin.cpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_model_instance.cpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/live2d_model_manager.cpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/widgets/live2d_settings_widget.cpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/source/views/live2d_settings_view.cpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/ilive2d_renderer.hpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/live2d_renderer_gl.hpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/live2d_renderer_gl.cpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/sdl_texture_uploader.hpp
-#    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer/sdl_texture_uploader.cpp
-    # FFmpeg Plugin (仅在 FFmpeg 支持时)
-    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/include/ffmpeg_plugin.hpp>
-    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/include/ffmpeg_view.hpp>
-    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/source/ffmpeg_plugin.cpp>
-    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/source/ffmpeg_view.cpp>
     # Windows 资源文件（仅 Windows）
     ${CMAKE_SOURCE_DIR}/resources/dearts.rc
 )
 
-# 包含目录
+# 包含目录（框架头文件由 dearts PUBLIC 传递）
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/core
-    ${CMAKE_SOURCE_DIR}/core/event
-    ${CMAKE_SOURCE_DIR}/core/content
-    ${CMAKE_SOURCE_DIR}/core/ui
-    ${CMAKE_SOURCE_DIR}/core/plugin
-    ${CMAKE_SOURCE_DIR}/core/config
-    ${CMAKE_SOURCE_DIR}/core/tasks
-    ${CMAKE_SOURCE_DIR}/core/utils
-    ${CMAKE_SOURCE_DIR}/core/app
-    ${CMAKE_SOURCE_DIR}/lib/liblogger
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/include
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/include
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/include
-    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/include
     ${CMAKE_SOURCE_DIR}/plugins/wuthering_waves/include
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/include
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/widgets
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/include/views
-    ${CMAKE_SOURCE_DIR}/plugins/live2d/renderer
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include
-    # FFmpeg Plugin 包含目录
-    ${CMAKE_SOURCE_DIR}/plugins/ffmpeg/include
-    ${CMAKE_SOURCE_DIR}/third_party/SDL/include
-    ${CMAKE_SOURCE_DIR}/third_party/SDL_image/include
-    ${CMAKE_SOURCE_DIR}/third_party/freetype/include
-    ${CMAKE_SOURCE_DIR}/third_party/imgui
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/misc/freetype
-    ${CMAKE_SOURCE_DIR}/third_party/implot
-    ${CMAKE_SOURCE_DIR}/third_party/cppjieba/include
-    ${CMAKE_SOURCE_DIR}/third_party/cppjieba/deps/limonp/include
-    ${LIVE2D_CORE_DIR}/include
-    ${LIVE2D_FRAMEWORK_DIR}/src
-    # ${GLEW_DIR}/include
 )
 
-# 源文件（新架构实现）
-target_sources(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}/core/content/settings.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/commands.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/tools.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/callbacks.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/project_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_loader.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/version.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/version_range.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_dependency.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/dependency_resolver.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/imgui_layer.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/scale_manager.cpp
-    # Command Palette 现在是插件，移到了 plugins/command_palette/
-    # ${CMAKE_SOURCE_DIR}/core/ui/command_palette.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/title_bar.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/imgui_extensions.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/theme_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/shortcut_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/task_widget.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/icon_font.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/background_renderer.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/character_renderer.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/character_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/app/application.cpp
-    ${CMAKE_SOURCE_DIR}/core/utils/file_dialog.cpp
-    # Live2D Framework source files
-    ${LIVE2D_FRAMEWORK_SOURCES}
-)
-
-# 链接库
+# 链接 dearts 框架库（core + 内置插件 + 第三方依赖）
 target_link_libraries(${PROJECT_NAME} PRIVATE
-        imgui_full
-        implot
-        SDL3::SDL3-shared
-        SDL3_image::SDL3_image
-        deartsdl_logger
-        freetype
-        lunasvg::lunasvg
-        # 插件库（静态编译）
+        dearts
+        # 独立插件库（静态编译）
         wuthering_waves_plugin
-        # glew_s  # 暂时禁用 GLEW
-        # FFmpeg (如果可用)
-        $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:ffmpeg_interface>
 )
 
 # 平台特定的链接库
@@ -269,23 +47,7 @@ if(WIN32)
             "/SUBSYSTEM:WINDOWS"
         )
     endif()
-
-    # Link Live2D Core library (Windows)
-    add_library(Live2DCubismCore STATIC IMPORTED)
-    set_target_properties(Live2DCubismCore PROPERTIES
-        IMPORTED_LOCATION ${LIVE2D_CORE_DLL_DIR}/Live2DCubismCore.lib
-        INTERFACE_INCLUDE_DIRECTORIES ${LIVE2D_CORE_DIR}/include
-    )
-    target_link_libraries(${PROJECT_NAME} PRIVATE Live2DCubismCore)
 endif()
-
-# Live2D Framework requires specific definitions
-target_compile_definitions(${PROJECT_NAME} PRIVATE
-    # Live2D Framework config
-    CSM_TARGET_WIN_GL=1
-    # GLEW static library (暂时禁用)
-    # GLEW_STATIC
-)
 
 # 定义资源目录
 set(RESOURCE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
@@ -296,7 +58,6 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     # 使用 copy_if_different 避免不必要的时间戳更新
     COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/fonts
     COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/images
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${RESOURCE_DEST_DIR}/live2d
     # 复制字体文件（仅在变化时）
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         ${RESOURCE_SOURCE_DIR}/fonts
@@ -305,19 +66,11 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
         ${RESOURCE_SOURCE_DIR}/images
         ${RESOURCE_DEST_DIR}/images
-    # 复制 Live2D 模型文件（仅在变化时）
-    COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different
-        ${RESOURCE_SOURCE_DIR}/models
-        ${CMAKE_BINARY_DIR}/bin/models
     # 复制图标文件（仅在变化时）
 #    COMMAND ${CMAKE_COMMAND} -E copy_if_different
 #        ${RESOURCE_SOURCE_DIR}/icon.ico
 #        ${CMAKE_BINARY_DIR}/bin/icon.ico
     # SDL3_image.dll 由 SDL_image 项目自动构建到 bin/ 目录，无需手动复制
-    # 复制 Live2D Core DLL（仅 Windows）
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${LIVE2D_CORE_DLL_DIR}/Live2DCubismCore.dll
-        ${CMAKE_BINARY_DIR}/bin/Live2DCubismCore.dll
     # 复制 FFmpeg DLLs（如果 FFmpeg 支持启用）
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<IF:$<BOOL:DEARTS_FFMPEG_SUPPORT>,D:/Programs/vcpkg/installed/x64-windows/debug/bin/avcodec-62.dll,nul>
@@ -343,11 +96,6 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMENT "Copying resources to output directory (if changed)"
 )
 
-# 显示资源目录信息
-message(STATUS "Resource directories:")
-message(STATUS "  Source: ${RESOURCE_SOURCE_DIR}")
-message(STATUS "  Destination: ${RESOURCE_DEST_DIR}")
-
 # 设置输出目录
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
@@ -367,7 +115,7 @@ endif()
 
 message(STATUS "DearTs Application Configuration:")
 message(STATUS "  Target: ${PROJECT_NAME}")
-message(STATUS "  Framework: DearTs Core")
+message(STATUS "  Framework: dearts (static library)")
 message(STATUS "  ImGui: Integrated")
 message(STATUS "  Theme System: Enabled")
 message(STATUS "  Shortcut System: Enabled")

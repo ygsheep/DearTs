@@ -29,9 +29,9 @@ target_include_directories(chat PUBLIC
     ${CMAKE_SOURCE_DIR}/core
 )
 
-# 链接 DearTs 核心库和 memory_core 插件
+# 链接 DearTs 框架库和 memory_core 插件
 target_link_libraries(chat PUBLIC
-    dearts_core
+    dearts
     memory_core
 )
 
@@ -46,6 +46,7 @@ if(MSVC)
     target_compile_options(chat PRIVATE
         /W4
         /std:c++20
+        /utf-8
     )
 else()
     target_compile_options(chat PRIVATE

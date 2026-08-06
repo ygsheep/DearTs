@@ -42,4 +42,9 @@ target_link_libraries(wuthering_waves_plugin
 # 设置 C++20 标准
 target_compile_features(wuthering_waves_plugin PUBLIC cxx_std_20)
 
+# MSVC: 源文件为 UTF-8（无 BOM），必须显式指定 /utf-8，否则中文按 ANSI 代码页误读
+if(MSVC)
+    target_compile_options(wuthering_waves_plugin PRIVATE /utf-8)
+endif()
+
 message(STATUS "WutheringWaves plugin configured (static)")

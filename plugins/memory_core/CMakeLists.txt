@@ -70,6 +70,7 @@ if(MSVC)
     target_compile_options(memory_core PRIVATE
         /W4
         /std:c++20
+        /utf-8
     )
 else()
     target_compile_options(memory_core PRIVATE
