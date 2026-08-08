@@ -24,9 +24,9 @@ add_library(chat STATIC ${CHAT_SOURCES} ${CHAT_HEADERS})
 
 # 设置包含目录
 target_include_directories(chat PUBLIC
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/plugins/chat/include
-    ${CMAKE_SOURCE_DIR}/core
+    ${DEARTS_ROOT}
+    ${DEARTS_ROOT}/plugins/chat/include
+    ${DEARTS_ROOT}/core
 )
 
 # 链接 DearTs 框架库和 memory_core 插件

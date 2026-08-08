@@ -20,12 +20,12 @@ add_library(ffmpeg_plugin STATIC ${FFMPEG_PLUGIN_SOURCES})
 # 设置包含目录
 target_include_directories(ffmpeg_plugin PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/core
-    ${CMAKE_SOURCE_DIR}/lib
-    ${CMAKE_SOURCE_DIR}/third_party/SDL/include
-    ${CMAKE_SOURCE_DIR}/third_party/imgui
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include
+    ${DEARTS_ROOT}
+    ${DEARTS_ROOT}/core
+    ${DEARTS_ROOT}/lib
+    ${DEARTS_ROOT}/third_party/SDL/include
+    ${DEARTS_ROOT}/third_party/imgui
+    ${DEARTS_ROOT}/plugins/toast_notification/include
 )
 
 # 链接 FFmpeg（如果可用）

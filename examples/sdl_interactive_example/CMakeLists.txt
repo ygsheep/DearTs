@@ -10,10 +10,10 @@ add_executable(${PROJECT_NAME}
 
 # 包含目录
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/third_party/SDL/include
-    ${CMAKE_SOURCE_DIR}/third_party/imgui
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
+    ${DEARTS_ROOT}
+    ${DEARTS_ROOT}/third_party/SDL/include
+    ${DEARTS_ROOT}/third_party/imgui
+    ${DEARTS_ROOT}/third_party/imgui/backends
 )
 
 # 链接库
@@ -40,7 +40,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 
 # 拷贝 ImGui 配置文件
 configure_file(
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/imconfig.h
+    ${DEARTS_ROOT}/third_party/imgui/imconfig.h
     ${CMAKE_CURRENT_BINARY_DIR}/imgui_user_config.h
     COPYONLY
 )
@@ -48,7 +48,7 @@ configure_file(
 # ================ 复制资源文件 ================
 
 # 定义资源目录
-set(RESOURCE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
+set(RESOURCE_SOURCE_DIR ${DEARTS_ROOT}/resources)
 set(RESOURCE_DEST_DIR ${CMAKE_BINARY_DIR}/bin/resources)
 
 # 复制字体文件到输出目录

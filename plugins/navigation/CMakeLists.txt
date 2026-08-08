@@ -19,16 +19,16 @@ add_library(navigation_plugin STATIC ${NAVIGATION_SOURCES})
 target_include_directories(navigation_plugin
     PUBLIC
         ${NAVIGATION_INCLUDE_DIRS}
-        ${CMAKE_SOURCE_DIR}/core
-        ${CMAKE_SOURCE_DIR}/core/app
-        ${CMAKE_SOURCE_DIR}/core/ui
-        ${CMAKE_SOURCE_DIR}/core/content
-        ${CMAKE_SOURCE_DIR}/core/event
-        ${CMAKE_SOURCE_DIR}/core/plugin
-        ${CMAKE_SOURCE_DIR}/core/config
-        ${CMAKE_SOURCE_DIR}/core/tasks
-        ${CMAKE_SOURCE_DIR}/lib/liblogger/include
-        ${CMAKE_SOURCE_DIR}/third_party/imgui
+        ${DEARTS_ROOT}/core
+        ${DEARTS_ROOT}/core/app
+        ${DEARTS_ROOT}/core/ui
+        ${DEARTS_ROOT}/core/content
+        ${DEARTS_ROOT}/core/event
+        ${DEARTS_ROOT}/core/plugin
+        ${DEARTS_ROOT}/core/config
+        ${DEARTS_ROOT}/core/tasks
+        ${DEARTS_ROOT}/lib/liblogger/include
+        ${DEARTS_ROOT}/third_party/imgui
         ${SDL3_INCLUDE_DIRS}
 )
 

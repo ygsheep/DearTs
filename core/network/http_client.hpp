@@ -12,6 +12,8 @@
 
 namespace DearTs::Core::Network {
 
+#ifdef DEARTS_BOOST_ASIO_SUPPORT
+
 /**
  * @brief 基于 Boost.Asio + Boost.Beast 的 HTTP 客户端
  *
@@ -111,5 +113,50 @@ private:
     class Impl;
     std::unique_ptr<Impl> m_impl;
 };
+
+#else // !DEARTS_BOOST_ASIO_SUPPORT
+
+/**
+ * @brief Boost.Asio 不可用时的降级实现
+ *
+ * 当构建时未找到 Boost（或 ENABLE_BOOST_ASIO=OFF）时使用：
+ * 所有请求立即返回错误，保证调用方代码无需改动即可编译。
+ */
+class BoostAsioHttpClient {
+public:
+    explicit BoostAsioHttpClient(
+        const std::string& /*base_url*/,
+        const HttpClientConfig& /*config*/ = {}
+    ) {}
+
+    ~BoostAsioHttpClient() = default;
+    BoostAsioHttpClient(const BoostAsioHttpClient&) = default;
+    BoostAsioHttpClient& operator=(const BoostAsioHttpClient&) = default;
+    BoostAsioHttpClient(BoostAsioHttpClient&&) noexcept = default;
+    BoostAsioHttpClient& operator=(BoostAsioHttpClient&&) noexcept = default;
+
+    DearTs::Core::Result<HttpResponse, std::string> request(
+        const HttpRequest& /*request*/
+    ) {
+        return DearTs::Core::Result<HttpResponse, std::string>::err(
+            "HTTP client unavailable: Boost.Asio support is disabled "
+            "(enable it with ENABLE_BOOST_ASIO=ON and install Boost)"
+        );
+    }
+
+    void request_async(
+        std::shared_ptr<HttpRequest> /*request*/,
+        AsyncHttpCallback callback
+    ) {
+        callback(DearTs::Core::Result<HttpResponse, std::string>::err(
+            "HTTP client unavailable: Boost.Asio support is disabled "
+            "(enable it with ENABLE_BOOST_ASIO=ON and install Boost)"
+        ));
+    }
+
+    void cancel() {}
+};
+
+#endif // DEARTS_BOOST_ASIO_SUPPORT
 
 } // namespace DearTs::Core::Network

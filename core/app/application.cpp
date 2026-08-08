@@ -75,12 +75,31 @@ bool Application::initialize(const ApplicationConfig& config) {
         LOG_INFO("Borderless window mode enabled");
     }
 
-    m_window = SDL_CreateWindow(
-        m_config.name.c_str(),
-        m_config.window_width,
-        m_config.window_height,
-        window_flags
-    );
+    // 透明/置顶窗口：使用 Properties API 创建
+    if (m_config.transparent || m_config.always_on_top) {
+        SDL_PropertiesID props = SDL_CreateProperties();
+        SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, m_config.name.c_str());
+        SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, m_config.window_width);
+        SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, m_config.window_height);
+        SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER, static_cast<Sint64>(window_flags));
+        if (m_config.transparent) {
+            SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_TRANSPARENT_BOOLEAN, true);
+            LOG_INFO("Transparent window mode enabled");
+        }
+        if (m_config.always_on_top) {
+            SDL_SetBooleanProperty(props, SDL_PROP_WINDOW_CREATE_ALWAYS_ON_TOP_BOOLEAN, true);
+            LOG_INFO("Always-on-top window mode enabled");
+        }
+        m_window = SDL_CreateWindowWithProperties(props);
+        SDL_DestroyProperties(props);
+    } else {
+        m_window = SDL_CreateWindow(
+            m_config.name.c_str(),
+            m_config.window_width,
+            m_config.window_height,
+            window_flags
+        );
+    }
 
     if (!m_window) {
         LOG_ERROR("Failed to create SDL window: {}", SDL_GetError());
@@ -143,6 +162,7 @@ bool Application::initialize(const ApplicationConfig& config) {
         return false;
     }
     LOG_INFO("SDL renderer created successfully");
+    LOG_INFO("SDL renderer: {}", SDL_GetRendererName(m_renderer));
 
     // 设置 VSync (SDL3 新 API)
     if (m_enable_vsync) {

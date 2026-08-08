@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
 project(DearTs VERSION 1.0.0 LANGUAGES CXX)
 
+# DearTs 项目根目录（供子目录 CMakeLists 引用源码路径）
+# 作为顶层项目时与 CMAKE_CURRENT_SOURCE_DIR 等价；
+# 作为子项目（add_subdirectory）引入时，CMAKE_SOURCE_DIR/PROJECT_SOURCE_DIR
+# 均指向宿主项目根目录，因此统一使用该变量。
+set(DEARTS_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -51,7 +57,7 @@ if(DEARTS_ENABLE_CCACHE)
         # 配置 ccache 缓存目录
         if(NOT DEFINED CCACHE_DIR)
             if(WIN32)
-                set(CCACHE_DIR "${CMAKE_SOURCE_DIR}/.ccache")
+                set(CCACHE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.ccache")
             else()
                 set(CCACHE_DIR "$HOME/.ccache")
             endif()
@@ -187,7 +193,8 @@ endif()
 #   - Boost::system     - 系统库（如果需要）
 #
 # 禁用方法：
-#   - 不适用，Boost.Asio 是必需依赖
+#   - cmake -DENABLE_BOOST_ASIO=OFF 或环境缺少 Boost 时自动禁用
+#     HTTP 客户端功能（其余功能不受影响）
 # ==============================================================
 
 option(ENABLE_BOOST_ASIO "Enable Boost.Asio support for HTTP requests" ON)
@@ -200,10 +207,10 @@ if(ENABLE_BOOST_ASIO)
     # Linux (系统包/Nix): asio 和 beast 是 header-only，使用简单查找
     if(WIN32)
         # Windows: 使用 vcpkg 组件查找
-        find_package(Boost REQUIRED COMPONENTS asio beast)
+        find_package(Boost QUIET COMPONENTS asio beast)
     else()
         # Linux: 简单查找，asio/beast 是 header-only
-        find_package(Boost REQUIRED)
+        find_package(Boost QUIET)
     endif()
 
     if(Boost_FOUND)
@@ -254,12 +261,12 @@ if(ENABLE_BOOST_ASIO)
 
         message(STATUS "Boost.Asio + Boost.Beast: Enabled")
     else()
-        message(FATAL_ERROR "Boost.Asio not found. Please install:")
-        message(STATUS "  Windows: vcpkg install boost-asio:x64-windows boost-beast:x64-windows")
-        message(STATUS "  Linux: sudo apt install libboost-all-dev 或 vcpkg install boost-asio:x64-linux")
+        message(WARNING "Boost.Asio not found. HTTP client support will be disabled. "
+                        "Install boost-asio/boost-beast (vcpkg) or libboost-all-dev (Linux) to enable it.")
     endif()
 else()
-    message(FATAL_ERROR "Boost.Asio is required. Cannot continue without ENABLE_BOOST_ASIO=ON")
+    message(WARNING "Boost.Asio support is disabled (ENABLE_BOOST_ASIO=OFF). "
+                    "HTTP client support will be disabled.")
 endif()
 
 # Boost.Asio 配置结束
@@ -332,19 +339,19 @@ add_subdirectory(third_party/json)
 add_subdirectory(lib/liblogger)
 
 # Include directories
-include_directories(${CMAKE_SOURCE_DIR})
-include_directories(${CMAKE_SOURCE_DIR}/core)
-include_directories(${CMAKE_SOURCE_DIR}/lib)
-include_directories(${CMAKE_SOURCE_DIR}/third_party/SDL/include)
-include_directories(${CMAKE_SOURCE_DIR}/third_party/freetype/include)
-include_directories(${CMAKE_SOURCE_DIR}/third_party/lunasvg/include)
-include_directories(${CMAKE_SOURCE_DIR}/third_party/json/include)
-include_directories(${CMAKE_SOURCE_DIR}/third_party/imgui)
-include_directories(${CMAKE_SOURCE_DIR}/third_party/imgui/backends)
-include_directories(${CMAKE_SOURCE_DIR}/third_party/imgui_markdown)  # Markdown rendering support
+include_directories(${CMAKE_CURRENT_SOURCE_DIR})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/core)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/freetype/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/lunasvg/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui_markdown)  # Markdown rendering support
 
 # Setup ImGui (use third_party version)
-set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
+set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui)
 if(EXISTS ${IMGUI_DIR})
     message(STATUS "Using ImGui from third_party directory")
 
@@ -371,16 +378,16 @@ if(EXISTS ${IMGUI_DIR})
         $<INSTALL_INTERFACE:include>
         $<BUILD_INTERFACE:${IMGUI_DIR}/misc/freetype>
         $<INSTALL_INTERFACE:include/misc/freetype>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/freetype/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/lunasvg/include>
-        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core/config>  # ImGui user config
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/freetype/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/lunasvg/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/config>  # ImGui user config
     )
     # Link FreeType and LunaSVG (required for imgui_freetype.cpp)
     target_link_libraries(imgui PUBLIC freetype lunasvg::lunasvg)
     # Add Test Engine include path if available (for imgui_te_imconfig.h)
-    if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
         target_include_directories(imgui PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine>
             $<INSTALL_INTERFACE:include>
         )
     endif()
@@ -427,13 +434,13 @@ if(EXISTS ${IMGUI_DIR})
     add_library(imgui_full INTERFACE)
     target_link_libraries(imgui_full INTERFACE imgui imgui_sdl3)
     if(ENABLE_IMGUI_TEST_ENGINE)
-        if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
             target_link_libraries(imgui_full INTERFACE imgui_test_engine)
         endif()
     endif()
 
     # Setup ImPlot
-    set(IMPLOT_DIR ${CMAKE_SOURCE_DIR}/third_party/implot)
+    set(IMPLOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/implot)
     if(EXISTS ${IMPLOT_DIR})
         message(STATUS "Using ImPlot from third_party directory")
 
@@ -465,7 +472,7 @@ endif()
 # Setup ImGui Test Engine (compatible with ImGui v1.92.5)
 # Only build if explicitly enabled
 if(ENABLE_IMGUI_TEST_ENGINE)
-    set(IMGUI_TEST_ENGINE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+    set(IMGUI_TEST_ENGINE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
     if(EXISTS ${IMGUI_TEST_ENGINE_DIR})
         message(STATUS "Using ImGui Test Engine from third_party directory")
 
@@ -479,7 +486,7 @@ if(ENABLE_IMGUI_TEST_ENGINE)
         target_include_directories(imgui_test_engine PUBLIC
             ${IMGUI_TEST_ENGINE_DIR}
             ${IMGUI_DIR}
-            ${CMAKE_SOURCE_DIR}/third_party/imgui
+            ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui
         )
         target_link_libraries(imgui_test_engine PUBLIC imgui)
         target_compile_definitions(imgui_test_engine PUBLIC
@@ -502,96 +509,96 @@ option(DEARTS_FFMPEG_SUPPORT "Enable FFmpeg plugin support" ON)
 
 add_library(dearts STATIC
     # ---- core ----
-    ${CMAKE_SOURCE_DIR}/core/app/application.cpp
-    ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/callbacks.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/commands.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/project_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/settings.cpp
-    ${CMAKE_SOURCE_DIR}/core/content/tools.cpp
-    ${CMAKE_SOURCE_DIR}/core/network/http_client.cpp
-    ${CMAKE_SOURCE_DIR}/core/network/sse_parser.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/dependency_resolver.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_dependency.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/plugin_loader.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/version.cpp
-    ${CMAKE_SOURCE_DIR}/core/plugin/version_range.cpp
-    ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/background_renderer.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/character_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/character_renderer.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/icon_font.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/imgui_extensions.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/imgui_layer.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/layout_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/scale_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/shortcut_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/task_widget.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/theme_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/title_bar.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/view.cpp
-    ${CMAKE_SOURCE_DIR}/core/ui/view_manager.cpp
-    ${CMAKE_SOURCE_DIR}/core/utils/file_dialog.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/app/application.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/config/config_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/content/callbacks.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/content/commands.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/content/project_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/content/settings.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/content/tools.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/network/http_client.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/network/sse_parser.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/plugin/dependency_resolver.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/plugin/plugin.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/plugin/plugin_dependency.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/plugin/plugin_loader.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/plugin/version.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/plugin/version_range.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/tasks/task_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/background_renderer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/character_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/character_renderer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/icon_font.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/imgui_extensions.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/imgui_layer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/layout_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/scale_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/shortcut_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/task_widget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/theme_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/title_bar.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/view.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui/view_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/utils/file_dialog.cpp
     # ---- 内置插件 ----
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/source/builtin_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/settings_view.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/toast_settings_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/theme_settings_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/character_settings_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/plugin_manager_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/settings/source/widgets/dependency_graph_widget.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/source/logger_viewer_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/source/logger_viewer_view.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/source/navigation_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/source/sidebar_view.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/source/toast_manager.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/source/toast_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/source/command_palette_view.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/source/clipboard_parser_plugin.cpp
-    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/source/views/clipboard_parser_view.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/builtin/source/builtin_plugin.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/settings/source/settings_plugin.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/settings/source/settings_view.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/settings/source/widgets/toast_settings_widget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/settings/source/widgets/theme_settings_widget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/settings/source/widgets/character_settings_widget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/settings/source/widgets/plugin_manager_widget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/settings/source/widgets/dependency_graph_widget.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/logger_viewer/source/logger_viewer_plugin.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/logger_viewer/source/logger_viewer_view.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/navigation/source/navigation_plugin.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/navigation/source/sidebar_view.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/toast_notification/source/toast_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/toast_notification/source/toast_plugin.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/command_palette/source/command_palette_plugin.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/command_palette/source/command_palette_view.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/clipboard_parser/source/clipboard_parser_plugin.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/clipboard_parser/source/views/clipboard_parser_view.cpp
     # FFmpeg 插件（仅当 FFmpeg 可用）
-    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/source/ffmpeg_plugin.cpp>
-    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/source/ffmpeg_view.cpp>
+    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_CURRENT_SOURCE_DIR}/plugins/ffmpeg/source/ffmpeg_plugin.cpp>
+    $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:${CMAKE_CURRENT_SOURCE_DIR}/plugins/ffmpeg/source/ffmpeg_view.cpp>
 )
 
 # 导出 include 目录（构建树 + 安装树双模式）
 target_include_directories(dearts PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core/event>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core/content>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core/ui>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core/plugin>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core/config>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core/tasks>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core/utils>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core/app>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/core/network>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/lib/liblogger>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/plugins/builtin/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/plugins/settings/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/plugins/settings/include/widgets>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/plugins/navigation/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/plugins/toast_notification/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/plugins/command_palette/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/plugins/ffmpeg/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/imgui>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/imgui/backends>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/imgui/misc/freetype>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/imgui_markdown>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/implot>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/SDL/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/SDL_image/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/freetype/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/json/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/lunasvg/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/cppjieba/include>
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/third_party/cppjieba/deps/limonp/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/event>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/content>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/ui>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/plugin>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/config>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/tasks>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/utils>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/app>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/core/network>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib/liblogger>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/plugins/builtin/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/plugins/settings/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/plugins/settings/include/widgets>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/plugins/logger_viewer/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/plugins/navigation/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/plugins/toast_notification/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/plugins/command_palette/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/plugins/clipboard_parser/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/plugins/ffmpeg/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/misc/freetype>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui_markdown>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/implot>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL_image/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/freetype/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/lunasvg/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cppjieba/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/cppjieba/deps/limonp/include>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -605,7 +612,7 @@ target_link_libraries(dearts PUBLIC
     freetype
     lunasvg::lunasvg
     nlohmann_json::nlohmann_json
-    boost_asio
+    $<$<TARGET_EXISTS:boost_asio>:boost_asio>
     $<$<BOOL:DEARTS_FFMPEG_SUPPORT>:ffmpeg_interface>
 )
 
@@ -663,16 +670,23 @@ install(TARGETS
     deartsdl_logger
     freetype
     nlohmann_json
-    boost_asio
     SDL3-shared
     SDL3_Headers
-    SDL3_image-static
+    SDL3_image-shared
     EXPORT deartsTargets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
+
+# Boost.Asio 接口库（仅当启用 Boost 支持时导出）
+if(TARGET boost_asio)
+    install(TARGETS boost_asio
+        EXPORT deartsTargets
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+endif()
 
 if(DEARTS_FFMPEG_SUPPORT)
     install(TARGETS ffmpeg_interface
@@ -692,7 +706,7 @@ install(EXPORT deartsTargets
 
 # 生成并安装 deartsConfig.cmake
 configure_package_config_file(
-    ${CMAKE_SOURCE_DIR}/cmake/deartsConfig.cmake.in
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/deartsConfig.cmake.in
     ${CMAKE_BINARY_DIR}/deartsConfig.cmake
     INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/dearts
 )
@@ -709,108 +723,108 @@ install(FILES
 
 # ---- 头文件安装 ----
 # core 头文件：保留 core/ 前缀路径
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/core/
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/core/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/core
     FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
 )
 # core 各子目录头文件：平铺（兼容 #include "event/event_bus.h" 写法）
 install(DIRECTORY
-    ${CMAKE_SOURCE_DIR}/core/event
-    ${CMAKE_SOURCE_DIR}/core/content
-    ${CMAKE_SOURCE_DIR}/core/ui
-    ${CMAKE_SOURCE_DIR}/core/plugin
-    ${CMAKE_SOURCE_DIR}/core/config
-    ${CMAKE_SOURCE_DIR}/core/tasks
-    ${CMAKE_SOURCE_DIR}/core/utils
-    ${CMAKE_SOURCE_DIR}/core/app
-    ${CMAKE_SOURCE_DIR}/core/network
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/event
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/content
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/ui
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/plugin
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/config
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/tasks
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/utils
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/app
+    ${CMAKE_CURRENT_SOURCE_DIR}/core/network
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
 )
 
 # liblogger
-install(FILES ${CMAKE_SOURCE_DIR}/lib/liblogger/logger.h
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/lib/liblogger/logger.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-install(FILES ${CMAKE_SOURCE_DIR}/lib/liblogger/logger.cpp
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/lib/liblogger/logger.cpp
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # ImGui 用户配置（IMGUI_USER_CONFIG 引用）
-install(FILES ${CMAKE_SOURCE_DIR}/core/config/imgui_user_config.h
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/core/config/imgui_user_config.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # 内置插件头文件
 install(DIRECTORY
-    ${CMAKE_SOURCE_DIR}/plugins/builtin/include/
-    ${CMAKE_SOURCE_DIR}/plugins/settings/include/
-    ${CMAKE_SOURCE_DIR}/plugins/logger_viewer/include/
-    ${CMAKE_SOURCE_DIR}/plugins/navigation/include/
-    ${CMAKE_SOURCE_DIR}/plugins/toast_notification/include/
-    ${CMAKE_SOURCE_DIR}/plugins/command_palette/include/
-    ${CMAKE_SOURCE_DIR}/plugins/clipboard_parser/include/
-    ${CMAKE_SOURCE_DIR}/plugins/ffmpeg/include/
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/builtin/include/
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/settings/include/
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/logger_viewer/include/
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/navigation/include/
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/toast_notification/include/
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/command_palette/include/
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/clipboard_parser/include/
+    ${CMAKE_CURRENT_SOURCE_DIR}/plugins/ffmpeg/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
 )
 
 # ImGui 头文件
 install(FILES
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/imgui.h
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/imgui_internal.h
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/imconfig.h
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/imstb_rectpack.h
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/imstb_textedit.h
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/imstb_truetype.h
-    ${CMAKE_SOURCE_DIR}/third_party/imgui_markdown/imgui_markdown.h
-    ${CMAKE_SOURCE_DIR}/third_party/implot/implot.h
-    ${CMAKE_SOURCE_DIR}/third_party/implot/implot_internal.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imgui.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imgui_internal.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imconfig.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imstb_rectpack.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imstb_textedit.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/imstb_truetype.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui_markdown/imgui_markdown.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/implot/implot.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/implot/implot_internal.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/backends/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/backends
     FILES_MATCHING PATTERN "*.h"
 )
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/imgui/misc/freetype/
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/imgui/misc/freetype/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/misc/freetype
     FILES_MATCHING PATTERN "*.h"
 )
 
 # SDL3 / SDL3_image 头文件
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/SDL/include/
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h"
 )
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/SDL_image/include/
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/SDL_image/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h"
 )
 
 # FreeType / nlohmann-json / LunaSVG / cppjieba 头文件
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/freetype/include/
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/freetype/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h"
 )
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/json/include/
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.hpp"
 )
 # nlohmann_json 目标的 INTERFACE_SOURCES 引用 natvis（相对安装前缀）
 if(MSVC)
-    install(FILES ${CMAKE_SOURCE_DIR}/third_party/json/nlohmann_json.natvis
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/json/nlohmann_json.natvis
         DESTINATION .
     )
 endif()
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/lunasvg/include/
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lunasvg/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.h"
 )
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/cppjieba/include/
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cppjieba/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
 )
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/third_party/cppjieba/deps/limonp/include/
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cppjieba/deps/limonp/include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
 )
@@ -860,8 +874,8 @@ add_subdirectory(plugins/test_dependency_plugin)
 #   4. 当前项目未启用 PCH，需要时可取消注释以下代码启用：
 #
 # # 创建 pch.cpp（如果不存在）
-# if(NOT EXISTS "${CMAKE_SOURCE_DIR}/core/pch.cpp")
-#     file(WRITE "${CMAKE_SOURCE_DIR}/core/pch.cpp"
+# if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/core/pch.cpp")
+#     file(WRITE "${CMAKE_CURRENT_SOURCE_DIR}/core/pch.cpp"
 #         "// DearTs Framework - Precompiled Header Source\n"
 #         "#include \"core/pch.hpp\"\n"
 #     )
@@ -880,9 +894,17 @@ add_subdirectory(plugins/test_dependency_plugin)
 if(BUILD_EXAMPLES)
     add_subdirectory(examples/demo_imhex_style)
     add_subdirectory(examples/toast_example)
+    # dynamic_island_example 依赖 workx 子工程（需 vcpkg 的 curl/nlohmann_json），
+    # 依赖缺失时自动跳过，避免阻塞其他 example（如 whale_dock）的独立构建。
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../workx/build/vcpkg_installed/x64-windows/share/curl/CURLConfig.cmake")
+        add_subdirectory(examples/dynamic_island_example)
+    else()
+        message(STATUS "Skip dynamic_island_example: workx vcpkg deps not installed")
+    endif()
     add_subdirectory(examples/markdown_example)
     add_subdirectory(examples/sdl_render_example)
     add_subdirectory(examples/sdl_interactive_example)
+    add_subdirectory(examples/whale_dock)
 endif()
 
 # Add plugins

@@ -41,6 +41,8 @@ namespace DearTs::Core::App {
         bool enable_vsync = true;                   ///< 垂直同步
         bool enable_imgui = true;                   ///< 启用 ImGui
         bool borderless = false;                    ///< 无边框窗口（用于自定义标题栏）
+        bool transparent = false;                   ///< 透明窗口（SDL_PROP_WINDOW_CREATE_TRANSPARENT_BOOLEAN）
+        bool always_on_top = false;                 ///< 置顶窗口
     };
 
     /**

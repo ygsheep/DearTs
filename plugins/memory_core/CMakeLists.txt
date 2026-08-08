@@ -24,10 +24,10 @@ add_library(memory_core STATIC ${MEMORY_CORE_SOURCES} ${MEMORY_CORE_HEADERS})
 
 # 设置包含目录
 target_include_directories(memory_core PUBLIC
-    ${CMAKE_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/plugins/memory_core/include
-    ${CMAKE_SOURCE_DIR}/plugins/chat/include
-    ${CMAKE_SOURCE_DIR}/core
+    ${DEARTS_ROOT}
+    ${DEARTS_ROOT}/plugins/memory_core/include
+    ${DEARTS_ROOT}/plugins/chat/include
+    ${DEARTS_ROOT}/core
 )
 
 # 链接 DearTs 核心库（注意：核心使用源码，不需要链接）

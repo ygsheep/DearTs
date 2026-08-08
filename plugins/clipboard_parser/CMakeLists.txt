@@ -13,8 +13,8 @@ set(CLIPBOARD_PARSER_PLUGIN_HEADERS
 )
 
 # 添加 cppjieba 包含路径
-include_directories(${CMAKE_SOURCE_DIR}/third_party/cppjieba/include)
-include_directories(${CMAKE_SOURCE_DIR}/third_party/cppjieba/deps/limonp/include)
+include_directories(${DEARTS_ROOT}/third_party/cppjieba/include)
+include_directories(${DEARTS_ROOT}/third_party/cppjieba/deps/limonp/include)
 
 # 创建插件库
 add_library(clipboard_parser_plugin STATIC

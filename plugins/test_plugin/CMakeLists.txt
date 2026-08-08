@@ -14,13 +14,13 @@ set(PLUGIN_OUTPUT_DIR "${CMAKE_BINARY_DIR}/plugins")
 add_library(${PROJECT_NAME} SHARED
     test_plugin_export.cpp
     # ContentRegistry 源文件
-    ${CMAKE_SOURCE_DIR}/core/content/commands.cpp
+    ${DEARTS_ROOT}/core/content/commands.cpp
 )
 
 # 包含目录
 target_include_directories(${PROJECT_NAME} PRIVATE
-    ${CMAKE_SOURCE_DIR}  # 为了找到 core/plugin/plugin.h
-    ${CMAKE_SOURCE_DIR}/lib/liblogger  # 为了找到 liblogger/logger.h
+    ${DEARTS_ROOT}  # 为了找到 core/plugin/plugin.h
+    ${DEARTS_ROOT}/lib/liblogger  # 为了找到 liblogger/logger.h
 )
 
 # 链接库（如果需要）

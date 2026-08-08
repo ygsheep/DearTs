@@ -27,10 +27,10 @@ add_library(${PROJECT_NAME} SHARED
 # 包含目录
 target_include_directories(${PROJECT_NAME}
     PRIVATE
-        ${CMAKE_SOURCE_DIR}/core
-        ${CMAKE_SOURCE_DIR}/lib/liblogger/include
-        ${CMAKE_SOURCE_DIR}/third_party/imgui
-        ${CMAKE_SOURCE_DIR}/third_party/SDL/include
+        ${DEARTS_ROOT}/core
+        ${DEARTS_ROOT}/lib/liblogger/include
+        ${DEARTS_ROOT}/third_party/imgui
+        ${DEARTS_ROOT}/third_party/SDL/include
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 

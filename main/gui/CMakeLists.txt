@@ -10,13 +10,13 @@ add_executable(${PROJECT_NAME}
     source/main.cpp
     source/dearts_application.cpp
     # Windows 资源文件（仅 Windows）
-    ${CMAKE_SOURCE_DIR}/resources/dearts.rc
+    ${DEARTS_ROOT}/resources/dearts.rc
 )
 
 # 包含目录（框架头文件由 dearts PUBLIC 传递）
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/plugins/wuthering_waves/include
+    ${DEARTS_ROOT}/plugins/wuthering_waves/include
 )
 
 # 链接 dearts 框架库（core + 内置插件 + 第三方依赖）
@@ -50,7 +50,7 @@ if(WIN32)
 endif()
 
 # 定义资源目录
-set(RESOURCE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
+set(RESOURCE_SOURCE_DIR ${DEARTS_ROOT}/resources)
 set(RESOURCE_DEST_DIR ${CMAKE_BINARY_DIR}/bin/resources)
 
 # 复制所有资源文件到输出目录（仅在文件真正变化时复制）

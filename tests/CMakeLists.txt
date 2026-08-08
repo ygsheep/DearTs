@@ -16,12 +16,12 @@ if(BUILD_UNIT_TESTS)
     message(STATUS "Building unit tests with Google Test")
 
     # Add Google Test subdirectory
-    if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/googletest/CMakeLists.txt)
+    if(EXISTS ${DEARTS_ROOT}/third_party/googletest/CMakeLists.txt)
         set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
         set(INSTALL_GTEST OFF CACHE BOOL "Disable installation of Google Test" FORCE)
         # Specify binary directory since source is outside tests/
         add_subdirectory(
-            ${CMAKE_SOURCE_DIR}/third_party/googletest
+            ${DEARTS_ROOT}/third_party/googletest
             ${CMAKE_BINARY_DIR}/third_party/googletest
             EXCLUDE_FROM_ALL
         )
@@ -45,20 +45,20 @@ if(BUILD_UNIT_TESTS)
 
     target_include_directories(dearts_unit_tests
         PRIVATE
-        ${CMAKE_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/core
-        ${CMAKE_SOURCE_DIR}/lib/liblogger
-        ${CMAKE_SOURCE_DIR}/plugins/memory_core/include
-        ${CMAKE_SOURCE_DIR}/plugins/chat/include
+        ${DEARTS_ROOT}
+        ${DEARTS_ROOT}/core
+        ${DEARTS_ROOT}/lib/liblogger
+        ${DEARTS_ROOT}/plugins/memory_core/include
+        ${DEARTS_ROOT}/plugins/chat/include
     )
 
     # 源文件（新架构实现）
     target_sources(dearts_unit_tests PRIVATE
-            ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
-            ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
-            ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
-            ${CMAKE_SOURCE_DIR}/core/plugin/dynamic_library_loader.cpp
-            ${CMAKE_SOURCE_DIR}/core/plugin/dependency_resolver.cpp
+            ${DEARTS_ROOT}/core/config/config_manager.cpp
+            ${DEARTS_ROOT}/core/tasks/task_manager.cpp
+            ${DEARTS_ROOT}/core/plugin/plugin.cpp
+            ${DEARTS_ROOT}/core/plugin/dynamic_library_loader.cpp
+            ${DEARTS_ROOT}/core/plugin/dependency_resolver.cpp
     )
 
     target_link_libraries(dearts_unit_tests
@@ -110,19 +110,19 @@ if(BUILD_INTEGRATION_TESTS)
 
     target_include_directories(dearts_integration_tests
         PRIVATE
-        ${CMAKE_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/core
-        ${CMAKE_SOURCE_DIR}/lib/liblogger
-        ${CMAKE_SOURCE_DIR}/third_party/json/include
+        ${DEARTS_ROOT}
+        ${DEARTS_ROOT}/core
+        ${DEARTS_ROOT}/lib/liblogger
+        ${DEARTS_ROOT}/third_party/json/include
     )
 
     # 源文件（集成测试需要的核心实现）
     target_sources(dearts_integration_tests PRIVATE
-        ${CMAKE_SOURCE_DIR}/core/config/config_manager.cpp
-        ${CMAKE_SOURCE_DIR}/core/tasks/task_manager.cpp
-        ${CMAKE_SOURCE_DIR}/core/plugin/plugin.cpp
-        ${CMAKE_SOURCE_DIR}/core/content/commands.cpp
-        ${CMAKE_SOURCE_DIR}/core/content/settings.cpp
+        ${DEARTS_ROOT}/core/config/config_manager.cpp
+        ${DEARTS_ROOT}/core/tasks/task_manager.cpp
+        ${DEARTS_ROOT}/core/plugin/plugin.cpp
+        ${DEARTS_ROOT}/core/content/commands.cpp
+        ${DEARTS_ROOT}/core/content/settings.cpp
     )
 
     target_link_libraries(dearts_integration_tests
@@ -144,7 +144,7 @@ if(BUILD_UI_TESTS)
     message(STATUS "Building UI automation tests with ImGui Test Engine")
 
     # Add ImGui Test Engine
-    if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+    if(EXISTS ${DEARTS_ROOT}/third_party/imgui_test_engine/imgui_test_engine)
         # Collect UI test sources
         file(GLOB_RECURSE UI_TEST_SOURCES
             "${CMAKE_CURRENT_SOURCE_DIR}/ui/*.cpp"
@@ -162,14 +162,14 @@ if(BUILD_UI_TESTS)
 
         target_include_directories(dearts_ui_tests
             PRIVATE
-            ${CMAKE_SOURCE_DIR}
-            ${CMAKE_SOURCE_DIR}/core
-            ${CMAKE_SOURCE_DIR}/lib
-            ${CMAKE_SOURCE_DIR}/main/gui/include
-            ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine
-            ${CMAKE_SOURCE_DIR}/third_party/imgui
-            ${CMAKE_SOURCE_DIR}/third_party/imgui/backends
-            ${CMAKE_SOURCE_DIR}/third_party/SDL/include
+            ${DEARTS_ROOT}
+            ${DEARTS_ROOT}/core
+            ${DEARTS_ROOT}/lib
+            ${DEARTS_ROOT}/main/gui/include
+            ${DEARTS_ROOT}/third_party/imgui_test_engine
+            ${DEARTS_ROOT}/third_party/imgui
+            ${DEARTS_ROOT}/third_party/imgui/backends
+            ${DEARTS_ROOT}/third_party/SDL/include
         )
 
         target_link_libraries(dearts_ui_tests
@@ -196,7 +196,7 @@ if(BUILD_UI_TESTS)
     endif()
 endif()
 # SDL3 诊断工具（用于调试 SDL3 初始化问题）
-if(BUILD_UI_TESTS AND EXISTS ${CMAKE_SOURCE_DIR}/third_party/imgui_test_engine/imgui_test_engine)
+if(BUILD_UI_TESTS AND EXISTS ${DEARTS_ROOT}/third_party/imgui_test_engine/imgui_test_engine)
     add_executable(sdl3_diagnostic ${CMAKE_CURRENT_SOURCE_DIR}/ui/sdl3_diagnostic.cpp)
     target_link_libraries(sdl3_diagnostic PRIVATE SDL3-static)
     if(WIN32)

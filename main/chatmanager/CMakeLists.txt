@@ -34,27 +34,27 @@ endif()
 
 # 设置包含目录（框架头文件由 dearts PUBLIC 传递）
 target_include_directories(ChatManager PRIVATE
-    ${CMAKE_SOURCE_DIR}/main/chatmanager/include
-    ${CMAKE_SOURCE_DIR}/plugins/chat/include
-    ${CMAKE_SOURCE_DIR}/plugins/memory_core/include
+    ${DEARTS_ROOT}/main/chatmanager/include
+    ${DEARTS_ROOT}/plugins/chat/include
+    ${DEARTS_ROOT}/plugins/memory_core/include
 )
 
 # 收集 Chat Plugin 源文件
 file(GLOB_RECURSE CHAT_PLUGIN_SOURCES
-    ${CMAKE_SOURCE_DIR}/plugins/chat/source/*.cpp
+    ${DEARTS_ROOT}/plugins/chat/source/*.cpp
 )
 file(GLOB_RECURSE CHAT_PLUGIN_HEADERS
-    ${CMAKE_SOURCE_DIR}/plugins/chat/include/*.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/chat/include/*.h
+    ${DEARTS_ROOT}/plugins/chat/include/*.hpp
+    ${DEARTS_ROOT}/plugins/chat/include/*.h
 )
 
 # 收集 MemoryCore Plugin 源文件
 file(GLOB_RECURSE MEMORY_CORE_SOURCES
-    ${CMAKE_SOURCE_DIR}/plugins/memory_core/source/*.cpp
+    ${DEARTS_ROOT}/plugins/memory_core/source/*.cpp
 )
 file(GLOB_RECURSE MEMORY_CORE_HEADERS
-    ${CMAKE_SOURCE_DIR}/plugins/memory_core/include/*.hpp
-    ${CMAKE_SOURCE_DIR}/plugins/memory_core/include/**/*.hpp
+    ${DEARTS_ROOT}/plugins/memory_core/include/*.hpp
+    ${DEARTS_ROOT}/plugins/memory_core/include/**/*.hpp
 )
 
 # 添加插件源文件（core + builtin 插件由 dearts 库提供）
@@ -67,7 +67,7 @@ target_sources(ChatManager PRIVATE
 
 # ImGui SDL3 GPU Backend
 target_sources(ChatManager PRIVATE
-    ${CMAKE_SOURCE_DIR}/third_party/imgui/backends/imgui_impl_sdlgpu3.cpp
+    ${DEARTS_ROOT}/third_party/imgui/backends/imgui_impl_sdlgpu3.cpp
 )
 
 # 链接 DearTs 框架库（core + 内置插件 + 第三方依赖）
@@ -121,7 +121,7 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(ChatManager PRIVATE
         pthread
         dl
-        boost_asio  # Linux 也需要 Boost.Asio
+        $<$<TARGET_EXISTS:boost_asio>:boost_asio>  # Linux 也需要 Boost.Asio
     )
 endif()
 
@@ -129,7 +129,7 @@ endif()
 if(WIN32)
     # 链接 Windows 库和 Boost.Asio
     target_link_libraries(ChatManager PRIVATE
-        boost_asio      # 使用 Boost.Asio 替代 WinHTTP
+        $<$<TARGET_EXISTS:boost_asio>:boost_asio>  # 使用 Boost.Asio 替代 WinHTTP
         setupapi
     )
     target_compile_definitions(ChatManager PRIVATE
@@ -171,7 +171,7 @@ set_target_properties(ChatManager PROPERTIES
 )
 
 # 资源目录配置
-set(RESOURCE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
+set(RESOURCE_SOURCE_DIR ${DEARTS_ROOT}/resources)
 set(RESOURCE_DEST_DIR ${CMAKE_BINARY_DIR}/bin/resources)
 
 # 安装规则
@@ -195,11 +195,11 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 )
 
 # 只有在使用预编译 SDL3_image 时才需要手动复制 DLL
-if(EXISTS ${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/x64/SDL3_image.dll)
+if(EXISTS ${DEARTS_ROOT}/third_party/SDL_image/lib/x64/SDL3_image.dll)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         # 复制 SDL3_image.dll（根据架构选择）
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_SOURCE_DIR}/third_party/SDL_image/lib/$<IF:$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>,x64,x86>/SDL3_image.dll
+        ${DEARTS_ROOT}/third_party/SDL_image/lib/$<IF:$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>,x64,x86>/SDL3_image.dll
         ${CMAKE_BINARY_DIR}/bin/SDL3_image.dll
 
         COMMENT "Copying SDL3_image.dll (precompiled version)"

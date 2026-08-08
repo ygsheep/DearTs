@@ -14,7 +14,7 @@ add_library(toast_notification_plugin OBJECT
 
 target_include_directories(toast_notification_plugin
     PUBLIC
-        ${CMAKE_SOURCE_DIR}
+        ${DEARTS_ROOT}
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
