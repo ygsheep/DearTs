@@ -5,6 +5,7 @@
 
 #include "toast_manager.hpp"
 #include "core/ui/icon_font.hpp"
+#include "liblogger/logger.h"
 #include <algorithm>
 #include <cmath>
 #include <imgui.h>

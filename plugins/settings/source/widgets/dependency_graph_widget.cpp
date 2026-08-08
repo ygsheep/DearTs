@@ -10,6 +10,7 @@
 #include <imgui.h>
 #include <format>
 #include <algorithm>
+#include <cmath>
 #include <queue>
 
 using namespace DearTs;
