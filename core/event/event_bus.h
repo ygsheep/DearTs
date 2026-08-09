@@ -4,65 +4,21 @@
  * @details 使用现代 C++ 实现的编译时类型安全事件系统
  * @author DearTs Team
  * @date 2025
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 #pragma once
 
+#include <algorithm>
 #include <functional>
 #include <vector>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <typeindex>
-#include "core/result.h"
+#include "i_event_bus.h"
 
 namespace DearTs::Core::Event {
-
-/**
- * @brief 事件 Token，用于管理订阅生命周期
- */
-class EventToken {
-public:
-    using ID = uint64_t;
-
-    EventToken() : m_id(0), m_is_valid(false) {}
-    explicit EventToken(ID id) : m_id(id), m_is_valid(true) {}
-
-    // 拷贝构造函数
-    EventToken(const EventToken&) = default;
-    // 拷贝赋值运算符
-    EventToken& operator=(const EventToken&) = default;
-
-    // 移动构造函数
-    EventToken(EventToken&& other) noexcept
-        : m_id(other.m_id), m_is_valid(other.m_is_valid) {
-        other.m_is_valid = false;
-        other.m_id = 0;
-    }
-
-    // 移动赋值运算符
-    EventToken& operator=(EventToken&& other) noexcept {
-        if (this != &other) {
-            m_id = other.m_id;
-            m_is_valid = other.m_is_valid;
-            other.m_is_valid = false;
-            other.m_id = 0;
-        }
-        return *this;
-    }
-
-    [[nodiscard]] bool is_valid() const { return m_is_valid; }
-    [[nodiscard]] ID get_id() const { return m_id; }
-
-    void invalidate() {
-        m_is_valid = false;
-    }
-
-private:
-    ID m_id;
-    bool m_is_valid;
-};
 
 /**
  * @brief 类型安全的事件总线
@@ -84,7 +40,7 @@ private:
  * // 自动取消订阅（RAII）
  * // token 析构时自动取消订阅
  */
-class EventBus final {  // 单例类，禁止继承
+class EventBus final : public IEventBus {  // 单例类，禁止继承
 public:
     /**
      * @brief 获取单例实例（线程安全，Magic Statics）
@@ -100,43 +56,31 @@ public:
     EventBus(EventBus&&) = delete;
     EventBus& operator=(EventBus&&) = delete;
 
-    /**
-     * @brief 订阅事件
-     * @tparam T 事件类型
-     * @param callback 事件回调函数
-     * @return 事件 Token
-     */
-    template<typename T>
-    [[nodiscard]] EventToken subscribe(std::function<void(const T&)> callback) {
+    // === IEventBus 类型擦除接口实现 ===
+
+    EventToken subscribe_raw(std::type_index type,
+                             std::function<void(const void*)> callback) override {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
         auto token = EventToken(m_next_token_id++);
 
-        auto& callbacks = m_callbacks[typeid(T)];
+        auto& callbacks = m_callbacks[type];
         callbacks.push_back(CallbackWrapper{
-            .callback = [callback](const void* event) {
-                callback(*static_cast<const T*>(event));
-            },
+            .callback = std::move(callback),
             .token_id = token.get_id()
         });
 
         return token;
     }
 
-    /**
-     * @brief 取消订阅
-     * @tparam T 事件类型
-     * @param token 事件 Token
-     */
-    template<typename T>
-    void unsubscribe(const EventToken& token) {
+    void unsubscribe_raw(std::type_index type, const EventToken& token) override {
         if (!token.is_valid()) {
             return;
         }
 
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
-        auto it = m_callbacks.find(typeid(T));
+        auto it = m_callbacks.find(type);
         if (it != m_callbacks.end()) {
             auto& callbacks = it->second;
             callbacks.erase(
@@ -149,50 +93,37 @@ public:
         }
     }
 
-    /**
-     * @brief 发布事件（同步）
-     * @tparam T 事件类型
-     * @param event 事件对象
-     */
-    template<typename T>
-    void publish(const T& event) {
-        // 在锁内获取回调列表并调用（避免大栈分配）
-        std::lock_guard<std::recursive_mutex> lock(m_mutex);
-        auto it = m_callbacks.find(typeid(T));
-        if (it == m_callbacks.end()) {
-            return;  // 没有订阅者，直接返回
+    void publish_raw(std::type_index type, const void* event) override {
+        // 拷贝回调列表，避免持锁调用用户代码（防止死锁与重入问题）
+        std::vector<CallbackWrapper> callbacks_copy;
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_mutex);
+            auto it = m_callbacks.find(type);
+            if (it == m_callbacks.end()) {
+                return;  // 没有订阅者，直接返回
+            }
+            callbacks_copy = it->second;
         }
 
-        // 在锁内调用回调（注意：回调不应该访问 EventBus 以避免死锁）
-        for (const auto& wrapper : it->second) {
+        for (const auto& wrapper : callbacks_copy) {
             try {
-                wrapper.callback(&event);
-            } catch (const std::exception& e) {
+                wrapper.callback(event);
+            } catch (const std::exception&) {
                 // 记录异常但不中断其他回调
-                // TODO: 使用 Logger 记录
+            } catch (...) {
+                // 兜底：吞掉所有异常，防止 terminate
             }
         }
     }
 
-    /**
-     * @brief 发布事件（异步，添加到队列）
-     * @tparam T 事件类型
-     * @param event 事件对象
-     */
-    template<typename T>
-    void publish_async(const T& event) {
+    void publish_async_raw(std::type_index type,
+                           std::function<void()> emitter) override {
         std::lock_guard<std::mutex> lock(m_async_mutex);
 
-        m_async_queue.push_back([this, event]() {
-            this->publish(event);
-        });
+        m_async_queue.push_back(std::move(emitter));
     }
 
-    /**
-     * @brief 处理所有异步事件
-     * @details 应该在每帧调用
-     */
-    void process_async_events() {
+    void process_async_events() override {
         std::vector<std::function<void()>> queue_copy;
 
         {
@@ -206,17 +137,14 @@ public:
         }
     }
 
-    /**
-     * @brief 清空所有订阅
-     */
-    void clear() {
+    void clear() override {
         std::lock_guard<std::recursive_mutex> lock(m_mutex);
         m_callbacks.clear();
     }
 
 private:
     EventBus() = default;
-    ~EventBus() = default;
+    ~EventBus() override = default;
 
     struct CallbackWrapper {
         std::function<void(const void*)> callback;

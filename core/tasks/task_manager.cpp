@@ -1,10 +1,11 @@
 /**
  * @file task_manager.cpp
- * @brief 任务管理器实现
+ * @brief 异步任务管理器实现
+ * @details 基于 ThreadPool 替代裸 std::thread，限制并发线程数
  */
 
 #include "task_manager.h"
-#include "event/event_bus.h"
+#include "task_events.h"
 #include "logger.h"
 #include <algorithm>
 
@@ -13,33 +14,38 @@ using DearTs::Core::Event::EventBus;
 
 // ================ Task Implementation ================
 
-Task::Task(std::string name, TaskFunc func, float max_progress)
+Task::Task(std::string name, TaskFunc func,
+           Event::IEventBus& event_bus,
+           FinishedCallback on_finished,
+           float max_progress)
     : m_name(std::move(name))
     , m_func(std::move(func))
     , m_max_progress(max_progress)
-    , m_should_cancel(false)
+    , m_event_bus(event_bus)
+    , m_on_finished(std::move(on_finished))
 {
     LOG_DEBUG("Task created: {}", m_name);
 }
 
-Task::~Task() {
-    // 注意：析构函数中不能调用 LOG，可能导致死锁
-    // （Logger 可能在析构期间持有锁，导致无法获取 m_duplicate_mutex）
-}
+Task::~Task() = default;
 
 void Task::execute() {
-    if (m_status != TaskStatus::Pending) {
-        LOG_WARN("Task {} is not in pending state", m_name);
+    // CAS：仅当处于 Pending 时才进入 Running，避免重复 execute
+    TaskStatus expected = TaskStatus::Pending;
+    if (!m_status.compare_exchange_strong(expected, TaskStatus::Running,
+        std::memory_order_acq_rel, std::memory_order_acquire)) {
         return;
     }
 
-    LOG_INFO("Task started: {}", m_name);
-    m_status = TaskStatus::Running;
-    m_start_time = std::chrono::steady_clock::now();
+    m_start_time_ns.store(
+        std::chrono::steady_clock::now().time_since_epoch().count(),
+        std::memory_order_relaxed
+    );
+    LOG_INFO("[task name={}] started", m_name);
 
-    auto task_ptr = shared_from_this();
+    const auto task_ptr = shared_from_this();
 
-    EventBus::instance().publish_async(TaskStartedEvent{
+    m_event_bus.publish_async(TaskStartedEvent{
         .task = task_ptr,
         .task_name = m_name
     });
@@ -47,44 +53,53 @@ void Task::execute() {
     try {
         m_func(m_should_cancel);
 
-        if (!m_should_cancel) {
+        if (!m_should_cancel.load(std::memory_order_acquire)) {
             markCompleted();
-            LOG_INFO("Task completed: {}", m_name);
         } else {
-            m_status = TaskStatus::Cancelled;
+            m_status.store(TaskStatus::Cancelled, std::memory_order_release);
 
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - m_start_time
+                std::chrono::steady_clock::now() - start_time()
             ).count();
 
-            EventBus::instance().publish_async(TaskCancelledEvent{
+            LOG_INFO("[task name={}] cancelled, duration={}ms", m_name, duration);
+
+            m_event_bus.publish_async(TaskCancelledEvent{
                 .task = task_ptr,
                 .task_name = m_name,
                 .duration_ms = static_cast<float>(duration)
             });
-
-            LOG_INFO("Task cancelled: {}", m_name);
         }
     } catch (const std::exception& e) {
+        LOG_ERROR("[task name={}] unhandled exception: {}", m_name, e.what());
         markFailed(e.what());
-        LOG_ERROR("Task failed: {} - {}", m_name, e.what());
     } catch (...) {
+        LOG_ERROR("[task name={}] unhandled unknown exception", m_name);
         markFailed("Unknown exception");
-        LOG_ERROR("Task failed with unknown exception: {}", m_name);
+    }
+
+    // 通知 TaskManager 任务已结束，唤醒 waitForAll / wait
+    // （线程池模式下任务在 worker 线程执行，无 thread 可 join）
+    if (m_on_finished) {
+        m_on_finished();
     }
 }
 
 void Task::markCompleted() {
-    m_progress = m_max_progress;
-    m_status = TaskStatus::Completed;
+    m_progress.store(m_max_progress.load(std::memory_order_relaxed),
+                     std::memory_order_relaxed);
+    m_status.store(TaskStatus::Completed, std::memory_order_release);
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - m_start_time
+        std::chrono::steady_clock::now() - start_time()
     ).count();
 
-    auto task_ptr = shared_from_this();
+    LOG_DEBUG("[task name={}] execute end, status=Completed, duration={}ms",
+              m_name, duration);
 
-    EventBus::instance().publish_async(TaskCompletedEvent{
+    const auto task_ptr = shared_from_this();
+
+    m_event_bus.publish_async(TaskCompletedEvent{
         .task = task_ptr,
         .task_name = m_name,
         .duration_ms = static_cast<float>(duration)
@@ -96,15 +111,18 @@ void Task::markCompleted() {
 }
 
 void Task::markFailed(const std::string& error_message) {
-    m_status = TaskStatus::Failed;
+    m_status.store(TaskStatus::Failed, std::memory_order_release);
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::steady_clock::now() - m_start_time
+        std::chrono::steady_clock::now() - start_time()
     ).count();
 
-    auto task_ptr = shared_from_this();
+    LOG_DEBUG("[task name={}] execute end, status=Failed, duration={}ms, error={}",
+              m_name, duration, error_message);
 
-    EventBus::instance().publish_async(TaskFailedEvent{
+    const auto task_ptr = shared_from_this();
+
+    m_event_bus.publish_async(TaskFailedEvent{
         .task = task_ptr,
         .task_name = m_name,
         .error_message = error_message,
@@ -116,6 +134,7 @@ void Task::markFailed(const std::string& error_message) {
 
 TaskManager::~TaskManager() {
     LOG_INFO("TaskManager shutting down...");
+    // 先取消所有任务，再等待排空，最后 ThreadPool 析构时 shutdown 会 join 工作线程
     cancelAll();
     waitForAll();
     LOG_INFO("TaskManager shutdown complete");
@@ -126,13 +145,17 @@ std::shared_ptr<Task> TaskManager::create(
     Task::TaskFunc func,
     TaskType type
 ) {
-    auto task = std::make_shared<Task>(name, std::move(func), 100.0f);
+    // 捕获 this 通过 callback 通知 m_tasks_cv / m_wait_cv，
+    // 避免 Task 反向依赖 TaskManager 单例
+    auto task = std::make_shared<Task>(
+        name, std::move(func),
+        m_event_bus,
+        [this]() {
+            m_tasks_cv.notify_all();
+            m_wait_cv.notify_all();
+        },
+        100.0f);
     task->setType(type);
-
-    std::lock_guard<std::mutex> lock(m_tasks_mutex);
-    m_tasks.push_back(task);
-
-    LOG_DEBUG("Task created and registered: {}", name);
     return task;
 }
 
@@ -147,93 +170,103 @@ std::shared_ptr<Task> TaskManager::launch(
 }
 
 void TaskManager::start(std::shared_ptr<Task> task) {
-    if (!task) {
-        LOG_ERROR("Cannot start null task");
+    if (!task) return;
+
+    if (task->getType() == TaskType::Blocking) {
+        LOG_INFO("[task name={}] started (blocking, sync)", task->getName());
+        task->execute();
         return;
     }
 
-    if (task->getType() == TaskType::Blocking) {
-        // 阻塞任务：在当前线程执行
-        task->execute();
-    } else {
-        // 异步任务：在后台线程执行
-        std::thread([task]() {
-            task->execute();
-        }).detach();
+    {
+        std::lock_guard<std::mutex> lock(m_tasks_mutex);
+        m_entries.push_back(task);
     }
 
-    LOG_INFO("Task launched: {}", task->getName());
+    LOG_INFO("[task name={}] enqueued, pool_workers={}, pending={}",
+             task->getName(), m_pool.worker_count(), m_pool.pending_count() + 1);
+
+    // 投递到线程池，由 worker 线程消费
+    // 捕获 task 保持引用计数，防止任务执行前 task 被销毁
+    m_pool.enqueue([task]() {
+        task->execute();
+    });
 }
 
 void TaskManager::cancel(std::shared_ptr<Task> task) {
-    if (!task) {
-        return;
-    }
-
+    if (!task) return;
+    LOG_INFO("[task name={}] cancel requested", task->getName());
     task->cancel();
-    LOG_INFO("Task cancellation requested: {}", task->getName());
+}
+
+std::vector<std::shared_ptr<Task>> TaskManager::getTasks() const {
+    std::lock_guard<std::mutex> lock(m_tasks_mutex);
+    return m_entries;
 }
 
 std::vector<std::shared_ptr<Task>> TaskManager::getRunningTasks() const {
     std::lock_guard<std::mutex> lock(m_tasks_mutex);
 
-    std::vector<std::shared_ptr<Task>> running_tasks;
-    for (const auto& task : m_tasks) {
+    std::vector<std::shared_ptr<Task>> running;
+    for (const auto& task : m_entries) {
         if (task->isRunning()) {
-            running_tasks.push_back(task);
+            running.push_back(task);
         }
     }
 
-    return running_tasks;
+    return running;
 }
 
 void TaskManager::update() {
     std::lock_guard<std::mutex> lock(m_tasks_mutex);
 
-    // 移除已完成的非关键任务
-    auto it = std::remove_if(m_tasks.begin(), m_tasks.end(),
-        [](const std::shared_ptr<Task>& task) {
-            // 保留关键任务和正在运行的任务
-            if (task->getType() == TaskType::Critical) {
-                return false;
-            }
-            // 移除已完成超过1秒的任务
-            return task->isFinished();
-        });
-
-    if (it != m_tasks.end()) {
-        m_tasks.erase(it, m_tasks.end());
+    size_t cleaned = 0;
+    for (auto it = m_entries.begin(); it != m_entries.end(); ) {
+        // Critical 类型不清理（持久任务）
+        if ((*it)->isFinished() && (*it)->getType() != TaskType::Critical) {
+            it = m_entries.erase(it);
+            ++cleaned;
+        } else {
+            ++it;
+        }
+    }
+    if (cleaned > 0) {
+        LOG_DEBUG("cleanup {} finished tasks, remaining={}, pool_pending={}",
+                  cleaned, m_entries.size(), m_pool.pending_count());
     }
 }
 
 void TaskManager::waitForAll() {
     LOG_DEBUG("Waiting for all tasks to complete...");
 
-    while (true) {
-        {
-            std::lock_guard<std::mutex> lock(m_tasks_mutex);
-            bool all_finished = std::all_of(m_tasks.begin(), m_tasks.end(),
-                [](const std::shared_ptr<Task>& task) {
-                    return task->isFinished();
-                });
-
-            if (all_finished || m_tasks.empty()) {
-                break;
-            }
-        }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
+    std::unique_lock<std::mutex> lock(m_tasks_mutex);
+    // 30 秒兜底，防止 task 不响应 cancel 而永久阻塞
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    m_tasks_cv.wait_until(lock, deadline, [this]() {
+        return m_entries.empty() || std::all_of(m_entries.begin(), m_entries.end(),
+            [](const std::shared_ptr<Task>& t) { return t->isFinished(); });
+    });
 
     LOG_DEBUG("All tasks completed");
+}
+
+void TaskManager::wait(std::shared_ptr<Task> task) {
+    if (!task) return;
+    // 不持有 m_tasks_mutex，避免与 start()/cancel()/getTasks() 等需要 m_tasks_mutex
+    // 的路径死锁。利用 Task::execute 结束时调用的 m_on_finished 回调通知 m_wait_cv。
+    std::unique_lock<std::mutex> lock(m_wait_mutex);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    m_wait_cv.wait_until(lock, deadline, [&task]() {
+        return task->isFinished();
+    });
 }
 
 void TaskManager::cancelAll() {
     std::lock_guard<std::mutex> lock(m_tasks_mutex);
 
-    LOG_INFO("Cancelling all tasks ({} tasks)", m_tasks.size());
+    LOG_INFO("Cancelling all tasks ({} tasks)", m_entries.size());
 
-    for (auto& task : m_tasks) {
+    for (auto& task : m_entries) {
         if (task->isRunning()) {
             task->cancel();
         }
@@ -243,10 +276,8 @@ void TaskManager::cancelAll() {
 size_t TaskManager::getRunningTaskCount() const {
     std::lock_guard<std::mutex> lock(m_tasks_mutex);
 
-    return std::count_if(m_tasks.begin(), m_tasks.end(),
-        [](const std::shared_ptr<Task>& task) {
-            return task->isRunning();
-        });
+    return std::count_if(m_entries.begin(), m_entries.end(),
+        [](const std::shared_ptr<Task>& t) { return t->isRunning(); });
 }
 
 } // namespace DearTs::Core::Tasks

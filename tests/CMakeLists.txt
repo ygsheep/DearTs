@@ -52,12 +52,20 @@ if(BUILD_UNIT_TESTS)
         ${DEARTS_ROOT}/plugins/chat/include
     )
 
+    # Force UTF-8 source encoding on MSVC (Chinese comments in core headers)
+    target_compile_options(dearts_unit_tests PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+    )
+
     # 源文件（新架构实现）
     target_sources(dearts_unit_tests PRIVATE
             ${DEARTS_ROOT}/core/config/config_manager.cpp
             ${DEARTS_ROOT}/core/tasks/task_manager.cpp
             ${DEARTS_ROOT}/core/plugin/plugin.cpp
-            ${DEARTS_ROOT}/core/plugin/dynamic_library_loader.cpp
+            ${DEARTS_ROOT}/core/plugin/plugin_loader.cpp
+            ${DEARTS_ROOT}/core/plugin/plugin_dependency.cpp
+            ${DEARTS_ROOT}/core/plugin/version.cpp
+            ${DEARTS_ROOT}/core/plugin/version_range.cpp
             ${DEARTS_ROOT}/core/plugin/dependency_resolver.cpp
     )
 
@@ -116,11 +124,21 @@ if(BUILD_INTEGRATION_TESTS)
         ${DEARTS_ROOT}/third_party/json/include
     )
 
+    # Force UTF-8 source encoding on MSVC (Chinese comments in core headers)
+    target_compile_options(dearts_integration_tests PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/utf-8>
+    )
+
     # 源文件（集成测试需要的核心实现）
     target_sources(dearts_integration_tests PRIVATE
         ${DEARTS_ROOT}/core/config/config_manager.cpp
         ${DEARTS_ROOT}/core/tasks/task_manager.cpp
         ${DEARTS_ROOT}/core/plugin/plugin.cpp
+        ${DEARTS_ROOT}/core/plugin/plugin_loader.cpp
+        ${DEARTS_ROOT}/core/plugin/plugin_dependency.cpp
+        ${DEARTS_ROOT}/core/plugin/version.cpp
+        ${DEARTS_ROOT}/core/plugin/version_range.cpp
+        ${DEARTS_ROOT}/core/plugin/dependency_resolver.cpp
         ${DEARTS_ROOT}/core/content/commands.cpp
         ${DEARTS_ROOT}/core/content/settings.cpp
     )
